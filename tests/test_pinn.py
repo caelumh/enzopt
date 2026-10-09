@@ -15,21 +15,31 @@ pytestmark = pytest.mark.long
 
 
 def oracle_rmse() -> dict:
-    """Holdout RMSE of the synthetic truth (true rate constants, nominal enzyme amount) against the observed data."""
+    """Holdout RMSE of the reference model against the observed data: the synthetic truth (mechanism and rate
+    constants) with one enzyme-amount scale fitted to the training sets by least squares (evaluation only)."""
+    from scipy.optimize import minimize_scalar
+
     from enzopt.core.project import load_project
     from enzopt.pipeline.common import curve, rmse
     from enzopt.synth import truth_rates
 
     syn = load_yaml(EVALS / "synthetic.yaml")
+    crit = syn["holdout_criterion"]
+    assert crit["oracle"] == "fitted_enzyme_scale"
     p = load_project(EXAMPLE)
     kf, kr = truth_rates(syn, p.network)
     k = p.network.rate_vector(kf, kr)
-    out = {}
-    for name, e in p.experiments.items():
-        if e.role == "holdout":
-            d = np.loadtxt(e.file, delimiter=",", skiprows=1)
-            out[name] = rmse(curve(p.network, k, e.initial, e.Et, d[:, 0], p.observable_weights()), d[:, 1])
-    return out
+    data = {n: np.loadtxt(e.file, delimiter=",", skiprows=1) for n, e in p.experiments.items()}
+
+    def err(name, scale):
+        e = p.experiments[name]
+        a = curve(p.network, k, e.initial, e.Et * scale, data[name][:, 0], p.observable_weights())
+        return rmse(a, data[name][:, 1])
+
+    train = [n for n, e in p.experiments.items() if e.role == "train"]
+    lo, hi = crit["oracle_scale_bounds"]
+    s = minimize_scalar(lambda x: sum(err(n, x) ** 2 for n in train), bounds=(lo, hi), method="bounded").x
+    return {n: err(n, s) for n, e in p.experiments.items() if e.role == "holdout"}
 
 
 def test_realistic_holdout(full_run):
