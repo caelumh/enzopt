@@ -1,6 +1,6 @@
 # 진행 상황
 
-> 상태: 진행 중 · 현재 마일스톤: M1 · 현재 작업: M1-1 · 최종 갱신: 2026-10-09
+> 상태: 진행 중 · 현재 마일스톤: M2 · 현재 작업: M2-1 · 최종 갱신: 2026-10-09
 
 ## 사용자 필요 작업
 - [ ] 분광광도계 내보내기 파일(파일럿) 전달 — 필요 시점: M3 끝(늦어도 10/11 실험 직후, 10/12 재계산 전) — 원본 파일을 `projects/<이름>/data/raw/`에 두고 알려 주면 변환기를 맞춘다
@@ -18,26 +18,26 @@
 - [x] M0-5 `evals/synthetic.yaml` + 현실적 합성 데이터 시험 — CADKIMM PINN은 물리 잔차 척도 문제로 무너짐 → enzopt 준정상 PINN. AC-05와 합성 설정 충돌(QUESTIONS Q1~Q3)
 
 ### M1 뼈대와 판정 — 끝나면: `enzopt run projects/example_ldh_synth`가 ①②까지 돌고 판정 보고·데이터 그림이 생긴다 (AC-03·04·15)
-- [ ] M1-1 패키지 구조·ruff·pytest·CLI 뼈대 — 끝: G2·G3 통과, `enzopt --help`
-- [ ] M1-2 평가 하네스 `evals/run.py --tier quick|long` — 끝: 관문·AC·지표·점수 출력, 미구현 AC는 실패로 기록
-- [ ] M1-3 반응망·`project.yaml` 스키마·YAML 읽기(PyYAML, 없으면 동봉 순수 Python 판) — 끝: 예제 설정을 읽는 테스트
-- [ ] M1-4 CRNT 판정(crnt_check 이식) + 판정 보고 — 끝: AC-03
-- [ ] M1-5 합성 데이터 생성기 + 예제 프로젝트 `projects/example_ldh_synth` — 끝: 표준 CSV 생성
-- [ ] M1-6 데이터 읽기·검사(F-2) — 끝: AC-04
-- [ ] M1-7 실행 폴더·manifest·단계 실행기 + `enzopt run` ①② + 데이터 그림 — 끝: 예제가 ①②까지 돈다
-- [ ] M1-8 `enzopt doctor` — 끝: AC-15
+- [x] M1-1 패키지 구조·ruff·pytest·CLI 뼈대 — `enzopt run|pack|doctor|synth|dashboard`, G2·G3 통과
+- [x] M1-2 평가 하네스 `evals/run.py --tier quick|long` — 관문·AC 매핑·지표·점수·results.tsv, 첫 빠른 평가 10.43점
+- [x] M1-3 반응망·`project.yaml` 스키마·YAML 읽기 — `core/project.py`, 동봉 PyYAML 6.0.3(cyaml 제외)
+- [x] M1-4 CRNT 판정(crnt_check 이식) + 판정 보고 — AC-03 통과, Kosaraju 1차 탐색을 반복문으로(재귀 한도 회피)
+- [x] M1-5 합성 데이터 생성기 + 예제 프로젝트 — `enzopt synth`, `projects/example_ldh_synth`(D1·D0 설계 확인 세트 포함)
+- [x] M1-6 데이터 읽기·검사(F-2) — AC-04 통과(파일 이름·줄 번호 오류, 일반 변환기)
+- [x] M1-7 실행 폴더·manifest·단계 실행기 + `enzopt run` ①② + 데이터 그림 — 예제가 ①②까지 돎
+- [x] M1-8 `enzopt doctor` — AC-15 통과
 
 ### M2 식별·해석·검증 — 끝나면: ①~④까지 돈다 (AC-01·05·07·08·09·10·11)
 - [ ] M2-1 scipy 질량작용 해석 + CRNT 검증(crnt_validate 이식) + "수치 오류 의심" 재실행 — 끝: AC-07
-- [ ] M2-2 149 배치 회귀(scipy) — 끝: AC-01(빠른)
+- [x] M2-2 149 배치 회귀(scipy) — AC-01(빠른) 통과, 0.1 s
 - [ ] M2-3 Hopsan 백엔드(.hmf 생성·CLI·결과 읽기), 1단계 적합류 배치, 대표 표본 완전 메커니즘 대조, 없을 때 scipy 대체 — 끝: AC-01(긴), AC-11
 - [ ] M2-4 PINN(GPU float32 시드 묶음, CPU float64 대체) — 끝: AC-05, AC-08
 - [ ] M2-5 ③식별·④해석 단계 — 끝: 예제가 ①~④까지 돈다
 - [ ] M2-6 캐시·재개·새 실행 폴더 — 끝: AC-09
-- [ ] M2-7 KIMM-CAD 호환 시험(`tests/core`) — 끝: AC-10
+- [x] M2-7 KIMM-CAD 호환 시험(`tests/core`) — 호환 환경 6/6 통과(설계 빠른 회귀 포함)
 
 ### M3 설계와 출력 — 끝나면: 예제가 ①~⑤ 끝-끝으로 돈다 (AC-02·06·12·13·14)
-- [ ] M3-1 강건 설계 이식(design_optimize) + 회귀 — 끝: AC-02
+- [x] M3-1 강건 설계 이식 + 회귀 — AC-02 빠른·전체 통과(CADKIMM 표와 같은 값, 전체 85 s → 11 s, ρ 병렬)
 - [ ] M3-2 ⑤설계 단계 + 피펫 표(L1·L2·D1·D0·Z) — 끝: AC-06
 - [ ] M3-3 표준 그림 세트(PDF + PNG 300 dpi + CSV) — 끝: AC-12
 - [ ] M3-4 비약가역 프로젝트 끝-끝 — 끝: AC-13
@@ -60,6 +60,8 @@
 - [ ] M6-0 보완 인터뷰(F-13·F-14·F-15 수용 기준)
 
 ## 결정 기록
+- 2026-10-09 M1-2: 하네스는 pytest junit XML로 AC를 매핑한다. 기준의 테스트가 하나라도 건너뛰어지면(skip) 통과로 세지 않는다. 긴 평가는 Q1 실행 폴더를 `ENZOPT_LONG_RUN_DIR`로 긴 테스트에 넘겨 같은 실행을 재사용한다.
+- 2026-10-09 M1-4: 판정 등급 A(약가역·결핍 0: 영속 + 적합류마다 평형 하나), B(약가역·결핍>0: 영속만), C(약가역 아님: 149 보장 없음).
 - 2026-10-09 M0-4: CADKIMM 기준값을 사본(scratchpad)에서 재현 — 149 배치 저장 CSV 13/13, Hopsan 재실행 13/13(평형 0.1485/0.1019), 설계 전체 표가 CADKIMM과 숫자까지 동일(이 PC 85 s), `--quick` ρ* = 8.00·Et* = 182.28 nM, CSTR 1.47e-4 mM. `evals/baselines.json`에 고정.
 - 2026-10-09 M0-5: 현실적 합성 설정 `evals/synthetic.yaml` 작성(시드 20261010). 명목 효소량 24.23 nM. 사전분포 중심은 K'까지 포함해 정답을 10의 거듭제곱으로 반올림(log10 kf 4,4,2,3,2 / kr 2,3,3,2 / K' 1).
 - 2026-10-09 M0-5: 정답 모델(명목 효소량)조차 홀드아웃 D' RMSE 0.0146 > 0.006 → AC-05와 합성 설정이 충돌. `evals/QUESTIONS.md` Q1.
