@@ -286,6 +286,7 @@ def stage_key(ctx: RunContext, stage: str, upstream: dict) -> str:
             "network": p.raw.get("network"),
             "control": p.raw.get("control"),
             "design_dead_end": s["design"].get("dead_end"),
+            "hopsan": [s["simulation"]["hopsan"].get("enabled", True), _hopsan_env_signature()],
         }
     elif stage == "2_data":
         cfg = {

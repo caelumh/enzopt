@@ -42,6 +42,7 @@ def stage_verdict(ctx: RunContext) -> None:
         if v["irreversible_complexes"]:
             lines.append(f"  비가역이 걸린 복합체: {', '.join(v['irreversible_complexes'])}")
         lines.append("")
+    lines.append(f"해석 백엔드: 표본 × 조건은 scipy(Radau). 시스템 수준: {hopsan_status(ctx)}")
     if not main["guarantee_149"]:
         lines.insert(0, f"⚠ {NO_149_BANNER} — 계속 진행하지만 외삽·설계에 정리 149의 보장이 없다.")
     (out / "report.txt").write_text("\n".join(lines), encoding="utf-8")
@@ -57,6 +58,21 @@ def stage_verdict(ctx: RunContext) -> None:
         figs.append(plots.fig_network(out, vds["control"], "fig1c_network_control"))
     figs.append(plots.fig_verdict_table(out, vds))
     write_json(out / "figures.json", figs)
+
+
+def hopsan_status(ctx: RunContext) -> str:
+    """'Hopsan 사용 (path)' or 'Hopsan 미사용(reason)' — also recorded in the manifest flags."""
+    if not ctx.settings["simulation"]["hopsan"].get("enabled", True):
+        st = "Hopsan 미사용(설정에서 끔" + (" · 짧은 모드)" if ctx.quick else ")")
+    else:
+        try:
+            from ..hopsan.cli import find_cli
+
+            st = f"Hopsan 사용({' '.join(find_cli())})"
+        except Exception:  # noqa: BLE001
+            st = "Hopsan 미사용(HopsanCLI를 찾지 못함 → scipy로 대신)"
+    ctx.flag("hopsan_status", st)
+    return st
 
 
 # ------------------------------------------------------------------------------------------------ ② data

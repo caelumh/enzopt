@@ -38,7 +38,7 @@ DEFAULTS: dict = {
             "one_step_k1": "auto",
             "representative_experiment": None,
             "representative_t_end_s": None,
-            "max_steps": 6.0e7,
+            "max_steps": 1.2e8,
         },
     },
     "design": {
@@ -66,13 +66,13 @@ DEFAULTS: dict = {
     },
     "quick": {
         "seeds": 2,
-        "adam_iters": 300,
-        "lbfgs_iters": 30,
+        "adam_iters": 2000,  # PINN iterations are not reduced: fewer leave seeds unconverged (excluded by SC5-3)
+        "lbfgs_iters": 300,
         "same_class_runs": 3,
         "rho_grid": "auto_quick",
         "bisection_iters": 10,
-        "baseline_starts": 2,
-        "baseline_max_nfev": 30,
+        "baseline_starts": 1,
+        "baseline_max_nfev": 3,
         "control_seeds": 1,
         "hopsan": False,
     },
@@ -244,9 +244,10 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
     if prior:
         if len(prior.get("kf_log10", [])) != n:
             raise ProjectError(f"prior.kf_log10 개수가 단계 수({n})와 다름")
-        n_kr = n - (1 if hs else 0)
+        n_rev = sum(1 for st in network.steps if st.reversible)
+        n_kr = n_rev - (1 if hs else 0)
         if len(prior.get("kr_log10", [])) != n_kr:
-            raise ProjectError(f"prior.kr_log10 개수가 {n_kr}이어야 함(Haldane 단계 제외)")
+            raise ProjectError(f"prior.kr_log10 개수가 {n_kr}이어야 함(가역 단계 {n_rev}개, Haldane 단계 제외)")
         prior.setdefault("sd_decades", 1.5)
 
     control = raw.get("control")

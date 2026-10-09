@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .figures import DOUBLE, SINGLE, color, marker, new_figure, save, table_figure
+from .figures import DOUBLE, SINGLE, color, marker, new_figure, save, sig3, table_figure
 
 
 # ------------------------------------------------------------------------------------------------ ① verdict
@@ -156,3 +156,372 @@ def fig_data(
         bx.legend(loc="upper right", frameon=False)
     bx.set(xlabel="experiment", ylabel="temperature (°C)", title="(b) cuvette temperature (min–max, mean)")
     return save(fig, out, name, ["experiment", "quantity", "time_s", "value"], rows)
+
+
+# ------------------------------------------------------------------------------------------------ helpers
+def write_rows(path, header, rows):
+    from .figures import write_csv
+
+    return write_csv(path, header, rows)
+
+
+# ------------------------------------------------------------------------------------------------ ③ identification
+def _model_curves(p, every, out_dir: Path) -> dict:
+    """{label: {exp: (t, A)}} for WR samples, the non-WR control and the classical fit (from stage-③ files)."""
+    import json
+
+    from .core.massaction import MassAction
+    from .pipeline.common import safe_curve
+
+    coeff = p.observable_weights()
+    curves = {}
+    fines = {}
+    for name, _e, t, _y in every:
+        fines[name] = np.linspace(0.0, float(t[-1]), 181)[1:]
+
+    def add(label, net, k):
+        model = MassAction.from_network(net)
+        curves[label] = {}
+        for name, e, _t, _y in every:
+            a = safe_curve(net, k, e.initial, e.Et, fines[name], coeff, model=model)
+            if a is not None:
+                curves[label][name] = (fines[name], a)
+
+    for f in sorted((out_dir / "samples").glob("sample_seed*.json")):
+        s = json.loads(f.read_text(encoding="utf-8"))
+        tag = "WR" if s["kept"] else "WR-excluded"
+        add(f"{tag} seed{s['seed']}", p.network, p.network.rate_vector(s["kf"], s["kr"]))
+    ctrl = p.control_network()
+    for f in sorted((out_dir / "control").glob("control_seed*.json")) if (out_dir / "control").exists() else []:
+        s = json.loads(f.read_text(encoding="utf-8"))
+        add(f"nonWR seed{s['seed']}", ctrl, ctrl.rate_vector(s["kf"], s["kr"]))
+    for f in sorted((out_dir / "baseline").glob("fit_start*.json")) if (out_dir / "baseline").exists() else []:
+        s = json.loads(f.read_text(encoding="utf-8"))
+        if "kf" in s:
+            add(f"classical start{s['start']}", p.network, p.network.rate_vector(s["kf"], s["kr"]))
+    return curves
+
+
+def _style(label: str, i: int):
+    if label.startswith("WR-excluded"):
+        return dict(color="0.6", ls=":", lw=0.7)
+    if label.startswith("WR"):
+        return dict(color="0.15", ls="-", lw=0.7, alpha=0.8)
+    if label.startswith("nonWR"):
+        return dict(color="#D55E00", ls=(0, (1, 1)), lw=1.2)
+    return dict(color="#0072B2", ls="-.", lw=0.9)
+
+
+def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
+    curves = _model_curves(p, every, out)
+    data = {name: (t, y, e.role) for name, e, t, y in every}
+    figs = []
+    for fig_name, role, title in (
+        ("fig3a_train_fit", "train", "(a) training sets: data and identified WR models"),
+        ("fig3b_holdout", "holdout", "(b) held-out sets: WR models, non-WR control, classical fit"),
+    ):
+        names = [n for n, (_, _, r) in data.items() if r == role]
+        if not names:
+            continue
+        fig, axes = new_figure(DOUBLE, 0.33 * DOUBLE, ncols=len(names))
+        rows = []
+        for j, n in enumerate(names):
+            ax = axes[0, j]
+            t, y, _ = data[n]
+            ax.plot(t, y, "o", ms=2.0, mfc="none", mew=0.5, color=color(j), label=f"data {n}")
+            rows += [["data", n, float(a), float(b)] for a, b in zip(t, y, strict=True)]
+            shown = set()
+            for i, (label, cv) in enumerate(curves.items()):
+                if role == "train" and not label.startswith("WR"):
+                    continue
+                if n not in cv:
+                    continue
+                tt, aa = cv[n]
+                kind = label.split(" ")[0]
+                ax.plot(tt, aa, label=None if kind in shown else kind, **_style(label, i))
+                shown.add(kind)
+                rows += [[label, n, float(a), float(b)] for a, b in zip(tt, aa, strict=True)]
+            ax.set(xlabel="time (s)", ylabel="A340" if j == 0 else None, title=f"{n}")
+            ax.legend(frameon=False)
+        fig.suptitle(title, fontsize=7.5)
+        figs.append(save(fig, out, fig_name, ["model", "experiment", "time_s", "A340"], rows))
+    # (c) rate constants
+    names = [f"k+{i}" for i in range(1, 6)] + [f"k-{i}" for i in range(1, 6)]
+    fig, ax = new_figure(SINGLE, 0.62 * SINGLE)
+    ax = ax[0, 0]
+    rows = []
+    x = np.arange(10)
+    for i, s in enumerate(samples):
+        v = np.log10(np.concatenate([s["kf"], s["kr"]]))
+        st = (
+            dict(marker=marker(i), ms=3, lw=0.6, color=color(i))
+            if s["kept"]
+            else dict(marker="x", ms=3, lw=0.4, color="0.6")
+        )
+        ax.plot(x, v, label=f"seed {s['seed']}" + ("" if s["kept"] else " (excluded)"), **st)
+        rows += [
+            [f"seed{s['seed']}", "kept" if s["kept"] else "excluded", nm, float(vv)]
+            for nm, vv in zip(names, v, strict=True)
+        ]
+    import json
+
+    for f in sorted((out / "baseline").glob("fit_start*.json")) if (out / "baseline").exists() else []:
+        s = json.loads(f.read_text(encoding="utf-8"))
+        if "kf" in s:
+            v = np.log10(np.concatenate([s["kf"], s["kr"]]))
+            ax.plot(x, v, "+", ms=5, color="#0072B2", label=None)
+            rows += [
+                [f"classical start{s['start']}", "classical", nm, float(vv)] for nm, vv in zip(names, v, strict=True)
+            ]
+    ax.set_xticks(x, names)
+    ax.set(ylabel="log10 k", title="(c) identified rate constants (log10): not identifiable")
+    ax.legend(frameon=False, ncol=2)
+    figs.append(save(fig, out, "fig3c_rate_constants", ["model", "status", "constant", "log10_k"], rows))
+    # comparison table (F-9 / F-10)
+    cmp = out / "holdout_comparison.csv"
+    if cmp.exists():
+        from .figures import read_csv
+
+        _, rr = read_csv(cmp)
+        hold = [n for n, (_, _, r) in data.items() if r == "holdout"]
+        models = []
+        for m, ident, *_rest in rr:
+            if (m, ident) not in models:
+                models.append((m, ident))
+        trows = []
+        for m, ident in models:
+            vals = {n: v for mm, ii, n, role, v in rr if (mm, ii) == (m, ident)}
+            trows.append([m, ident] + [float(vals[n]) if vals.get(n) not in (None, "", "None") else "—" for n in hold])
+        figs.append(
+            table_figure(
+                out,
+                "fig3d_holdout_table",
+                ["model", "id"] + [f"RMSE {n}" for n in hold],
+                trows,
+                title="Held-out extrapolation RMSE (A340)",
+            )
+        )
+    return figs
+
+
+# ------------------------------------------------------------------------------------------------ ④ simulation
+def sim_figures(out: Path, rows: list, traj: list, hop: dict, analyte: str) -> list:
+    figs = []
+    # (a) same class → same box, other class → other equilibrium
+    fig, ax = new_figure(SINGLE, 0.7 * SINGLE)
+    ax = ax[0, 0]
+    data = {}
+    for sample, run, cls, t, x, _a in traj:
+        data.setdefault((sample, run, cls), ([], []))
+        data[(sample, run, cls)][0].append(t)
+        data[(sample, run, cls)][1].append(x)
+    csv_rows = []
+    lab = set()
+    for (sample, run, cls), (t, x) in data.items():
+        t = np.asarray(t)
+        x = np.asarray(x)
+        m = t > 0
+        c = "0.35" if cls == "same" else "#D55E00"
+        name = "same class (random starts)" if cls == "same" else "other class"
+        ax.plot(t[m], x[m], color=c, lw=0.5, alpha=0.7, label=None if name in lab else name)
+        lab.add(name)
+        csv_rows += [[sample, run, cls, float(a), float(b)] for a, b in zip(t, x, strict=True)]
+    ax.set_xscale("log")
+    ax.set(xlabel="time (s)", ylabel=f"{analyte} (mM)", title="(a) same compatibility class → same equilibrium")
+    ax.legend(frameon=False)
+    figs.append(save(fig, out, "fig4a_classes", ["sample", "run", "class", "time_s", f"{analyte}_mM"], csv_rows))
+    # (b) validation table (per sample)
+    by = {}
+    for r in rows:
+        by.setdefault(r["sample"], []).append(r)
+    trows = []
+    for smp, rr in by.items():
+
+        def mx(key, rr=rr):
+            v = [x[key] for x in rr if x.get(key) is not None]
+            return max(v) if v else float("nan")
+
+        def mn(key, rr=rr):
+            v = [x[key] for x in rr if x.get(key) is not None]
+            return min(v) if v else float("nan")
+
+        trows.append(
+            [
+                smp,
+                len(rr),
+                sum(1 for x in rr if x["ok"]),
+                sum(1 for x in rr if x["suspect_numerical_error"]),
+                mx("conservation_max_rel_drift"),
+                mn("min_concentration"),
+                mx("equilibrium_max_log_error"),
+                mx("lyapunov_max_increase"),
+            ]
+        )
+    figs.append(
+        table_figure(
+            out,
+            "fig4b_validation",
+            [
+                "sample",
+                "runs",
+                "pass",
+                "re-run (dt/10)",
+                "max conservation drift",
+                "min concentration (mM)",
+                "max |ln Q/K|",
+                "max dG increase",
+            ],
+            trows,
+            title="CRNT validation (limits: drift < 1e-6, min > 0, |ln Q/K| < 0.01, dG <= 0)",
+        )
+    )
+    # (c) Hopsan vs scipy, representative sample, full mechanism
+    full = hop.get("full_representative", {})
+    fig, axes = new_figure(SINGLE, 0.75 * SINGLE)
+    ax = axes[0, 0]
+    t = np.asarray(full.get("t", []))
+    a = np.asarray(full.get("scipy_A340", []))
+    csv_rows = [["scipy", float(x), float(y)] for x, y in zip(t, a, strict=True)]
+    ax.plot(t, a, "-", color="#0072B2", lw=1.6, label="scipy (Radau)")
+    if "hopsan_t" in full:
+        th = np.asarray(full["hopsan_t"])
+        ah = np.asarray(full["hopsan_A340"])
+        ax.plot(
+            th,
+            ah,
+            "--",
+            color="#E69F00",
+            lw=1.0,
+            label=f"Hopsan (dt {sig3(full['timestep'])} s), max diff {sig3(full['max_abs_diff_A340'])}",
+        )
+        csv_rows += [["hopsan", float(x), float(y)] for x, y in zip(th, ah, strict=True)]
+        title = f"(c) representative sample {full.get('sample')}, set {full.get('experiment')}: Hopsan vs scipy"
+    else:
+        title = f"(c) representative sample {full.get('sample')}: scipy only (Hopsan not used)"
+    ax.set(xlabel="time (s)", ylabel="A340", title=title)
+    ax.legend(frameon=False)
+    figs.append(save(fig, out, "fig4c_hopsan_vs_scipy", ["backend", "time_s", "A340"], csv_rows))
+    return figs
+
+
+# ------------------------------------------------------------------------------------------------ ⑤ design
+def design_figures(out: Path, res, summ: dict, check: dict) -> list:
+    figs = []
+    # (a) U-curve
+    fig, ax = new_figure(SINGLE, 0.72 * SINGLE)
+    ax = ax[0, 0]
+    r = np.asarray(res.rhos)
+    en = np.asarray(res.Et_nominal) * 1e6
+    er = np.asarray(res.Et_robust) * 1e6
+    ax.loglog(r, en, "o--", color="#E69F00", mfc="none", label="nominal (one sample)")
+    ax.loglog(r, er, "s-", color="#0072B2", label=f"robust (all {summ['n_samples']} samples)")
+    if res.rho_min:
+        ax.axvline(
+            res.rho_min, color="#D55E00", ls=":", lw=1.0, label=f"CRNT equilibrium limit ρ_min = {sig3(res.rho_min)}"
+        )
+    ax.plot(
+        [res.rho_star],
+        [res.Et_star * 1e6],
+        "*",
+        ms=8,
+        color="k",
+        label=f"ρ* = {sig3(res.rho_star)}, Et* = {sig3(res.Et_star * 1e6)} nM",
+    )
+    ax.set(
+        xlabel="pyruvate / NADH ratio ρ",
+        ylabel="min enzyme Et (nM)",
+        title=f"(a) {summ['conversion'] * 100:.0f}% NADH conversion within {summ['time_s']:g} s "
+        f"(K' = {sig3(summ['Kp'])})",
+    )
+    ax.legend(frameon=False)
+    figs.append(
+        save(
+            fig,
+            out,
+            "fig5a_u_curve",
+            ["rho", "Et_nominal_nM", "Et_robust_nM"],
+            [[a, b, c] for a, b, c in zip(r, en, er, strict=True)],
+        )
+    )
+    # (b) conversion of both designs on every sample
+    fig, ax = new_figure(SINGLE, 0.62 * SINGLE)
+    ax = ax[0, 0]
+    rows = []
+    for j, (label, mk, col) in enumerate((("nominal", "o", "#E69F00"), ("robust", "s", "#0072B2"))):
+        cc = [c for c in res.check if c["design"] == label]
+        x = np.arange(len(cc)) + (j - 0.5) * 0.18
+        ax.plot(
+            x,
+            [c["conversion"] for c in cc],
+            mk,
+            color=col,
+            mfc="none" if label == "nominal" else col,
+            label=f"{label} design (Et {sig3(cc[0]['Et_mM'] * 1e6)} nM)",
+        )
+        rows += [[label, c["sample"], c["Et_mM"], c["conversion"]] for c in cc]
+    ax.axhline(summ["conversion"], color="k", lw=0.6, ls=":", label=f"target {summ['conversion']}")
+    ax.set_xticks(range(summ["n_samples"]), [f"s{s}" for s in summ["samples"]])
+    ax.set(
+        xlabel="rate-constant sample",
+        ylabel=f"conversion at {summ['time_s']:g} s",
+        title=f"(b) designs at ρ* = {sig3(res.rho_star)} applied to every sample",
+    )
+    ax.legend(frameon=False)
+    figs.append(save(fig, out, "fig5b_conversion", ["design", "sample", "Et_mM", "conversion"], rows))
+    # (c) design-condition prediction curves (+ Hopsan representative, + confirmation experiments)
+    fig, ax = new_figure(SINGLE, 0.72 * SINGLE)
+    ax = ax[0, 0]
+    rows = []
+    lab = set()
+    for (label, smp), (t, x) in check["curves"].items():
+        st = dict(color="#0072B2", ls="-", lw=0.7) if label == "robust" else dict(color="#E69F00", ls="--", lw=0.7)
+        nm = f"{label} design (scipy, all samples)"
+        ax.plot(t, np.asarray(x) * 1e3, label=None if nm in lab else nm, **st)
+        lab.add(nm)
+        rows += [[f"scipy {label}", smp, float(a), float(b) * 1e3] for a, b in zip(t, x, strict=True)]
+    hop = check.get("_hopsan")
+    if hop is not None:
+        ax.plot(
+            hop["t"],
+            np.asarray(hop["x"]) * 1e3,
+            ":",
+            color="k",
+            lw=1.2,
+            label=f"Hopsan, representative (max diff {sig3(hop['max_abs_diff_mM'] * 1e3)} µM)",
+        )
+        rows += [
+            ["hopsan robust", "representative", float(a), float(b) * 1e3]
+            for a, b in zip(hop["t"], hop["x"], strict=True)
+        ]
+    for i, (name, c) in enumerate(check.get("_conf", {}).items()):
+        ax.plot(
+            c["t"],
+            np.asarray(c["x"]) * 1e3,
+            marker(i + 2),
+            ms=2.5,
+            mfc="none",
+            color=color(i + 2),
+            label=f"experiment {name} (Et {sig3(c['Et_nM'])} nM)",
+        )
+        rows += [[f"experiment {name}", name, float(a), float(b) * 1e3] for a, b in zip(c["t"], c["x"], strict=True)]
+    target = (1 - summ["conversion"]) * summ["analyte0_mM"] * 1e3
+    ax.axhline(target, color="k", lw=0.5, ls=":")
+    ax.axvline(summ["time_s"], color="0.5", lw=0.5, ls=":")
+    ax.set_yscale("log")
+    ax.set_ylim(max(target / 30, 1e-3), summ["analyte0_mM"] * 1e3 * 1.3)
+    ax.set(xlabel="time (s)", ylabel="NADH (µM)", title="(c) predicted NADH at the design condition")
+    ax.legend(frameon=False, fontsize=5.5, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
+    figs.append(save(fig, out, "fig5c_design_check", ["model", "id", "time_s", "NADH_uM"], rows))
+    # (d) equilibrium limit table
+    if res.equilibrium_limit:
+        figs.append(
+            table_figure(
+                out,
+                "fig5d_equilibrium_limit",
+                ["rho", "conversion_eq", "NADH_left_uM"],
+                [[e["rho"], e["conversion_eq"], e["NADH_left_uM"]] for e in res.equilibrium_limit],
+                title=f"CRNT equilibrium limit (K' = {sig3(summ['Kp'])}): independent of rate constants",
+                width=SINGLE,
+            )
+        )
+    return figs
