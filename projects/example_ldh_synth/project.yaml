@@ -43,7 +43,7 @@ identification:
   noise_sigma: 0.003         # 측정 잡음 σ (A340). ODE 재해석 학습 RMSE > 3σ인 시드는 표본에서 뺀다
   device: auto               # auto | cuda | cpu
   precision: auto            # auto(GPU float32, CPU float64) | float32 | float64
-  pinn: {adam_iters: 2000, lbfgs_iters: 300}
+  pinn: {adam_iters: 2000, lbfgs_iters: 300, restarts: 8}   # 표본마다 재시작 8회 중 학습 데이터에 가장 잘 맞는 해
   baseline_fit: {starts: 4}  # 고전 피팅 기준선(F-9): 같은 ODE, 다중 시작점 최소제곱
   control: {seeds: 2}        # 비약가역 대조 모델 시드 수
 

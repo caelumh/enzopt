@@ -355,6 +355,7 @@ design: {target: assay, NADH0: 0.1, conversion: 0.99, time_s: 300, Kp: 23}
 - (build) 짧은 모드에서도 PINN 반복은 그대로(Adam 2000 + L-BFGS 300), 시드·적합류 해석·설계 격자·고전 피팅만 줄임
 - (build) 적합류 무작위 초기 상태 = `overall` 반응식의 반응 좌표, 다른 류 = 기준 학습 실험과 다른 류의 첫 실험. 겉보기 1단계 k₁ = 대표 표본의 초기 속도에서
 - (build) Hopsan Δt: 1단계 0.01/λ, 완전 메커니즘 0.2/λ_max, 단계 상한 1.2×10⁸(넘으면 앞 구간만 풀고 기록)
+- (improve, 2026-10-09) PINN 표본마다 8회 재시작(`identification.pinn.restarts`)하고 학습 데이터 ODE 재해석 RMSE가 가장 낮은 해를 그 표본으로 고른다(지역 최소에서 D' 외삽이 크게 갈리는 문제 해결). GPU에서 시드 4 × 재시작 8 ≈ 10 s
 - (build) 고전 피팅: PINN과 같은 사전분포 항·시작점, max_nfev 200(짧은 모드 3), 시작점 4개 병렬
 - (build) 캐시 키 = 단계 설정 + 입력 해시 + 상위 단계 키 + enzopt 소스 해시. Hopsan 경로 설정 파일 `enzopt.config.yaml`
 - (build) 피펫 표: 반응량 1000 µL, 효소 10 µL(작업액 농도 표기), L1·L2는 평형 한계 대수식을 쓸 수 있을 때만
