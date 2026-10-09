@@ -14,21 +14,41 @@ from enzopt.core.yamlio import load_yaml
 pytestmark = pytest.mark.long
 
 
-def test_realistic_holdout(full_run):
+def oracle_rmse() -> dict:
+    """Holdout RMSE of the synthetic truth (true rate constants, nominal enzyme amount) against the observed data."""
+    from enzopt.core.project import load_project
+    from enzopt.pipeline.common import curve, rmse
+    from enzopt.synth import truth_rates
+
     syn = load_yaml(EVALS / "synthetic.yaml")
-    limit = float(syn["holdout_criterion"]["rmse_max_A340"])  # 0.006 = 2σ
+    p = load_project(EXAMPLE)
+    kf, kr = truth_rates(syn, p.network)
+    k = p.network.rate_vector(kf, kr)
+    out = {}
+    for name, e in p.experiments.items():
+        if e.role == "holdout":
+            d = np.loadtxt(e.file, delimiter=",", skiprows=1)
+            out[name] = rmse(curve(p.network, k, e.initial, e.Et, d[:, 0], p.observable_weights()), d[:, 1])
+    return out
+
+
+def test_realistic_holdout(full_run):
+    crit = load_yaml(EVALS / "synthetic.yaml")["holdout_criterion"]
+    oracle = oracle_rmse()
     f = json.loads((full_run / "3_fit" / "fit_summary.json").read_text(encoding="utf-8"))
     assert f["seeds"] == [0, 1, 2, 3]  # seed 4
     per_seed = f["holdout_rmse"]["per_seed"]
     assert per_seed, "no kept WR samples"
+    assert set(oracle) == {"C", "Dp"}
     report = {}
-    for exp in ("C", "Dp"):
+    for exp, o in oracle.items():
+        limit = max(float(crit["rmse_max_A340"]), float(crit["oracle_factor"]) * o)
         vals = [v[exp] for v in per_seed.values()]
-        report[exp] = {"mean": float(np.mean(vals)), "worst": float(np.max(vals))}
-    print("holdout RMSE (A340):", report, "limit", limit)
+        report[exp] = {"oracle": o, "limit": limit, "mean": float(np.mean(vals)), "worst": float(np.max(vals))}
+    print("holdout RMSE (A340):", report)
     for exp, r in report.items():
-        assert r["mean"] <= limit, f"{exp} mean {r['mean']:.4f} > {limit}"
-        assert r["worst"] <= limit, f"{exp} worst {r['worst']:.4f} > {limit}"
+        assert r["mean"] <= r["limit"], f"{exp} mean {r['mean']:.4f} > {r['limit']:.4f}"
+        assert r["worst"] <= r["limit"], f"{exp} worst {r['worst']:.4f} > {r['limit']:.4f}"
 
 
 def _train(device, dtype):

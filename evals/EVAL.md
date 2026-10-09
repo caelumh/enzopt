@@ -1,6 +1,6 @@
 # 평가 기준
 
-> 최종 갱신: 2026-10-09 · 평가 1회 예산: 빠른 5분 / 긴 30분 · 점수: 0~100, 높을수록 좋음 · 명세: `../PROJECT_SPEC.md`
+> 최종 갱신: 2026-10-09(보완 인터뷰: AC-05 문턱) · 평가 1회 예산: 빠른 5분 / 긴 30분 · 점수: 0~100, 높을수록 좋음 · 명세: `../PROJECT_SPEC.md`
 
 ## 지침 (사람이 편집)
 개선 루프에 주는 방향. 비어 있으면 아래 우선순위대로 돈다.
@@ -32,7 +32,7 @@
 | AC-02 | ① 10/12 | T1-회귀, F-6 | 합성 표본 9개의 분석법 설계가 CADKIMM과 같다: ρ_min = 5.251(K' = 23), 강건 최적 ρ* = 9.00, 강건 Et* = 180.54 nM(±2%), 같은 ρ*의 공칭 Et = 31.35 nM(±2%), 공칭 설계는 표본 9개 중 4개 미달·최악 전환율 0.760(±0.01), 강건 설계는 0개 미달 | 3 | 긴(전체). 빠른 평가는 `baselines.json`의 `--quick` 기준값과 비교 | `tests/test_regression.py::test_design` |
 | AC-03 | ① 10/12 | F-3 | 판정: LDH 완전 메커니즘(9종·10반응)은 약가역·결핍 0·연결 성분 3·정수 보존 법칙 4개. 설계 메커니즘(EQP 포함 10종)은 약가역·결핍 0·연결 성분 4·보존 법칙 4개. pNP(E + S ⇌ ES → E + P)와 비약가역 대조(마지막 단계 한 방향)는 약가역 아님 | 3 | 빠른 | `tests/test_crnt.py` |
 | AC-04 | ① 10/12 | F-1, F-2, SC5-6 | 예제 프로젝트 `projects/example_ldh_synth`의 `project.yaml`과 표준 CSV를 읽는다. 시간 역행·빈 값·A340 > 2가 든 CSV는 파일 이름과 줄 번호를 담은 오류로 거부한다 | 3 | 빠른 | `tests/test_io.py` |
-| AC-05 | ① 10/12 | RK1·RK2, F-4 | 현실적 합성 데이터(`evals/synthetic.yaml`)에서 약가역 PINN 표본(시드 4)의 홀드아웃 세트 C·D' 외삽 RMSE ≤ 0.006 A340(잡음 σ의 2배), 표본 평균과 최악 모두 | 3 | 긴 | `tests/test_pinn.py::test_realistic_holdout` (long) |
+| AC-05 | ① 10/12 | RK1·RK2, F-4 | 현실적 합성 데이터(`evals/synthetic.yaml`)에서 약가역 PINN 표본(시드 4)의 홀드아웃 세트 C·D' 외삽 RMSE(관측 데이터 대비) ≤ max(2σ = 0.006 A340, 정답 모델 RMSE × 1.5), 세트마다 표본 평균과 최악 모두. 정답 모델 = 합성 정답 속도 상수 + 명목 효소량(2026-10-09 보완 인터뷰 Q1) | 3 | 긴 | `tests/test_pinn.py::test_realistic_holdout` (long) |
 | AC-06 | ① 10/12 | F1, F-6 | 끝-끝: `enzopt run projects/example_ldh_synth`가 ①~⑤를 끝까지 돌고, 실행 폴더에 판정 보고, 표본, 검증 결과, 설계 표, 피펫 표(L1·L2·D1·D0·Z)가 생긴다 | 3 | 빠른(짧은 모드) | `tests/test_e2e.py` |
 | AC-07 | ① 10/12 | F-5, SC5-5 | 모든 해석 결과가 CRNT 검증을 통과한다: 보존 표류 < 1e-6, 출발 직후부터 최소 농도 > 0, 마지막 상태의 \|ln(Q/K)\| < 0.01, 리아푸노프 함수 비증가. 실패한 해석은 "수치 오류 의심"으로 표시되고 Δt를 1/10로 줄여 한 번 재실행된다 | 2 | 빠른 | `tests/test_validate.py` |
 | AC-08 | ① 10/12 | F6 | 같은 현실적 합성 문제에서 GPU float32 PINN과 CPU float64 PINN의 홀드아웃 RMSE 차이 ≤ 10%, GPU 쪽 학습 벽시계 시간이 더 짧다. GPU를 쓸 수 없으면 CPU로 자동 전환되고 그 사실이 manifest에 기록된다 | 2 | 긴 | `tests/test_pinn.py::test_gpu_vs_cpu` (long) |

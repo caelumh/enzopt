@@ -55,5 +55,6 @@ prior:                    # 사전분포 = 정답을 10의 거듭제곱으로 �
   kr_log10: [2, 3, 3, 2]       # round(log10 [50, 500, 1000, 200])
   Kp_log10: 1                  # round(log10 23)
 
-holdout_criterion:        # AC-05: 홀드아웃 C·D' 외삽 RMSE ≤ 2σ (표본 평균과 최악 모두, 관측 데이터 대비)
-  rmse_max_A340: 0.006
+holdout_criterion:        # AC-05: 홀드아웃 C·D' 외삽 RMSE ≤ max(2σ, 정답 모델 RMSE × 1.5) (세트마다 표본 평균과 최악, 관측 데이터 대비)
+  rmse_max_A340: 0.006            # 2σ (절대 하한)
+  oracle_factor: 1.5              # 정답 모델(정답 속도 상수 + 명목 효소량) RMSE의 배수 (보완 인터뷰 2026-10-09 Q1)

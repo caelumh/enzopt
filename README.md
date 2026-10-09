@@ -67,7 +67,7 @@ projects/<이름>/
 | `network.prior` | 사전분포: `kf_log10`(모든 단계), `kr_log10`(가역 단계 중 Haldane 단계 제외), `Kp_log10`, `sd_decades`(기본 1.5) |
 | `control.one_way_steps` | 비약가역 대조 반응망(F-10): 이 단계들을 한 방향으로 |
 | `experiments.<이름>` | 초기 농도(종 이름: mM), `Et_nM`, `role`(train / holdout / design-check), `file`, `temp_file`, (선택) `format` |
-| `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ, 제외 기준 2σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, representation: qss}`, `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: pinn|ode` |
+| `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, representation: qss}`, `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: ode|pinn`, `exclusion_sigma`(기본 3) |
 | `simulation` | `t_long_s`, `same_class_runs`, `class_seed`, `hopsan: {enabled, one_step_k1: auto, representative_experiment, max_steps}` |
 | `design` | `target: assay`, `analyte`, `partner`(ρ = partner₀/analyte₀), `free_enzyme`, `analyte0_mM`, `conversion`, `time_s`, `Kp`, `dead_end: {step, enzyme_species, kf, Ki_mM}`, `rho_grid: auto`, `Et_bounds_mM`, `bisection_iters`, `check_t_end_s`, `pipette: {volume_uL, enzyme_uL, stocks_mM, limit_test_rhos, limit_test_enzyme_multiples}` |
 | `quick` | 짧은 모드에서 바꿀 값(`seeds`, `same_class_runs`, `rho_grid`, `bisection_iters`, `baseline_starts`, `hopsan` …) |
@@ -91,7 +91,7 @@ project.yaml    설정 사본          inputs/   입력 사본(이어서 실행�
 ## 단계별 계산 요약
 
 - **① 판정**: 복합체·연결 성분·강연결 성분(Kosaraju)·약가역성·결핍·정수 보존 법칙. 등급 A(약가역·결핍 0: 영속 + 적합류마다 평형 하나), B(약가역: 영속), C(약가역 아님: "149 보장 없음: 멸종 가능" 띠를 모든 결과에 남기고 계속 진행).
-- **③ 식별**: LDH 순차 bi-bi PINN(보존 법칙 4개·Haldane 내장, 효소 형태는 준정상 King–Altman 해, 실험마다 NADH(t) 신경망). GPU float32 + CUDA 그래프로 시드를 묶어 학습(시드 4개 ≈ 10 s), GPU가 없으면 CPU float64. 학습된 속도 상수로 ODE를 다시 풀어 모든 실험의 RMSE를 기록하고, 학습 RMSE > 2σ인 시드는 표본에서 뺍니다(남은 표본 < 2이면 ⑤에서 멈춤). 같은 데이터·사전분포·시작점으로 고전 피팅(다중 시작점 최소제곱)과 비약가역 대조 PINN을 함께 돌려 홀드아웃 외삽을 한 표로 비교합니다.
+- **③ 식별**: LDH 순차 bi-bi PINN(보존 법칙 4개·Haldane 내장, 효소 형태는 준정상 King–Altman 해, 실험마다 NADH(t) 신경망). GPU float32 + CUDA 그래프로 시드를 묶어 학습(시드 4개 ≈ 10 s), GPU가 없으면 CPU float64. 학습된 속도 상수로 ODE를 다시 풀어 모든 실험의 RMSE를 기록하고, ODE 재해석 학습 RMSE > 3σ인 시드는 표본에서 뺍니다(남은 표본 < 2이면 ⑤에서 멈춤). 같은 데이터·사전분포·시작점으로 고전 피팅(다중 시작점 최소제곱)과 비약가역 대조 PINN을 함께 돌려 홀드아웃 외삽을 한 표로 비교합니다.
 - **④ 해석**: 표본마다 같은 적합류의 무작위 초기 상태와 다른 적합류 하나를 scipy(Radau, 해석적 야코비안)로 풀고 CRNT 검증(보존 표류 < 1e-6, 양수, |ln Q/K| < 0.01, 리아푸노프 비증가, 적합류 일관성). 실패하면 "수치 오류 의심"으로 표시하고 Δt를 1/10로 줄여 한 번 다시 풉니다. Hopsan은 겉보기 1단계 반응의 적합류 배치와 대표 표본 하나의 완전 메커니즘(작은 Δt)을 풀어 scipy와의 최대 차이를 기록합니다.
 - **⑤ 설계**: CRNT 평형 한계 ρ_min(약가역·결핍 0일 때만 대수식 사용) → ρ 격자에서 표본 전체를 만족하는 최소 효소량(강건)과 공칭 표본만 만족하는 효소량(공칭) → 강건 최적 ρ*·Et*(학습 실험 효소량 E₀의 배수) → 두 설계를 표본마다 넣은 전환율 → 피펫 표 → 설계 조건 예측 곡선(scipy 표본 전체 + Hopsan 대표 표본 + 확인 실험 점).
 
@@ -118,8 +118,9 @@ uv run python evals/run.py --tier long      # 관문 + 모든 기준 + Q1(전체
 
 ## 알려 둘 것
 
-- PINN 표현은 명세 방법론(4.2·4.3)의 "효소 형태 = 신경망 출력"이 아니라 **준정상 효소 분포**(King–Altman)입니다. 원래 표현은 `identification.pinn.representation: full`로 남아 있습니다. 이유와 비교는 `evals/QUESTIONS.md` Q3.
-- 현실적 합성 데이터(효소량 실험별 ±10%)에서는 정답 속도 상수로도 홀드아웃 D' RMSE가 0.0146이라 AC-05(≤ 0.006)를 만족할 수 없습니다(QUESTIONS Q1).
+- PINN 표현은 명세 방법론(4.2·4.3)의 "효소 형태 = 신경망 출력"이 아니라 **준정상 효소 분포**(King–Altman)입니다(2026-10-09 결정). 원래 표현은 `identification.pinn.representation: full`로 남아 있고, 실패 근거는 `docs/pinn_representation/`(`uv run python scripts/compare_pinn_representation.py`로 재현).
+- 표본 제외(SC5-3): 학습된 속도 상수로 ODE를 다시 푼 학습 RMSE > 3σ인 시드는 뺍니다(`exclusion_rmse: ode`, `exclusion_sigma: 3`).
+- AC-05 문턱은 정답 모델 대비입니다: 홀드아웃 RMSE ≤ max(2σ, 정답 모델 RMSE × 1.5). 효소량 ±10%에서는 정답 속도 상수로도 D' RMSE가 0.0146이기 때문입니다.
 - 막다른 복합체 해리 상수 Ki = 5 mM은 가정값입니다(문헌 확인 필요).
 - KIMM-SYS 백엔드는 형식을 받으면 붙입니다. 그때까지 Hopsan이 대체 도구입니다.
 

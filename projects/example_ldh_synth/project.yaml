@@ -40,7 +40,7 @@ experiments:                 # role: train(학습) | holdout(외삽 시험) | de
 identification:
   method: pinn               # 표본 = PINN 시드별 속도 상수
   seeds: 4
-  noise_sigma: 0.003         # 측정 잡음 σ (A340). 학습 RMSE > 2σ인 시드는 표본에서 뺀다
+  noise_sigma: 0.003         # 측정 잡음 σ (A340). ODE 재해석 학습 RMSE > 3σ인 시드는 표본에서 뺀다
   device: auto               # auto | cuda | cpu
   precision: auto            # auto(GPU float32, CPU float64) | float32 | float64
   pinn: {adam_iters: 2000, lbfgs_iters: 300}

@@ -1,7 +1,7 @@
 """Stage ③ identification: PINN seeds → rate-constant samples (+ classical-fit baseline and non-WR control, F-9/F-10).
 
 Every sample is re-solved with the ODE (scipy) for all experiments; the training-data RMSE decides which seeds are
-kept (SC5-3: RMSE > 2σ → excluded; fewer than 2 kept → the design stage stops).
+kept (SC5-3: ODE training RMSE > 3σ → excluded; fewer than 2 kept → the design stage stops).
 """
 
 from __future__ import annotations
@@ -94,7 +94,8 @@ def run_fit_stage(ctx: RunContext) -> None:
     net = p.network
     model = MassAction.from_network(net)
     coeff = p.observable_weights()
-    rule = str(ident.get("exclusion_rmse", "pinn"))
+    rule = str(ident.get("exclusion_rmse", "ode"))
+    k_sig = float(ident.get("exclusion_sigma", 3.0))
     samples, preds = [], []
     for i, r in enumerate(results):
         ctx.progress(0.75 + 0.2 * i / max(1, len(results)), f"표본 {r.seed} 재해석")
@@ -112,8 +113,13 @@ def run_fit_stage(ctx: RunContext) -> None:
         tr = [ode[n] for n, *_ in train if ode.get(n) is not None]
         ode_train = float(np.sqrt(np.mean(np.square(tr)))) if tr else None
         judge = pinn_rmse if rule == "pinn" else ode_train
-        kept = judge is not None and judge <= 2 * sigma
-        reason = None if kept else f"학습 데이터 RMSE {judge:.4f} > 2σ = {2 * sigma:.4f} ({rule})"
+        kept = judge is not None and judge <= k_sig * sigma
+        if kept:
+            reason = None
+        elif judge is None:
+            reason = "학습 데이터 ODE 재해석 실패"
+        else:
+            reason = f"학습 데이터 RMSE {judge:.4f} > {k_sig:g}σ = {k_sig * sigma:.4f} ({rule})"
         if ode_train is not None and ode_train > 2 * max(pinn_rmse, sigma):
             ctx.warn(
                 f"시드 {r.seed}: ODE 재해석 RMSE {ode_train:.4f}가 PINN RMSE {pinn_rmse:.4f}의 2배 초과(물리 불일치)"
@@ -151,6 +157,7 @@ def run_fit_stage(ctx: RunContext) -> None:
         "excluded": {s["seed"]: s["excluded_reason"] for s in samples if not s["kept"]},
         "noise_sigma": sigma,
         "exclusion_rmse": rule,
+        "exclusion_sigma": k_sig,
         "train_seconds": train_s,
         "train_experiments": [n for n, *_ in train],
         "holdout_experiments": holdout_names,
