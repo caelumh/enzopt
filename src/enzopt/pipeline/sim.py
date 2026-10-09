@@ -265,12 +265,12 @@ def hopsan_part(ctx: RunContext, sample: dict, same_states, other, ref, t_long: 
         )
         rr.update({"backend": backend, "final_NADH_scipy": float(ref_X[-1, 0])})
         info["one_step"]["runs"].append(rr)
-    if not info["used"]:  # still write the model files (submission / KIMM-SYS stand-in), without running them
-        from ..hopsan.hmf import network_hmf
+    # the class-batch model file is always written (submission / KIMM-SYS stand-in), run or not
+    from ..hopsan.hmf import network_hmf
 
-        (out / "ldh_one_step.hmf").write_text(
-            network_hmf("LDH_one_step", one, k_one, cases[0][1], t_long, dt, 2048), encoding="utf-8"
-        )
+    (out / "ldh_one_step.hmf").write_text(
+        network_hmf("LDH_one_step", one, k_one, cases[0][1], t_long, dt, 2048), encoding="utf-8"
+    )
     info["one_step"]["n_pass"] = sum(1 for r in info["one_step"]["runs"] if r["ok"])
     info["one_step"]["max_abs_diff_vs_scipy_mM"] = max_diff if info["used"] else None
     # ---------------------------------------------------------------- representative full mechanism

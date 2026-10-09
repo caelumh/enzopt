@@ -50,12 +50,14 @@ def run_checks(
     if _version("torch"):
         import torch
 
-        cuda_ok = torch.cuda.is_available()
-        cuda_detail = (
-            f"{torch.cuda.get_device_name(0)} (CUDA {torch.version.cuda})"
-            if cuda_ok
-            else "사용 불가 → CPU(float64)로 전환"
-        )
+        from .pinn.ldh import cuda_usable
+
+        cuda_ok = cuda_usable()
+        try:
+            cuda_detail = f"{torch.cuda.get_device_name(0)} (CUDA {torch.version.cuda})" if cuda_ok else None
+        except (RuntimeError, AssertionError):
+            cuda_detail = None
+        cuda_detail = cuda_detail or "사용 불가 → CPU(float64)로 전환"
     checks.append(Check("cuda", cuda_ok, cuda_detail, required=False))
     try:
         from .hopsan.cli import find_cli, version

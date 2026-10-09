@@ -182,6 +182,12 @@ def run_state(run_dir: Path) -> str:
     """completed | failed | cancelled | running | interrupted (running but the process is gone)."""
     m = read_json(Path(run_dir) / "manifest.json", {}) or {}
     st = m.get("status", "unknown")
+    if st == "running" and m.get("starting"):  # placeholder written by the dashboard before the engine started
+        try:
+            age = (_dt.datetime.now().astimezone() - _dt.datetime.fromisoformat(m["created"])).total_seconds()
+        except (KeyError, ValueError):
+            age = 1e9
+        return "running" if age < 120 or pid_alive(m.get("pid")) else "interrupted"
     if st == "running" and not pid_alive(m.get("pid")):
         return "interrupted"
     return st

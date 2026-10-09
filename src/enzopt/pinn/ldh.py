@@ -532,11 +532,22 @@ class LdhPinn:
         graph = None  # release the captured graph
 
 
+def cuda_usable() -> bool:
+    """A CUDA device is visible and accepts a small allocation (is_available() alone can be True with none visible)."""
+    try:
+        if not torch.cuda.is_available() or torch.cuda.device_count() < 1:
+            return False
+        torch.zeros(1, device="cuda").add_(1).item()
+        return True
+    except (RuntimeError, AssertionError):
+        return False
+
+
 def resolve_device(device: str = "auto", precision: str = "auto") -> tuple[str, str, str | None]:
     """Pick (device, dtype, note). GPU → float32 by default; no GPU → CPU float64 with a note (spec F6)."""
     note = None
     if device in ("auto", "cuda"):
-        if torch.cuda.is_available():
+        if cuda_usable():
             dev = "cuda"
         else:
             dev = "cpu"
