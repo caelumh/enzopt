@@ -84,6 +84,9 @@ class PinnConfig:
     n_col_uniform: int = 300
     n_col_early: int = 60
     cuda_graphs: bool = True  # capture each training step as one CUDA graph (removes launch overhead)
+    # τ = t/T_e with each experiment's own last time (default) or one shared T_max. Per experiment keeps short runs
+    # from crowding into the first few collocation points (Holmes 1988 check, 2026-10-09: set 172 error 11.9 → 5.1 %)
+    time_scale: str = "per_experiment"
 
 
 @dataclass
@@ -144,6 +147,7 @@ class LdhPinn:
         pc = np.asarray(prior_center, float)[: self.n_theta]
         self.prior_c = torch.tensor(pc, dtype=self.dt, device=self.dev)
         self.T = float(max(e.t_obs.max() for e in exps))
+        T_e = [float(e.t_obs.max()) if cfg.time_scale == "per_experiment" else self.T for e in exps]
         gens = []
         theta0 = []
         for sd in cfg.seeds:
@@ -179,6 +183,7 @@ class LdhPinn:
 
         self.lo, self.hi, self.Ntot, self.Stot, self.C3, self.Et = map(rep, (lo, hi, Ntot, Stot, C3, Et))
         self.p0 = rep(p0)
+        self.Tb = rep(T_e)  # time scale per (seed, experiment)
         tc = np.unique(
             np.concatenate([np.linspace(0, 1, cfg.n_col_uniform), np.geomspace(1e-4, 0.05, cfg.n_col_early)])
         )
@@ -189,7 +194,7 @@ class LdhPinn:
         mask = np.zeros((E, nmax))
         for i, e in enumerate(exps):
             n = len(e.t_obs)
-            tau_obs[i, :n] = e.t_obs / self.T
+            tau_obs[i, :n] = e.t_obs / T_e[i]
             a_obs[i, :n] = e.a_obs
             mask[i, :n] = 1.0
         self.tau_obs = torch.tensor(np.tile(tau_obs, (S, 1)), dtype=self.dt, device=self.dev).unsqueeze(-1)
@@ -276,7 +281,7 @@ class LdhPinn:
         L_data = (((self.a_obs - a_pred) / cfg.sigma) ** 2 * self.mask).sum(dim=1) / self.n_obs.squeeze(1)  # (B,1)
         # physics at collocation points
         S, _, dN, phi, dphi = self.states(self.tau_col, kfB, krB)
-        T = self.T
+        T = self.Tb
         f, g = [], []
         for j, (a, b) in enumerate(STEPS):
             fj = kfB[..., j : j + 1]

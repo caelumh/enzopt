@@ -68,7 +68,7 @@ projects/<이름>/
 | `network.prior` | 사전분포: `kf_log10`(모든 단계), `kr_log10`(가역 단계 중 Haldane 단계 제외), `Kp_log10`, `sd_decades`(기본 1.5) |
 | `control.one_way_steps` | 비약가역 대조 반응망(F-10): 이 단계들을 한 방향으로 |
 | `experiments.<이름>` | 초기 농도(종 이름: mM), `Et_nM`, `role`(train / holdout / design-check), `file`, `temp_file`, (선택) `format`(`temp_col` 포함), `time_offset_s` |
-| `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, restarts, representation: qss}`, `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: ode|pinn`, `exclusion_sigma`(기본 3) |
+| `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, restarts, representation: qss, time_scale: per_experiment}`, `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: ode|pinn`, `exclusion_sigma`(기본 3) |
 | `simulation` | `t_long_s`, `same_class_runs`, `class_seed`, `hopsan: {enabled, one_step_k1: auto, representative_experiment, max_steps}` |
 | `design` | `target: assay`, `analyte`, `partner`(ρ = partner₀/analyte₀), `free_enzyme`, `analyte0_mM`, `conversion`, `time_s`, `Kp`, `dead_end: {step, enzyme_species, kf, Ki_mM}`, `rho_grid: auto`, `Et_bounds_mM`, `bisection_iters`, `check_t_end_s`, `pipette: {volume_uL, enzyme_uL, stocks_mM, limit_test_rhos, limit_test_enzyme_multiples}` |
 | `quick` | 짧은 모드에서 바꿀 값(`seeds`, `same_class_runs`, `rho_grid`, `bisection_iters`, `baseline_starts`, `hopsan` …) |

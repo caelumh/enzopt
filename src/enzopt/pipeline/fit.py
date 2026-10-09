@@ -78,6 +78,7 @@ def run_fit_stage(ctx: RunContext) -> None:
         w_prior=float(pc.get("w_prior", 1e-2)),
         w_phys_final=float(pc.get("w_phys_final", 1e4)),
         representation=str(pc.get("representation", "qss")),
+        time_scale=str(pc.get("time_scale", "per_experiment")),
         sigma=sigma,
         eps340=float(next(iter(p.observable_weights().values()))),
         prior_sd=float(p.prior.get("sd_decades", 1.5)),
