@@ -81,12 +81,16 @@ def version() -> str | None:
 
 def run_model(hmf, out_csv, param_csv=None, sim="hmf", nsamples=None, timeout=3600):
     """Run HopsanCLI on ``hmf`` and return ``(t, {species: array})`` from the full-results CSV."""
+    hmf, out_csv = Path(hmf).resolve(), Path(out_csv).resolve()
     cmd = find_cli() + ["-m", str(hmf), "-s", sim, "--resultsFullCSV", str(out_csv), "--silent"]
     if param_csv:
-        cmd += ["--parameterImport", str(param_csv)]
+        cmd += ["--parameterImport", str(Path(param_csv).resolve())]
     if nsamples:
         cmd += ["-l", str(int(nsamples))]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace")
+    # run in the output folder: HopsanCLI writes hopsan_logfile.txt into its working directory
+    r = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace", cwd=out_csv.parent
+    )
     if r.returncode != 0 or "Error" in (r.stdout or ""):
         raise HopsanError("HopsanCLI 실패:\n" + (r.stdout or "")[-1500:] + (r.stderr or "")[-500:])
     return read_species(out_csv)

@@ -22,3 +22,6 @@ evals/_work/
 Thumbs.db
 .vscode/
 .idea/
+
+# Hopsan CLI log written to the working directory
+hopsan_logfile.txt
