@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 322" font-family="Pretendard, 'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif" role="img" aria-label="enzopt 다섯 단계 흐름">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="322" fill="#ffffff"/>
+
+  <!-- input -->
+  <rect x="20" y="12" width="250" height="34" rx="17" fill="#f2f2f2" stroke="#999"/>
+  <text x="145" y="34" text-anchor="middle" font-size="13" font-family="Consolas, 'JetBrains Mono', monospace" fill="#222">project.yaml + data/*.csv</text>
+  <path d="M60,46 V80" stroke="#555" stroke-width="1.5" fill="none" marker-end="url(#ah)"/>
+
+  <!-- CRNT guarantee carried forward -->
+  <path d="M150,84 V66 Q150,58 158,58 H890 Q898,58 898,66 V80" stroke="#0072B2" stroke-width="1.4" stroke-dasharray="5 4" fill="none" marker-end="url(#ah)"/>
+  <path d="M700,58 V80" stroke="#0072B2" stroke-width="1.4" stroke-dasharray="5 4" fill="none" marker-end="url(#ah)"/>
+  <text x="520" y="50" text-anchor="middle" font-size="12.5" fill="#0b4f80">CRNT 보장 → ④ 검증 기준 · ⑤ 평형 한계</text>
+
+  <!-- stage boxes: x = 20 + 198 i -->
+  <g font-size="14" fill="#222">
+    <!-- 1 -->
+    <rect x="20" y="84" width="172" height="170" rx="8" fill="#ffffff" stroke="#0072B2" stroke-width="1.5"/>
+    <path d="M20,92 Q20,84 28,84 H184 Q192,84 192,92 V122 H20 z" fill="#d9e8f5"/>
+    <text x="106" y="109" text-anchor="middle" font-weight="700" font-size="16">① 반응망 판정</text>
+    <text x="106" y="148" text-anchor="middle">반응식 구조가</text>
+    <text x="106" y="167" text-anchor="middle">무엇을 보장하나</text>
+    <text x="106" y="206" text-anchor="middle" font-size="12" fill="#666">등급 A · B · C</text>
+    <text x="106" y="238" text-anchor="middle" font-size="12.5" fill="#0072B2" font-weight="600">그림 1a · 1b · 1c</text>
+    <!-- 2 -->
+    <rect x="218" y="84" width="172" height="170" rx="8" fill="#ffffff" stroke="#56B4E9" stroke-width="1.5"/>
+    <path d="M218,92 Q218,84 226,84 H382 Q390,84 390,92 V122 H218 z" fill="#e1f1fb"/>
+    <text x="304" y="109" text-anchor="middle" font-weight="700" font-size="16">② 데이터 검사</text>
+    <text x="304" y="148" text-anchor="middle">측정 파일이</text>
+    <text x="304" y="167" text-anchor="middle">쓸 만한가</text>
+    <text x="304" y="206" text-anchor="middle" font-size="12" fill="#666">형식 · 첫값 · 온도</text>
+    <text x="304" y="238" text-anchor="middle" font-size="12.5" fill="#0072B2" font-weight="600">그림 2</text>
+    <!-- 3 -->
+    <rect x="416" y="84" width="172" height="170" rx="8" fill="#ffffff" stroke="#E69F00" stroke-width="1.5"/>
+    <path d="M416,92 Q416,84 424,84 H580 Q588,84 588,92 V122 H416 z" fill="#fbecd0"/>
+    <text x="502" y="109" text-anchor="middle" font-weight="700" font-size="16">③ 식별 (PINN)</text>
+    <text x="502" y="148" text-anchor="middle">데이터에 맞는</text>
+    <text x="502" y="167" text-anchor="middle">속도 상수 표본 여럿,</text>
+    <text x="502" y="186" text-anchor="middle">처음 보는 조건 시험</text>
+    <text x="502" y="214" text-anchor="middle" font-size="12" fill="#666">+ 고전 피팅 · 대조</text>
+    <text x="502" y="238" text-anchor="middle" font-size="12.5" fill="#0072B2" font-weight="600">그림 3a ~ 3d</text>
+    <!-- 4 -->
+    <rect x="614" y="84" width="172" height="170" rx="8" fill="#ffffff" stroke="#009E73" stroke-width="1.5"/>
+    <path d="M614,92 Q614,84 622,84 H778 Q786,84 786,92 V122 H614 z" fill="#d6f0e7"/>
+    <text x="700" y="109" text-anchor="middle" font-weight="700" font-size="16">④ 해석 · 검증</text>
+    <text x="700" y="148" text-anchor="middle">표본마다 구조적</text>
+    <text x="700" y="167" text-anchor="middle">보장이 지켜지나</text>
+    <text x="700" y="206" text-anchor="middle" font-size="12" fill="#666">scipy · Hopsan</text>
+    <text x="700" y="238" text-anchor="middle" font-size="12.5" fill="#0072B2" font-weight="600">그림 4a ~ 4c</text>
+    <!-- 5 -->
+    <rect x="812" y="84" width="172" height="170" rx="8" fill="#ffffff" stroke="#D55E00" stroke-width="1.5"/>
+    <path d="M812,92 Q812,84 820,84 H976 Q984,84 984,92 V122 H812 z" fill="#f8dfd0"/>
+    <text x="898" y="109" text-anchor="middle" font-weight="700" font-size="16">⑤ 강건 설계</text>
+    <text x="898" y="148" text-anchor="middle">모든 표본에서 통하는</text>
+    <text x="898" y="167" text-anchor="middle">최소 효소량 · 기질 비</text>
+    <text x="898" y="206" text-anchor="middle" font-size="12" fill="#666">ρ* · Et* · 피펫 표</text>
+    <text x="898" y="238" text-anchor="middle" font-size="12.5" fill="#0072B2" font-weight="600">그림 5a ~ 5d</text>
+  </g>
+
+  <!-- flow arrows -->
+  <g stroke="#555" stroke-width="1.6" fill="none" marker-end="url(#ah)">
+    <path d="M193,169 H216"/>
+    <path d="M391,169 H414"/>
+    <path d="M589,169 H612"/>
+    <path d="M787,169 H810"/>
+    <path d="M898,255 V276"/>
+  </g>
+  <text x="600" y="276" text-anchor="middle" font-size="12" fill="#666">③의 표본이 ④ · ⑤로 그대로 넘어간다</text>
+
+  <!-- output -->
+  <rect x="736" y="279" width="254" height="34" rx="17" fill="#fff4ec" stroke="#D55E00"/>
+  <text x="863" y="301" text-anchor="middle" font-size="13" fill="#222"><tspan font-family="Consolas, 'JetBrains Mono', monospace">pipette.csv</tspan> → 확인 실험</text>
+</svg>
