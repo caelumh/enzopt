@@ -102,9 +102,22 @@ def figures(run: D.RunView, stage: str) -> None:
             st.image(str(run.path / stage / f["png"]), caption=f["name"])
 
 
+def _short(v):
+    """Display value: numbers to 4 significant digits (the CSV files keep full precision)."""
+    if isinstance(v, str):
+        try:
+            f = float(v)
+        except ValueError:
+            return v
+        return int(f) if f.is_integer() and abs(f) < 1e9 else float(f"{f:.4g}")
+    if isinstance(v, float):
+        return float(f"{v:.4g}")
+    return v
+
+
 def table(rows: list[dict] | None, key: str | None = None) -> None:
     if rows:
-        st.dataframe(rows, hide_index=True, key=key)
+        st.dataframe([{k: _short(v) for k, v in r.items()} for r in rows], hide_index=True, key=key)
 
 
 # ------------------------------------------------------------------------------------------------ tabs

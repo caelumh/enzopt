@@ -59,6 +59,10 @@ def linestyle(i: int):
 
 def sig3(x) -> str:
     """3 significant digits; exponents as 1.5×10⁻⁴."""
+    if isinstance(x, bool | np.bool_):
+        return str(x)
+    if isinstance(x, int | np.integer):
+        return str(int(x))
     try:
         x = float(x)
     except (TypeError, ValueError):
