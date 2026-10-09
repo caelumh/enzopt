@@ -1,0 +1,96 @@
+# 실측 문헌 데이터 프로젝트: Holmes (1988) 토끼 근육 LDH(M4), pH 7.0 인산 0.1 M, 25 ℃
+# 데이터는 make_data.py가 표 II·III(6회 반복 적합 계수)로 복원한 진행 곡선 21개 + 그림 4·5의 원시 점(README.md).
+# 관측값은 A340이 아니라 NADH 농도(mM): 원 실험이 1 cm·0.2 cm 큐벳을 섞어 써서 흡광도로는 한 관측식이 안 됨.
+name: ldh_holmes1988
+description: 실측 문헌 데이터 — Holmes(1988) 토끼 근육 LDH, pH 7.0, 25 ℃, 진행 곡선 21개(생성물 포함 조건) + 원시 점 2세트
+
+network:
+  name: ldh_ordered_bibi
+  species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD]
+  enzyme_species: [E, EN, ENP, EQL, EQ]
+  steps:
+    - E + NADH <=> EN
+    - EN + Pyr <=> ENP
+    - ENP <=> EQL
+    - EQL <=> EQ + Lac
+    - EQ <=> E + NAD
+  observable:
+    name: NADH_mM
+    coefficients: {NADH: 1.0, EN: 1.0, ENP: 1.0}   # 효소에 붙은 NADH도 340 nm에서 보임
+  thermodynamics:
+    overall: Pyr + NADH <=> Lac + NAD
+    Kp: 2.3e4                # pH 7.0, 25 ℃ (Racker 1950 → 2.3×10⁴; 문헌 범위 1×10⁴~4.3×10⁴, 프로토콜 1절)
+    haldane_step: 5
+  prior:                     # 문헌 자릿수(예제와 같은 중심), 표준편차 1.5 자릿수
+    kf_log10: [4, 4, 2, 3, 2]
+    kr_log10: [2, 3, 3, 2]
+    Kp_log10: 4
+    sd_decades: 1.5
+
+control:
+  one_way_steps: [5]
+
+# Et_nM: 모든 곡선을 명목 효소 0.05 units/ml로 환산(원 데이터 축이 e0·t). 330 units/mg(논문), 활성 자리 36.6 kDa → 4.14 nM
+experiments:
+  s142: {file: data/set142.csv, NADH: 0.0345, Pyr: 0.280,  Lac: 0.0,    NAD: 3.00,   Et_nM: 4.14, role: train}
+  s166: {file: data/set166.csv, NADH: 0.0339, Pyr: 0.183,  Lac: 23.6,   NAD: 0.0,    Et_nM: 4.14, role: train}
+  s395: {file: data/set395.csv, NADH: 0.137,  Pyr: 0.236,  Lac: 0.010,  NAD: 5.07,   Et_nM: 4.14, role: train}
+  s415: {file: data/set415.csv, NADH: 0.028,  Pyr: 0.040,  Lac: 2.00,   NAD: 0.010,  Et_nM: 4.14, role: train}
+  s481: {file: data/set481.csv, NADH: 0.0581, Pyr: 0.0967, Lac: 0.0,    NAD: 3.48,   Et_nM: 4.14, role: train}
+  s489: {file: data/set489.csv, NADH: 0.0571, Pyr: 0.0956, Lac: 0.0191, NAD: 1.52,   Et_nM: 4.14, role: train}
+  s245: {file: data/set245.csv, NADH: 1.715,  Pyr: 0.298,  Lac: 0.131,  NAD: 7.04,   Et_nM: 4.14, role: train}
+  s263: {file: data/set263.csv, NADH: 1.071,  Pyr: 0.0519, Lac: 29.6,   NAD: 0.109,  Et_nM: 4.14, role: train}
+  s289: {file: data/set289.csv, NADH: 0.841,  Pyr: 0.0640, Lac: 22.2,   NAD: 0.0594, Et_nM: 4.14, role: train}
+  s295: {file: data/set295.csv, NADH: 0.177,  Pyr: 0.0408, Lac: 0.0201, NAD: 1.01,   Et_nM: 4.14, role: train}
+  s308: {file: data/set308.csv, NADH: 0.150,  Pyr: 0.0199, Lac: 0.0101, NAD: 2.67,   Et_nM: 4.14, role: train}
+  s321: {file: data/set321.csv, NADH: 1.011,  Pyr: 0.104,  Lac: 40.04,  NAD: 0.0,    Et_nM: 4.14, role: train}
+  s438: {file: data/set438.csv, NADH: 0.104,  Pyr: 0.0563, Lac: 0.020,  NAD: 5.07,   Et_nM: 4.14, role: train}
+  s448: {file: data/set448.csv, NADH: 0.192,  Pyr: 0.119,  Lac: 10.0,   NAD: 0.0208, Et_nM: 4.14, role: train}
+  s473: {file: data/set473.csv, NADH: 0.982,  Pyr: 0.167,  Lac: 35.4,   NAD: 0.103,  Et_nM: 4.14, role: train}
+  # 홀드아웃(학습에 쓰지 않음): 젖산 많은 조건(172), 생성물 없는 묽은 조건(408·465), NAD⁺ 많은 조건(422), 고농도(251·457)
+  s172: {file: data/set172.csv, NADH: 0.0354, Pyr: 0.235,  Lac: 35.7,   NAD: 0.0,    Et_nM: 4.14, role: holdout}
+  s408: {file: data/set408.csv, NADH: 0.0243, Pyr: 0.0391, Lac: 0.016,  NAD: 0.0,    Et_nM: 4.14, role: holdout}
+  s422: {file: data/set422.csv, NADH: 0.054,  Pyr: 0.100,  Lac: 0.0,    NAD: 4.86,   Et_nM: 4.14, role: holdout}
+  s465: {file: data/set465.csv, NADH: 0.0264, Pyr: 0.0161, Lac: 0.0,    NAD: 0.0,    Et_nM: 4.14, role: holdout}
+  s251: {file: data/set251.csv, NADH: 1.353,  Pyr: 0.146,  Lac: 40.0,   NAD: 0.218,  Et_nM: 4.14, role: holdout}
+  s457: {file: data/set457.csv, NADH: 1.307,  Pyr: 0.222,  Lac: 20.4,   NAD: 1.94,   Et_nM: 4.14, role: holdout}
+  # 그림 4·5의 원시 측정점(눈금으로 읽음, ±0.005): 복원 곡선이 아닌 실제 측정값
+  s172fig: {file: data/set172fig.csv, NADH: 0.0354, Pyr: 0.235, Lac: 35.7, NAD: 0.0, Et_nM: 4.14, role: holdout}
+  s408fig: {file: data/set408fig.csv, NADH: 0.0243, Pyr: 0.0391, Lac: 0.016, NAD: 0.0, Et_nM: 4.14, role: holdout}
+
+identification:
+  method: pinn
+  seeds: 4
+  noise_sigma: 0.001         # mM. 원 논문의 실험 재현성(0.2~0.5 %)과 0.2 cm·1 cm 큐벳을 고려한 절충값
+  pinn: {adam_iters: 2000, lbfgs_iters: 300, restarts: 8}
+  baseline_fit: {starts: 4, max_nfev: 40}   # 학습 세트가 15개라 반복을 줄임
+  control: {seeds: 2}
+
+simulation:
+  t_long_s: 3000
+  same_class_runs: 12
+  hopsan:
+    enabled: true
+    one_step_k1: auto
+
+design:                      # pH 7.0 인산 조건의 NADH 정량(참고용). K'가 커서 평형 한계는 거의 무의미(ρ_min ≈ 0.99)
+  target: assay
+  analyte: NADH
+  partner: Pyr
+  free_enzyme: E
+  analyte0_mM: 0.1
+  conversion: 0.99
+  time_s: 300
+  Kp: 2.3e4
+  dead_end:
+    step: EQ + Pyr <=> EQP
+    enzyme_species: [EQP]
+    kf: 1000.0
+    Ki_mM: 5.0
+  rho_grid: auto
+  pipette:
+    volume_uL: 1000
+    enzyme_uL: 10
+    stocks_mM: {NADH: 2.0, Pyr: 10.0}
+    limit_test_rhos: []
+    limit_test_enzyme_multiples: []

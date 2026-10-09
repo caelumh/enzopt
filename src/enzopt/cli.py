@@ -50,6 +50,62 @@ def cmd_run(a) -> int:
     return 0 if st in ("completed", "interrupted") else 1
 
 
+def cmd_check(a) -> int:
+    """Stages ①② only, in a temporary folder: verdict + data checks right after measuring (nothing kept in runs/)."""
+    import tempfile
+
+    from .core.project import ProjectError, load_project
+    from .pipeline.runner import read_json, run_project
+
+    try:
+        p = load_project(a.project)
+    except (ProjectError, FileNotFoundError) as e:
+        print(f"설정 오류: {e}")
+        return 2
+    missing = [f"{e.name}: {e.file}" for e in p.experiments.values() if e.file is not None and not e.file.exists()]
+    with tempfile.TemporaryDirectory(prefix="enzopt_check_") as tmp:
+        rd = run_project(a.project, quick=True, runs_root=tmp, use_cache=False, stop_after="2_data")
+        m = read_json(rd / "manifest.json", {}) or {}
+        print()
+        if m.get("error"):
+            print(f"검사 실패 — {m['error']['message']}")
+            if missing:
+                print("아직 없는 파일: " + ", ".join(missing))
+            return 1
+        v = read_json(rd / "1_verdict" / "verdict.json", {})["networks"]["main"]
+        d = read_json(rd / "2_data" / "data.json", {})
+        coeff = sum(p.observable_weights().values()) / max(1, len(p.observable_weights()))
+        print(f"판정: {v['headline']}")
+        from .core.dataio import equilibrium_observable, final_slope
+
+        obs = p.observable["name"]
+        print(
+            f"{'실험':<8}{'역할':<14}{'점':>5}{'시간(s)':>12}{obs + ' 처음':>12}{obs + ' 끝':>11}{'예상 평형':>10}"
+            f"{'차이':>8}{'끝 기울기/분':>12}{'온도 평균±(℃)':>16}"
+        )
+        for name, x in d["experiments"].items():
+            e = p.experiments[name]
+            t = x.get("temperature")
+            temp = f"{t['mean_C']:.2f}±{t['range_C'] / 2:.2f}" if t else "기록 없음"
+            span = f"{x['t_first_s']:g}–{x['t_last_s']:g}"
+            a_eq = equilibrium_observable(p, e.initial)
+            diff = f"{(x['A_last'] - a_eq) / a_eq * 100:+.1f}%" if a_eq is not None and a_eq > 0.05 * coeff else "—"
+            slope = final_slope(rd / "2_data" / f"exp_{name}.csv")
+            a_eq_txt = f"{a_eq:.4f}" if a_eq is not None else "—"
+            print(
+                f"{name:<8}{x['role']:<14}{x['n']:>5}{span:>12}{x['A_first']:>12.4f}{x['A_last']:>11.4f}"
+                f"{a_eq_txt:>10}{diff:>8}{slope * 60:>12.4f}{temp:>16}"
+            )
+        for w in m.get("warnings") or []:
+            print(f"[경고] {w}")
+        print(
+            f"예상 평형 = K' {p.Kp:g}로 푼 전체 반응의 평형(효소에 붙은 양 무시). "
+            "같은 적합류 실험의 끝값이 서로 5% 안이고 예상 근처면 정상, 한쪽으로 치우치면 pH·온도부터 의심. "
+            "끝 기울기가 0에 가깝지 않으면 아직 평형 전."
+        )
+    return 0
+
+
 def cmd_pack(a) -> int:
     from .pack import pack_run
 
@@ -97,6 +153,9 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--device", choices=["auto", "cuda", "cpu"], help="PINN 장치(기본: project.yaml)")
     r.add_argument("--precision", choices=["auto", "float32", "float64"], help="PINN 정밀도(기본: project.yaml)")
     r.set_defaults(func=cmd_run)
+    c = sub.add_parser("check", help="측정 직후 점검: ①판정·②데이터 검사만(임시 폴더, 결과를 남기지 않음)")
+    c.add_argument("project", help="프로젝트 폴더")
+    c.set_defaults(func=cmd_check)
     p = sub.add_parser("pack", help="실행 폴더를 제출용 zip 하나로 묶기")
     p.add_argument("run_dir")
     p.add_argument("-o", "--output", help="zip 경로(기본: <실행 폴더>.zip)")

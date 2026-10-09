@@ -128,7 +128,13 @@ def fig_verdict_table(out: Path, verdicts: dict, name: str = "fig1b_verdict_tabl
 
 # ------------------------------------------------------------------------------------------------ ② data
 def fig_data(
-    out: Path, series: dict, temps: dict, roles: dict, name: str = "fig2_data", iso_range: float = 0.2
+    out: Path,
+    series: dict,
+    temps: dict,
+    roles: dict,
+    name: str = "fig2_data",
+    iso_range: float = 0.2,
+    obs: str = "A340",
 ) -> dict:
     """(a) progress curves; (b) temperature per experiment: min–max bar and mean, with the isothermal band."""
     fig, axes = new_figure(DOUBLE, 0.36 * DOUBLE, ncols=2, gridspec_kw={"width_ratios": [1.6, 1]})
@@ -136,8 +142,8 @@ def fig_data(
     rows = []
     for i, (k, (t, y)) in enumerate(series.items()):
         ax.plot(t, y, marker(i), ms=2.2, mfc="none", mew=0.6, color=color(i), label=f"{k} ({roles[k]})")
-        rows += [[k, "A340", float(a), float(b)] for a, b in zip(t, y, strict=True)]
-    ax.set(xlabel="time (s)", ylabel="A340", title="(a) progress curves")
+        rows += [[k, obs, float(a), float(b)] for a, b in zip(t, y, strict=True)]
+    ax.set(xlabel="time (s)", ylabel=obs, title="(a) progress curves")
     ax.legend(loc="lower right", bbox_to_anchor=(1.0, 0.1), ncol=2, frameon=False)
     have = [(i, k, v) for i, (k, v) in enumerate(temps.items()) if v is not None]
     if have:
@@ -223,28 +229,44 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
         names = [n for n, (_, _, r) in data.items() if r == role]
         if not names:
             continue
-        fig, axes = new_figure(DOUBLE, 0.33 * DOUBLE, ncols=len(names))
+        ncol = min(4, len(names))
+        nrow = -(-len(names) // ncol)
+        fig, axes = new_figure(DOUBLE, 0.27 * DOUBLE * nrow + 0.06 * DOUBLE, ncols=ncol, nrows=nrow)
         rows = []
+        handles = {}
         for j, n in enumerate(names):
-            ax = axes[0, j]
+            ax = axes[j // ncol, j % ncol]
             t, y, _ = data[n]
-            ax.plot(t, y, "o", ms=2.0, mfc="none", mew=0.5, color=color(j), label=f"data {n}")
+            ax.plot(t, y, "o", ms=2.0, mfc="none", mew=0.5, color=color(j))
+            handles.setdefault("data", ax.lines[-1])
             rows += [["data", n, float(a), float(b)] for a, b in zip(t, y, strict=True)]
-            shown = set()
             for i, (label, cv) in enumerate(curves.items()):
                 if role == "train" and not label.startswith("WR"):
                     continue
                 if n not in cv:
                     continue
                 tt, aa = cv[n]
-                kind = label.split(" ")[0]
-                ax.plot(tt, aa, label=None if kind in shown else kind, **_style(label, i))
-                shown.add(kind)
+                (ln,) = ax.plot(tt, aa, **_style(label, i))
+                handles.setdefault(label.split(" ")[0], ln)
                 rows += [[label, n, float(a), float(b)] for a, b in zip(tt, aa, strict=True)]
-            ax.set(xlabel="time (s)", ylabel="A340" if j == 0 else None, title=f"{n}")
-            ax.legend(frameon=False)
+            ax.set_title(n, fontsize=7)
+            ax.tick_params(labelsize=6)
+            if j % ncol == 0:
+                ax.set_ylabel(p.observable["name"])
+            if j // ncol == nrow - 1 or j + ncol >= len(names):
+                ax.set_xlabel("time (s)")
+        for k in range(len(names), nrow * ncol):
+            axes[k // ncol, k % ncol].axis("off")
+        fig.legend(
+            list(handles.values()),
+            list(handles.keys()),
+            loc="lower center",
+            ncol=len(handles),
+            frameon=False,
+            bbox_to_anchor=(0.5, -0.08),
+        )
         fig.suptitle(title, fontsize=7.5)
-        figs.append(save(fig, out, fig_name, ["model", "experiment", "time_s", "A340"], rows))
+        figs.append(save(fig, out, fig_name, ["model", "experiment", "time_s", p.observable["name"]], rows))
     # (c) rate constants
     names = [f"k+{i}" for i in range(1, 6)] + [f"k-{i}" for i in range(1, 6)]
     fig, ax = new_figure(SINGLE, 0.62 * SINGLE)
@@ -298,14 +320,14 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
                 "fig3d_holdout_table",
                 ["model", "id"] + [f"RMSE {n}" for n in hold],
                 trows,
-                title="Held-out extrapolation RMSE (A340)",
+                title=f"Held-out extrapolation RMSE ({p.observable['name']})",
             )
         )
     return figs
 
 
 # ------------------------------------------------------------------------------------------------ ④ simulation
-def sim_figures(out: Path, rows: list, traj: list, hop: dict, analyte: str) -> list:
+def sim_figures(out: Path, rows: list, traj: list, hop: dict, analyte: str, obs: str = "A340") -> list:
     figs = []
     # (a) same class → same box, other class → other equilibrium
     fig, ax = new_figure(SINGLE, 0.7 * SINGLE)
@@ -398,9 +420,9 @@ def sim_figures(out: Path, rows: list, traj: list, hop: dict, analyte: str) -> l
         title = f"(c) representative sample {full.get('sample')}, set {full.get('experiment')}: Hopsan vs scipy"
     else:
         title = f"(c) representative sample {full.get('sample')}: scipy only (Hopsan not used)"
-    ax.set(xlabel="time (s)", ylabel="A340", title=title)
+    ax.set(xlabel="time (s)", ylabel=obs, title=title)
     ax.legend(frameon=False)
-    figs.append(save(fig, out, "fig4c_hopsan_vs_scipy", ["backend", "time_s", "A340"], csv_rows))
+    figs.append(save(fig, out, "fig4c_hopsan_vs_scipy", ["backend", "time_s", obs], csv_rows))
     return figs
 
 

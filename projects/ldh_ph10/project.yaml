@@ -1,0 +1,83 @@
+# 실데이터 프로젝트(10/10~13 측정용 틀). 측정하면서 아래 "고칠 곳"만 채운다. 측정 기록지는 README.md.
+# 고칠 곳: ① Et_nM(파일럿에서 정한 E₀) ② 초기 농도(340 nm로 확인한 저장액 실제 농도로 다시 계산) ③ time_offset_s(사점 시간)
+#          ④ 기기 내보내기 형식이 표준이 아니면 각 실험에 format: 추가 ⑤ pH 9.5를 쓰면 Kp 72, limit_test_rhos [1.0, 1.5]
+name: ldh_ph10
+description: 실데이터 — LDH 가역 반응, 글리신–NaOH 50 mM pH 10, 25 ℃, 1 cm 큐벳(프로토콜 1절·4절)
+
+network:
+  name: ldh_ordered_bibi
+  species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD]
+  enzyme_species: [E, EN, ENP, EQL, EQ]
+  steps:
+    - E + NADH <=> EN
+    - EN + Pyr <=> ENP
+    - ENP <=> EQL
+    - EQL <=> EQ + Lac
+    - EQ <=> E + NAD
+  observable:
+    name: A340
+    coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22}   # ε340 6.22 /mM/cm × 1 cm
+  thermodynamics:
+    overall: Pyr + NADH <=> Lac + NAD
+    Kp: 23.0                 # pH 10, 25 ℃ (pH 9.5면 72)
+    haldane_step: 5
+  prior:
+    kf_log10: [4, 4, 2, 3, 2]
+    kr_log10: [2, 3, 3, 2]
+    Kp_log10: 1
+    sd_decades: 1.5
+
+control:
+  one_way_steps: [5]
+
+# 파일: data/setA_1.csv 처럼 세트_반복. 열은 time_s,A340(,T_C). 시간 = 효소를 넣은 순간부터(아니면 time_offset_s로 맞춤)
+experiments:
+  A_1:  {file: data/setA_1.csv,  NADH: 0.2, NAD: 0.0, Pyr: 0.2, Lac: 9.8,  Et_nM: 24.2, time_offset_s: 0, role: train}
+  A_2:  {file: data/setA_2.csv,  NADH: 0.2, NAD: 0.0, Pyr: 0.2, Lac: 9.8,  Et_nM: 24.2, time_offset_s: 0, role: train}
+  B_1:  {file: data/setB_1.csv,  NADH: 0.0, NAD: 0.2, Pyr: 0.0, Lac: 10.0, Et_nM: 24.2, time_offset_s: 0, role: train}
+  B_2:  {file: data/setB_2.csv,  NADH: 0.0, NAD: 0.2, Pyr: 0.0, Lac: 10.0, Et_nM: 24.2, time_offset_s: 0, role: train}
+  C_1:  {file: data/setC_1.csv,  NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9,  Et_nM: 24.2, time_offset_s: 0, role: holdout}
+  C_2:  {file: data/setC_2.csv,  NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9,  Et_nM: 24.2, time_offset_s: 0, role: holdout}
+  Dp_1: {file: data/setDp_1.csv, NADH: 0.2, NAD: 0.0, Pyr: 0.5, Lac: 9.5,  Et_nM: 24.2, time_offset_s: 0, role: holdout}
+  Dp_2: {file: data/setDp_2.csv, NADH: 0.2, NAD: 0.0, Pyr: 0.5, Lac: 9.5,  Et_nM: 24.2, time_offset_s: 0, role: holdout}
+  # 10/13 설계 확인 세트: 10/12 실행의 5_design/pipette.csv 값으로 채우고 주석을 푼다(Et_nM = 그 세트의 최종 효소량)
+  # L1a: {file: data/setL1a.csv, NADH: 0.1, NAD: 0.0, Pyr: 0.15, Lac: 0.0, Et_nM: <E₀×10>, role: design-check}
+  # D1_1: {file: data/setD1_1.csv, NADH: 0.1, NAD: 0.0, Pyr: <ρ*×0.1>, Lac: 0.0, Et_nM: <강건 Et*>, role: design-check}
+  # D0_1: {file: data/setD0_1.csv, NADH: 0.1, NAD: 0.0, Pyr: <ρ*×0.1>, Lac: 0.0, Et_nM: <공칭 Et>, role: design-check}
+
+identification:
+  method: pinn
+  seeds: 4
+  noise_sigma: 0.003         # 분광기 잡음 σ(A340). 파일럿 기준선 2분의 표준편차로 고쳐도 됨
+  pinn: {adam_iters: 2000, lbfgs_iters: 300, restarts: 8}
+  baseline_fit: {starts: 4}
+  control: {seeds: 2}
+
+simulation:
+  t_long_s: 3000
+  same_class_runs: 12
+  hopsan:
+    enabled: true
+    one_step_k1: auto
+
+design:
+  target: assay
+  analyte: NADH
+  partner: Pyr
+  free_enzyme: E
+  analyte0_mM: 0.1
+  conversion: 0.99           # 끝값을 형광으로 못 읽으면 0.95
+  time_s: 300
+  Kp: 23.0
+  dead_end:                  # Ki = 5 mM은 가정값 [문헌 확인 필요]
+    step: EQ + Pyr <=> EQP
+    enzyme_species: [EQP]
+    kf: 1000.0
+    Ki_mM: 5.0
+  rho_grid: auto
+  pipette:
+    volume_uL: 1000
+    enzyme_uL: 10
+    stocks_mM: {NADH: 2.0, Pyr: 10.0}
+    limit_test_rhos: [1.5, 3.0]                 # pH 9.5면 [1.0, 1.5]
+    limit_test_enzyme_multiples: [[10, 20], [10]]

@@ -27,7 +27,7 @@ uv run enzopt dashboard                                # 대시보드 (http://lo
 uv run enzopt pack runs/example_ldh_synth/<실행 폴더>   # 제출용 zip 하나
 ```
 
-실데이터 프로젝트: `projects/example_ldh_synth`를 복사해 `projects/<이름>/`을 만들고, `data/`에 진행 곡선 CSV를 넣은 뒤 `project.yaml`의 `name`과 `experiments`(초기 농도·효소량·파일·역할)를 고칩니다.
+실데이터 프로젝트: 측정용 틀 `projects/ldh_ph10/`(측정 기록지 README 포함)을 채운다. 실측 문헌 데이터로 미리 시험한 예는 `projects/ldh_holmes1988/`(Holmes 1988, 토끼 근육 LDH pH 7.0). 처음부터 만들 때는 `projects/example_ldh_synth`를 복사해 `projects/<이름>/`을 만들고, `data/`에 진행 곡선 CSV를 넣은 뒤 `project.yaml`의 `name`과 `experiments`(초기 농도·효소량·파일·역할)를 고칩니다.
 
 | 명령 | 하는 일 |
 |---|---|
@@ -35,6 +35,7 @@ uv run enzopt pack runs/example_ldh_synth/<실행 폴더>   # 제출용 zip 하�
 | `enzopt run <프로젝트> --no-cache` | 재사용 없이 전부 다시 계산 |
 | `enzopt run --resume <실행 폴더>` | 중단된 실행을 끊긴 단계부터 이어서 (`--from-stage 3_fit`처럼 특정 단계부터 다시) |
 | `enzopt run ... --device cpu --precision float64` | PINN 장치·정밀도 지정(기본은 project.yaml) |
+| `enzopt check <프로젝트>` | 측정 직후 점검: 판정·데이터 검사만 임시 폴더에서. 실험별 점 수·처음/끝값·K'로 푼 예상 평형과의 차이·끝 기울기·온도 |
 | `enzopt pack <실행 폴더> [-o x.zip]` | 입력 데이터·설정 사본·그림·CSV·Hopsan `.hmf`·검증 보고를 zip 하나로 |
 | `enzopt doctor [--hopsan]` | 환경 점검 |
 | `enzopt synth evals/synthetic.yaml <프로젝트>` | 현실적 합성 데이터로 `data/` 작성(예제 생성용) |
@@ -48,7 +49,7 @@ projects/<이름>/
 └─ data/             진행 곡선·온도 CSV (원본, 읽기만)
 ```
 
-데이터 표준 형식(UTF-8 CSV, 머리글 필수): 진행 곡선 `time_s,A340`, 온도 `time_s,T_C`(1 s 간격). 시간 역행·빈 값·숫자가 아닌 값·A340 > 2인 파일은 **파일 이름과 줄 번호**를 담은 오류로 멈춥니다. 분광광도계 내보내기 형식이 다르면 실험 항목에 `format:`을 적어 일반 변환기로 읽습니다(변환 결과는 실행 폴더에 저장, 원본은 그대로):
+데이터 표준 형식(UTF-8 CSV, 머리글 필수): 진행 곡선 `time_s,A340`, 온도 `time_s,T_C`(1 s 간격). 온도는 같은 파일의 세 번째 열(`time_s,A340,T_C`)로 넣어도 된다. 관측값 이름이 A340이 아니면(예: `NADH_mM`) 그 이름이 열 이름이고 A340 > 2 검사는 하지 않는다. 기기 시계가 효소 투입이 아닌 첫 측정에서 0이면 실험에 `time_offset_s`(사점 시간)를 적는다. 시간 역행·빈 값·숫자가 아닌 값·A340 > 2인 파일은 **파일 이름과 줄 번호**를 담은 오류로 멈춥니다. 분광광도계 내보내기 형식이 다르면 실험 항목에 `format:`을 적어 일반 변환기로 읽습니다(변환 결과는 실행 폴더에 저장, 원본은 그대로):
 
 ```yaml
   A: {file: data/raw/A.txt, format: {delimiter: tab, decimal: ",", skip_rows: 2, time_col: 0, value_col: 1, time_unit: min, encoding: cp949}, ...}
@@ -66,7 +67,7 @@ projects/<이름>/
 | `network.thermodynamics` | `overall`(전체 반응식, 적합류 생성에 씀), `Kp`(K'), `haldane_step`(K'로 k₋를 정하는 단계 번호) |
 | `network.prior` | 사전분포: `kf_log10`(모든 단계), `kr_log10`(가역 단계 중 Haldane 단계 제외), `Kp_log10`, `sd_decades`(기본 1.5) |
 | `control.one_way_steps` | 비약가역 대조 반응망(F-10): 이 단계들을 한 방향으로 |
-| `experiments.<이름>` | 초기 농도(종 이름: mM), `Et_nM`, `role`(train / holdout / design-check), `file`, `temp_file`, (선택) `format` |
+| `experiments.<이름>` | 초기 농도(종 이름: mM), `Et_nM`, `role`(train / holdout / design-check), `file`, `temp_file`, (선택) `format`(`temp_col` 포함), `time_offset_s` |
 | `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, restarts, representation: qss}`, `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: ode|pinn`, `exclusion_sigma`(기본 3) |
 | `simulation` | `t_long_s`, `same_class_runs`, `class_seed`, `hopsan: {enabled, one_step_k1: auto, representative_experiment, max_steps}` |
 | `design` | `target: assay`, `analyte`, `partner`(ρ = partner₀/analyte₀), `free_enzyme`, `analyte0_mM`, `conversion`, `time_s`, `Kp`, `dead_end: {step, enzyme_species, kf, Ki_mM}`, `rho_grid: auto`, `Et_bounds_mM`, `bisection_iters`, `check_t_end_s`, `pipette: {volume_uL, enzyme_uL, stocks_mM, limit_test_rhos, limit_test_enzyme_multiples}` |

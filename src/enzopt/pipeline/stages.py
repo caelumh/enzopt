@@ -84,7 +84,7 @@ def stage_data(ctx: RunContext) -> None:
     names = list(p.experiments)
     for i, (name, exp) in enumerate(p.experiments.items()):
         ctx.progress(i / max(1, len(names)), f"실험 {name}")
-        s, temp = load_experiment(exp, converted_dir=out)
+        s, temp = load_experiment(exp, converted_dir=out, value_column=p.observable["name"])
         write_series(out / f"exp_{name}.csv", s.t, s.y, ("time_s", p.observable["name"]))
         a0_expected = sum(c * exp.initial.get(sp, 0.0) for sp, c in coeff.items())
         info = {
@@ -101,6 +101,10 @@ def stage_data(ctx: RunContext) -> None:
             "A_max": float(s.y.max()),
             "A0_expected": float(a0_expected),
             "converted": bool(exp.format),
+            "time_offset_s": exp.time_offset_s,
+            "temperature_source": None
+            if temp is None
+            else (str(exp.temp_file.name) if exp.temp_file is not None else f"{exp.file.name}의 온도 열"),
         }
         if temp is not None:
             write_series(out / f"temp_{name}.csv", temp.t, temp.y, ("time_s", "T_C"))
@@ -124,7 +128,7 @@ def stage_data(ctx: RunContext) -> None:
         raise StageFailed("학습 실험이 없음")
     write_json(out / "data.json", {"observable": p.observable, "experiments": summary})
     ctx.progress(0.9, "그림")
-    figs = [plots.fig_data(out, series, temps, roles)]
+    figs = [plots.fig_data(out, series, temps, roles, obs=p.observable["name"])]
     write_json(out / "figures.json", figs)
 
 

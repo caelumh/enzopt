@@ -49,13 +49,30 @@ def now_iso() -> str:
     return _dt.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def write_json(path: Path, obj) -> None:
-    """Atomic JSON write (the dashboard may read while we write)."""
+def write_json(path: Path, obj, best_effort: bool = False) -> None:
+    """Atomic JSON write (the dashboard may read while we write).
+
+    On Windows the final rename fails with PermissionError while another process (dashboard, virus scanner, indexer)
+    holds the target open, so it is retried for up to ~2 s. ``best_effort`` writes (progress) give up silently.
+    """
     path = Path(path)
     tmp = path.with_name(path.name + f".tmp{os.getpid()}")
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(obj, fh, indent=1, ensure_ascii=False, default=_json_default)
-    os.replace(tmp, path)
+    for attempt in range(40):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == 39:
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+                if best_effort:
+                    return
+                raise
+            time.sleep(0.05)
 
 
 def _json_default(o):
@@ -273,6 +290,7 @@ class RunContext:
                 "updated": now_iso(),
                 "pid": os.getpid(),
             },
+            best_effort=True,
         )
 
     def read_stage_json(self, stage: str, name: str):

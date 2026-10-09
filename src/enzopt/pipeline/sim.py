@@ -164,7 +164,7 @@ def run_sim_stage(ctx: RunContext) -> None:
     }
     ctx.flag("validation", f"{n_pass}/{len(rows)}")
     ctx.progress(0.95, "그림")
-    figs = plots.sim_figures(out, rows, traj, hop, ov_analyte(ov))
+    figs = plots.sim_figures(out, rows, traj, hop, ov_analyte(ov), obs=p.observable["name"])
     write_json(out / "figures.json", figs)
     full = hop.get("full_representative", {})
     for key in [k for k in full if k in ("t", "hopsan_t") or k.startswith(("scipy_", "hopsan_A", "hopsan_an"))]:

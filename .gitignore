@@ -25,3 +25,6 @@ Thumbs.db
 
 # Hopsan CLI log written to the working directory
 hopsan_logfile.txt
+
+# downloaded source documents (third-party copyright; see each project README for the link)
+projects/*/raw/*.pdf

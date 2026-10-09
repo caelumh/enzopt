@@ -15,6 +15,7 @@ from .network import Network, NetworkError, Step
 from .yamlio import load_yaml
 
 ROLES = ("train", "holdout", "design-check")
+EXPERIMENT_KEYS = ("file", "temp_file", "Et_nM", "role", "format", "time_offset_s")
 
 DEFAULTS: dict = {
     "identification": {
@@ -104,6 +105,7 @@ class Experiment:
     file: Path | None = None
     temp_file: Path | None = None
     format: dict | None = None
+    time_offset_s: float = 0.0  # added to recorded times: time since enzyme addition (e.g. mixing dead time)
 
     @property
     def Et(self) -> float:
@@ -272,7 +274,7 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
             if s in e:
                 initial[s] = _num(e[s], f"experiments.{name}.{s}")
         for k in e:
-            if k not in ("file", "temp_file", "Et_nM", "role", "format") and k not in network.species:
+            if k not in EXPERIMENT_KEYS and k not in network.species:
                 raise ProjectError(f"experiments.{name}: 알 수 없는 항목 '{k}'(종 이름이 아님)")
         exps[str(name)] = Experiment(
             name=str(name),
@@ -282,6 +284,7 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
             file=(root / e["file"]) if e.get("file") else None,
             temp_file=(root / e["temp_file"]) if e.get("temp_file") else None,
             format=e.get("format"),
+            time_offset_s=_num(e.get("time_offset_s", 0.0), f"experiments.{name}.time_offset_s"),
         )
     if not any(x.role == "train" for x in exps.values()):
         raise ProjectError("학습(role: train) 실험이 하나도 없음")

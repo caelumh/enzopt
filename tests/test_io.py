@@ -1,6 +1,7 @@
 """AC-04: read the example project.yaml and standard CSVs; reject bad CSVs with file name and line number."""
 
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -102,3 +103,92 @@ def test_generic_converter(tmp_path):
     )
     t, y = convert(raw, {"delimiter": "tab", "decimal": ",", "skip_rows": 2, "time_unit": "min"})
     assert np.allclose(t, [0, 30, 60]) and np.allclose(y, [1.244, 1.2, 1.16])
+
+
+def _proj_copy(tmp_path, example_dir, name="p"):
+    proj = tmp_path / name
+    shutil.copytree(example_dir, proj)
+    return proj
+
+
+def test_temperature_in_same_file_and_time_offset(tmp_path, example_dir):
+    from enzopt.core.dataio import load_experiment
+
+    proj = _proj_copy(tmp_path, example_dir)
+    t = np.arange(0.0, 60.0, 5.0)
+    rows = "".join(f"{a:.1f},{1.2 - 0.001 * a:.4f},{25.0 + 0.01 * (i % 3):.2f}\n" for i, a in enumerate(t))
+    (proj / "data" / "setA.csv").write_text("time_s,A340,T_C\n" + rows, encoding="utf-8")
+    y = (proj / "project.yaml").read_text(encoding="utf-8")
+    y = y.replace(
+        "{file: data/setA.csv,  temp_file: data/setA_temp.csv,  NADH: 0.2,",
+        "{file: data/setA.csv,  time_offset_s: 5,  NADH: 0.2,",
+    )
+    (proj / "project.yaml").write_text(y, encoding="utf-8")
+    p = load_project(proj)
+    e = p.experiments["A"]
+    assert e.temp_file is None and e.time_offset_s == 5.0
+    s, temp = load_experiment(e)
+    assert temp is not None and len(temp.t) == len(t)
+    assert s.t[0] == pytest.approx(5.0) and temp.t[0] == pytest.approx(5.0)
+
+
+def test_converter_temperature_column(tmp_path):
+    from enzopt.core.dataio import load_experiment
+    from enzopt.core.project import Experiment
+
+    raw = _write(tmp_path, "export.txt", "Kinetics\ntime\tabs\ttemp\n0\t1,24\t25,0\n0,5\t1,20\t25,1\n1,0\t1,16\t25,0\n")
+    e = Experiment(
+        "X",
+        {"NADH": 0.2},
+        24.2,
+        "train",
+        file=raw,
+        format={"delimiter": "tab", "decimal": ",", "skip_rows": 2, "temp_col": 2, "time_unit": "min"},
+    )
+    s, temp = load_experiment(e, converted_dir=tmp_path)
+    assert np.allclose(s.t, [0, 30, 60]) and np.allclose(s.y, [1.24, 1.2, 1.16])
+    assert np.allclose(temp.y, [25.0, 25.1, 25.0])
+    assert raw.read_text(encoding="utf-8").startswith("Kinetics")  # original untouched
+
+
+def test_concentration_observable_column(tmp_path, example_dir):
+    """A project may observe a concentration (column named after the observable); no A340 > 2 limit then."""
+    from enzopt.core.dataio import load_experiment
+
+    proj = _proj_copy(tmp_path, example_dir)
+    (proj / "data" / "setA.csv").write_text("time_s,NADH_mM\n5,2.5\n10,2.4\n", encoding="utf-8")
+    p = load_project(proj)
+    s, _ = load_experiment(p.experiments["A"], value_column="NADH_mM")
+    assert s.y[0] == 2.5
+    with pytest.raises(DataError, match="머리글"):
+        load_experiment(p.experiments["A"], value_column="A340")
+
+
+def test_equilibrium_observable(example_dir):
+    from enzopt.core.dataio import equilibrium_observable
+
+    p = load_project(example_dir)
+    assert equilibrium_observable(p, p.experiments["A"].initial) == pytest.approx(6.22 * 0.14851, rel=1e-3)
+    assert equilibrium_observable(p, p.experiments["B"].initial) == pytest.approx(6.22 * 0.14851, rel=1e-3)
+    assert equilibrium_observable(p, p.experiments["Dp"].initial) == pytest.approx(6.22 * 0.10188, rel=1e-3)
+
+
+def test_check_command(tmp_path, example_dir):
+    from conftest import run_cli
+
+    r = run_cli("check", example_dir)
+    assert r.returncode == 0, r.stdout[-2000:]
+    assert "예상 평형" in r.stdout and "Dp" in r.stdout and "0.9237" in r.stdout
+    proj = _proj_copy(tmp_path, example_dir)
+    (proj / "data" / "setC.csv").unlink()
+    r = run_cli("check", proj)
+    assert r.returncode == 1
+    assert "setC.csv" in r.stdout
+
+
+def test_real_data_templates_load():
+    root = Path(__file__).resolve().parents[1] / "projects"
+    p = load_project(root / "ldh_ph10")
+    assert len(p.by_role("train")) == 4 and len(p.by_role("holdout")) == 4
+    h = load_project(root / "ldh_holmes1988")
+    assert h.observable["name"] == "NADH_mM" and len(h.experiments) == 23
