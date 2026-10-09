@@ -1,0 +1,120 @@
+{
+  "_about": "Regression baselines (EVAL.md appendix A). Source: CADKIMM (C:/Users/cael/Desktop/CADKIMM) 2026-10-09 results, re-run on this PC on 2026-10-09 from a copy of analysis/ and hopsan/ (CADKIMM itself untouched). Frozen after milestone 0: do not edit.",
+  "units": {"concentration": "mM", "time": "s", "enzyme": "mM unless the key ends in _nM"},
+  "reproduced_on_this_pc": {
+    "date": "2026-10-09",
+    "python": "3.12.13 (uv), numpy 2.5.3, scipy 1.18.1",
+    "hopsan": "2.24.4 portable, C:/Users/cael/tools/Hopsan-2.24.4-win64",
+    "crnt_validate_batch149_saved_csv": "13/13 PASS",
+    "crnt_validate_batch149_rerun_hopsan": "13/13 PASS",
+    "design_full_table_identical_to_cadkimm": true,
+    "design_full_elapsed_s": 85,
+    "cstr_open_loop_hopsan_vs_scipy_max_err_mM": 1.47e-4
+  },
+  "batch149": {
+    "model": "Pyr + NADH <=> Lac + NAD, k1 = 2.0 /mM/s, k2 = k1/K', K' = 23",
+    "species": ["NADH", "NAD", "Pyr", "Lac"],
+    "rng_seed": 7,
+    "n_same_class": 12,
+    "class_totals": {"N": 0.2, "S": 10.0, "D": 0.0},
+    "t_end_s": 600.0,
+    "hopsan_timestep_s": 0.01,
+    "hopsan_nsamples": 2048,
+    "same_class_final": {"NADH": 0.1485, "NAD": 0.0515, "Pyr": 0.1485, "Lac": 9.8515},
+    "same_class_final_spread_max": 1e-4,
+    "other_class_initial": {"NADH": 0.2, "NAD": 0.0, "Pyr": 0.5, "Lac": 9.5},
+    "other_class_final": {"NADH": 0.1019, "NAD": 0.0981, "Pyr": 0.4019, "Lac": 9.5981},
+    "final_tolerance": 0.0005,
+    "validation_pass": "13/13",
+    "irreversible_final_NADH": 8.3e-4,
+    "entry_time_5pct_s": {"mean": 1.3, "max": 2.3}
+  },
+  "verdict": {
+    "ldh_full": {"species": 9, "reactions": 10, "complexes": 8, "linkage_classes": 3, "rank": 5, "deficiency": 0, "weakly_reversible": true, "conservation_laws": 4},
+    "ldh_design_with_EQP": {"species": 10, "reactions": 12, "complexes": 10, "linkage_classes": 4, "rank": 6, "deficiency": 0, "weakly_reversible": true, "conservation_laws": 4},
+    "ldh_one_step": {"complexes": 2, "linkage_classes": 1, "rank": 1, "deficiency": 0, "weakly_reversible": true, "conservation_laws": 3},
+    "pnp": {"complexes": 3, "linkage_classes": 1, "rank": 2, "deficiency": 0, "weakly_reversible": false, "conservation_laws": 2},
+    "ldh_irreversible_last": {"weakly_reversible": false}
+  },
+  "design": {
+    "Kp": 23.0,
+    "Ki_mM": 5.0,
+    "NADH0": 0.1,
+    "conversion": 0.99,
+    "time_s": 300.0,
+    "rho_min": 5.251304347826084,
+    "equilibrium_limit": [
+      {"rho": 1.0, "conversion_eq": 0.8274622034857853, "NADH_left_uM": 17.25377965142146},
+      {"rho": 1.5, "conversion_eq": 0.9331981313006, "NADH_left_uM": 6.680186869939997},
+      {"rho": 2.0, "conversion_eq": 0.9613168216900596, "NADH_left_uM": 3.868317830994039},
+      {"rho": 3.0, "conversion_eq": 0.9793618853965924, "NADH_left_uM": 2.063811460340759},
+      {"rho": 5.251304347826084, "conversion_eq": 0.99, "NADH_left_uM": 1.0},
+      {"rho": 8.0, "conversion_eq": 0.9938701022345125, "NADH_left_uM": 0.6129897765487446}
+    ],
+    "full": {
+      "samples": 9,
+      "sample_rng_seed": 3,
+      "sample_spread_decades": 0.5,
+      "bisection_iters": 18,
+      "rho_star": 9.0,
+      "robust_Et_star_nM": 180.54,
+      "nominal_Et_at_rho_star_nM": 31.35,
+      "nominal_fail": 4,
+      "nominal_worst_conversion": 0.7602,
+      "robust_fail": 0,
+      "robust_worst_conversion": 0.99,
+      "tolerance_rel": 0.02,
+      "tolerance_worst_conversion": 0.01,
+      "table": [
+        {"rho": 5.356330434782606, "Et_nominal_nM": 48.21, "Et_robust_nM": 264.26},
+        {"rho": 5.776434782608692, "Et_nominal_nM": 39.37, "Et_robust_nM": 215.80},
+        {"rho": 7.0, "Et_nominal_nM": 33.75, "Et_robust_nM": 187.84},
+        {"rho": 9.0, "Et_nominal_nM": 31.35, "Et_robust_nM": 180.54},
+        {"rho": 12.0, "Et_nominal_nM": 30.55, "Et_robust_nM": 184.85},
+        {"rho": 16.0, "Et_nominal_nM": 30.86, "Et_robust_nM": 197.66},
+        {"rho": 22.0, "Et_nominal_nM": 32.17, "Et_robust_nM": 221.23},
+        {"rho": 30.0, "Et_nominal_nM": 34.46, "Et_robust_nM": 255.23},
+        {"rho": 45.0, "Et_nominal_nM": 39.24, "Et_robust_nM": 321.36},
+        {"rho": 70.0, "Et_nominal_nM": 47.64, "Et_robust_nM": 433.29},
+        {"rho": 100.0, "Et_nominal_nM": 57.90, "Et_robust_nM": 568.08}
+      ],
+      "check_conversion": {
+        "nominal": [0.990000, 0.850516, 0.760235, 0.946153, 0.994566, 0.994627, 0.992296, 0.962163, 0.994576],
+        "robust": [0.994637, 0.994433, 0.990001, 0.994638, 0.994636, 0.994637, 0.994636, 0.994637, 0.994638]
+      }
+    },
+    "quick": {
+      "_about": "Generated in milestone 0 by running CADKIMM design_optimize.py --quick (copy) on this PC.",
+      "samples": 3,
+      "sample_rng_seed": 3,
+      "sample_spread_decades": 0.5,
+      "bisection_iters": 12,
+      "rhos": [5.513869565217388, 8.0, 15.0, 30.0],
+      "rho_star": 8.0,
+      "robust_Et_star_nM": 182.28133,
+      "nominal_Et_at_rho_star_nM": 32.196784,
+      "nominal_fail": 2,
+      "nominal_worst_conversion": 0.772378,
+      "robust_fail": 0,
+      "robust_worst_conversion": 0.990019,
+      "tolerance_rel": 0.02,
+      "tolerance_worst_conversion": 0.01,
+      "table": [
+        {"rho": 5.513869565217388, "Et_nominal_nM": 43.128626, "Et_robust_nM": 236.604738},
+        {"rho": 8.0, "Et_nominal_nM": 32.196784, "Et_robust_nM": 182.281329},
+        {"rho": 15.0, "Et_nominal_nM": 30.711759, "Et_robust_nM": 194.126997},
+        {"rho": 30.0, "Et_nominal_nM": 34.521204, "Et_robust_nM": 255.403334}
+      ],
+      "check_conversion": {
+        "nominal": [0.990019, 0.857570, 0.772378],
+        "robust": [0.993881, 0.993707, 0.990019]
+      }
+    }
+  },
+  "cstr_pid": {
+    "q0_per_s": 0.00767,
+    "open_loop_NADH_out": {"before": 0.0500, "after": 0.0925},
+    "pid_NADH_out": {"before": 0.0499, "after": 0.0500},
+    "hopsan_vs_scipy_max_err_mM": 1.47e-4
+  }
+}

@@ -1,0 +1,24 @@
+# environments
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# run outputs (pack important runs with `enzopt pack`)
+runs/
+*.zip
+
+# evaluation records (kept outside git so `git reset --hard` never erases them)
+evals/last.json
+evals/last_long.json
+evals/results.tsv
+evals/QUESTIONS.md
+evals/_work/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,78 @@
+# enzopt 프로젝트 설정 — 이 파일 하나가 반응망·실험·식별·해석·설계를 정한다.
+# 단위: 농도 mM, 시간 s, 효소량 nM(Et_nM). 실데이터 프로젝트는 이 파일을 복사해 실험 항목만 고친다.
+name: example_ldh_synth
+description: 합성 예제 — LDH 순차 bi-bi, 현실적 합성 데이터(evals/synthetic.yaml로 생성, data/truth.json은 정답)
+
+network:
+  name: ldh_ordered_bibi
+  species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD]
+  enzyme_species: [E, EN, ENP, EQL, EQ]      # 효소 형태(합 = Et). 첫째가 자유 효소
+  steps:                                      # 가역은 <=>, 한 방향은 ->
+    - E + NADH <=> EN
+    - EN + Pyr <=> ENP
+    - ENP <=> EQL
+    - EQL <=> EQ + Lac
+    - EQ <=> E + NAD
+  observable:
+    name: A340
+    coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22}   # ε340 6.22 /mM/cm × 1 cm
+  thermodynamics:
+    overall: Pyr + NADH <=> Lac + NAD
+    Kp: 23.0                 # K' = [Lac][NAD]/([Pyr][NADH]) (pH 10, 25 ℃)
+    haldane_step: 5          # k₋5 = Π k₊ / (k₋1·k₋2·k₋3·k₋4·K')
+  prior:                     # 속도 상수 사전분포: log10 중심(문헌 자릿수)과 표준편차(자릿수)
+    kf_log10: [4, 4, 2, 3, 2]
+    kr_log10: [2, 3, 3, 2]   # 단계 1~4 (단계 5의 k₋는 Haldane)
+    Kp_log10: 1
+    sd_decades: 1.5
+
+control:                     # 비약가역 대조(F-10): 이 단계들을 한 방향으로 바꾼 반응망
+  one_way_steps: [5]
+
+experiments:                 # role: train(학습) | holdout(외삽 시험) | design-check(설계 확인)
+  A:  {file: data/setA.csv,  temp_file: data/setA_temp.csv,  NADH: 0.2, NAD: 0.0, Pyr: 0.2, Lac: 9.8,  Et_nM: 24.23, role: train}
+  B:  {file: data/setB.csv,  temp_file: data/setB_temp.csv,  NADH: 0.0, NAD: 0.2, Pyr: 0.0, Lac: 10.0, Et_nM: 24.23, role: train}
+  C:  {file: data/setC.csv,  temp_file: data/setC_temp.csv,  NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9,  Et_nM: 24.23, role: holdout}
+  Dp: {file: data/setDp.csv, temp_file: data/setDp_temp.csv, NADH: 0.2, NAD: 0.0, Pyr: 0.5, Lac: 9.5,  Et_nM: 24.23, role: holdout}
+  D1: {file: data/setD1.csv, temp_file: data/setD1_temp.csv, NADH: 0.1, NAD: 0.0, Pyr: 0.9, Lac: 0.0,  Et_nM: 180.54, role: design-check}
+  D0: {file: data/setD0.csv, temp_file: data/setD0_temp.csv, NADH: 0.1, NAD: 0.0, Pyr: 0.9, Lac: 0.0,  Et_nM: 31.35, role: design-check}
+
+identification:
+  method: pinn               # 표본 = PINN 시드별 속도 상수
+  seeds: 4
+  noise_sigma: 0.003         # 측정 잡음 σ (A340). 학습 RMSE > 2σ인 시드는 표본에서 뺀다
+  device: auto               # auto | cuda | cpu
+  precision: auto            # auto(GPU float32, CPU float64) | float32 | float64
+  pinn: {adam_iters: 2000, lbfgs_iters: 300}
+  baseline_fit: {starts: 4}  # 고전 피팅 기준선(F-9): 같은 ODE, 다중 시작점 최소제곱
+  control: {seeds: 2}        # 비약가역 대조 모델 시드 수
+
+simulation:
+  t_long_s: 3000             # 적합류 검증 해석 길이
+  same_class_runs: 12        # 표본마다 같은 적합류 무작위 초기 조건 수
+  hopsan:
+    enabled: true
+    one_step_k1: auto        # 겉보기 1단계 k₁ (auto = 대표 표본의 세트 A 초기 속도에서)
+    representative_experiment: A
+
+design:
+  target: assay              # NADH 시료 정량: time_s 안에 analyte를 conversion만큼 소모
+  analyte: NADH
+  partner: Pyr               # ρ = Pyr₀/NADH₀
+  free_enzyme: E
+  analyte0_mM: 0.1
+  conversion: 0.99
+  time_s: 300
+  Kp: 23.0
+  dead_end:                  # 피루브산 막다른 복합체(가역 → 약가역·결핍 0 유지). Ki는 가정값 [문헌 확인 필요]
+    step: EQ + Pyr <=> EQP
+    enzyme_species: [EQP]
+    kf: 1000.0
+    Ki_mM: 5.0
+  rho_grid: auto             # auto = ρ_min×1.02, ρ_min×1.1, 7, 9, 12, 16, 22, 30, 45, 70, 100
+  pipette:
+    volume_uL: 1000
+    enzyme_uL: 10
+    stocks_mM: {NADH: 2.0, Pyr: 10.0}
+    limit_test_rhos: [1.5, 3.0]                 # L1, L2 (평형 한계 시험, ρ < ρ_min)
+    limit_test_enzyme_multiples: [[10, 20], [10]]   # E₀(학습 실험 효소량)의 배수

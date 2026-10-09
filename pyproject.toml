@@ -1,0 +1,55 @@
+[project]
+name = "enzopt"
+version = "0.1.0"
+description = "CRNT-guided identification, simulation and robust design of enzyme reactions"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.13",
+    "matplotlib>=3.9",
+    "pyyaml>=6.0",
+    "torch>=2.10",
+    "streamlit>=1.40",
+]
+
+[project.scripts]
+enzopt = "enzopt.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/enzopt"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["src/enzopt/_vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E741"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "long: slow tests for the long evaluation tier (excluded from the quick tier)",
+]
+addopts = "-p no:cacheprovider"
