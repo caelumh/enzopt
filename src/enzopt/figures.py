@@ -131,20 +131,29 @@ def table_figure(
     width: float = DOUBLE,
     col_widths: Sequence[float] | None = None,
 ) -> dict:
-    """A table rendered as a figure (values formatted to 3 significant digits) + the same table as CSV."""
+    """A table rendered as a figure (values formatted to 3 significant digits) + the same table as CSV.
+
+    Long column labels wrap onto two lines so neighbouring headers never overlap; the table fills the axes box, so the
+    title always sits above it. The CSV keeps the unwrapped labels."""
+    import textwrap
+
     nrow = len(rows)
-    fig, ax = new_figure(width, 0.35 + 0.17 * (nrow + 1))
+    # ~22 characters per inch at 6 pt
+    fit = max(6, int(width / max(1, len(header)) * 22))
+    labels = ["\n".join(textwrap.wrap(str(h), fit)) or str(h) for h in header]
+    head_lines = max(lab.count("\n") + 1 for lab in labels)
+    fig, ax = new_figure(width, 0.3 + 0.19 * (nrow + head_lines))
     ax = ax[0, 0]
     ax.axis("off")
     cells = [[v if isinstance(v, str) else sig3(v) for v in r] for r in rows]
-    tb = ax.table(cellText=cells, colLabels=list(header), loc="center", cellLoc="center", colWidths=col_widths)
+    tb = ax.table(cellText=cells, colLabels=labels, cellLoc="center", colWidths=col_widths, bbox=[0, 0, 1, 1])
     tb.auto_set_font_size(False)
     tb.set_fontsize(6)
-    tb.scale(1, 1.15)
     for (r, _c), cell in tb.get_celld().items():
         cell.set_linewidth(0.4)
         if r == 0:
             cell.set_facecolor("#e8e8e8")
+            cell.set_height(cell.get_height() * head_lines)
     if title:
         ax.set_title(title, loc="left")
     return save(fig, out_dir, name, header, rows)

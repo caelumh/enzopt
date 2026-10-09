@@ -6,6 +6,8 @@
 
 명세는 `PROJECT_SPEC.md`, 진행 상태는 `PROGRESS.md`, 평가 기준은 `evals/EVAL.md`에 있습니다.
 
+**처음이라면 [`docs/GUIDE.md`](docs/GUIDE.md)(안내서)를 먼저 읽으세요.** 단계별 계산의 뜻과 그림 15개를 읽는 법(무엇을 그렸나, 예제 값, 정상·이상 신호), 피펫 표, 문제 해결, 용어집이 있습니다.
+
 ## 설치
 
 필요한 것: Windows 11, [uv](https://docs.astral.sh/uv/), (선택) NVIDIA GPU, (선택) Hopsan 2.24.4.

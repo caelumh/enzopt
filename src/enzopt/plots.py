@@ -287,11 +287,13 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
         ]
     import json
 
+    labelled = False
     for f in sorted((out / "baseline").glob("fit_start*.json")) if (out / "baseline").exists() else []:
         s = json.loads(f.read_text(encoding="utf-8"))
         if "kf" in s:
             v = np.log10(np.concatenate([s["kf"], s["kr"]]))
-            ax.plot(x, v, "+", ms=5, color="#0072B2", label=None)
+            ax.plot(x, v, "+", ms=5, color="#0072B2", label=None if labelled else "classical fit (each start)")
+            labelled = True
             rows += [
                 [f"classical start{s['start']}", "classical", nm, float(vv)] for nm, vv in zip(names, v, strict=True)
             ]
@@ -523,7 +525,7 @@ def design_figures(out: Path, res, summ: dict, check: dict) -> list:
             ms=2.5,
             mfc="none",
             color=color(i + 2),
-            label=f"experiment {name} (Et {sig3(c['Et_nM'])} nM)",
+            label=f"experiment {name} (ρ {sig3(c['rho'])}, Et {sig3(c['Et_nM'])} nM)",
         )
         rows += [[f"experiment {name}", name, float(a), float(b) * 1e3] for a, b in zip(c["t"], c["x"], strict=True)]
     target = (1 - summ["conversion"]) * summ["analyte0_mM"] * 1e3
@@ -532,7 +534,9 @@ def design_figures(out: Path, res, summ: dict, check: dict) -> list:
     ax.set_yscale("log")
     ax.set_ylim(max(target / 30, 1e-3), summ["analyte0_mM"] * 1e3 * 1.3)
     ax.set(xlabel="time (s)", ylabel="NADH (µM)", title="(c) predicted NADH at the design condition")
-    ax.legend(frameon=False, fontsize=5.5, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
+    # figure-level legend below the axes, so long labels never squeeze the plot
+    h, lb = ax.get_legend_handles_labels()
+    fig.legend(h, lb, loc="outside lower center", frameon=False, fontsize=5.5, ncol=2)
     figs.append(save(fig, out, "fig5c_design_check", ["model", "id", "time_s", "NADH_uM"], rows))
     # (d) equilibrium limit table
     if res.equilibrium_limit:
@@ -542,7 +546,7 @@ def design_figures(out: Path, res, summ: dict, check: dict) -> list:
                 "fig5d_equilibrium_limit",
                 ["rho", "conversion_eq", "NADH_left_uM"],
                 [[e["rho"], e["conversion_eq"], e["NADH_left_uM"]] for e in res.equilibrium_limit],
-                title=f"CRNT equilibrium limit (K' = {sig3(summ['Kp'])}): independent of rate constants",
+                title=f"CRNT equilibrium limit (K' = {sig3(summ['Kp'])})\nindependent of rate constants",
                 width=SINGLE,
             )
         )
