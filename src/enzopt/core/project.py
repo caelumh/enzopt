@@ -23,7 +23,7 @@ DEFAULTS: dict = {
         "noise_sigma": 0.003,
         "device": "auto",
         "precision": "auto",
-        "pinn": {"adam_iters": 2000, "lbfgs_iters": 300, "width": 32, "depth": 3, "w_prior": 1e-2},
+        "pinn": {"adam_iters": 2000, "lbfgs_iters": 300, "width": 32, "depth": 3, "w_prior": 1e-2, "restarts": 8},
         "init_jitter_decades": 1.0,
         "exclusion_rmse": "ode",  # SC5-3: training RMSE of the ODE re-solved with the sample ("pinn": network fit)
         "exclusion_sigma": 3.0,  # exclude a seed when that RMSE > exclusion_sigma × noise_sigma
