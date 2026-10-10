@@ -40,6 +40,11 @@ experiments:
   C_2:  {file: data/setC_2.csv,  NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9,  Et_nM: 24.2, time_offset_s: 0, role: holdout}
   Dp_1: {file: data/setDp_1.csv, NADH: 0.2, NAD: 0.0, Pyr: 0.5, Lac: 9.5,  Et_nM: 24.2, time_offset_s: 0, role: holdout}
   Dp_2: {file: data/setDp_2.csv, NADH: 0.2, NAD: 0.0, Pyr: 0.5, Lac: 9.5,  Et_nM: 24.2, time_offset_s: 0, role: holdout}
+  # 선택(권장): 빠진 반응 단계 확인 세트(README "선택(권장)", docs/suggest). 재면 주석을 푼다
+  # R30_1:  {file: data/setR30_1.csv,  NADH: 0.0, NAD: 0.2, Pyr: 0.0, Lac: 30.0, Et_nM: 24.2, time_offset_s: 0, role: train}
+  # F0_1:   {file: data/setF0_1.csv,   NADH: 0.2, NAD: 0.0, Pyr: 0.2, Lac: 0.0,  Et_nM: 24.2, time_offset_s: 0, role: train}
+  # P50_1:  {file: data/setP50_1.csv,  NADH: 0.1, NAD: 0.0, Pyr: 5.0, Lac: 0.0,  Et_nM: 24.2, time_offset_s: 0, role: train}
+  # P100_1: {file: data/setP100_1.csv, NADH: 0.1, NAD: 0.0, Pyr: 10.0, Lac: 0.0, Et_nM: 24.2, time_offset_s: 0, role: train}
   # 10/13 설계 확인 세트: 10/12 실행의 5_design/pipette.csv 값으로 채우고 주석을 푼다(Et_nM = 그 세트의 최종 효소량)
   # L1a: {file: data/setL1a.csv, NADH: 0.1, NAD: 0.0, Pyr: 0.15, Lac: 0.0, Et_nM: <E₀×10>, role: design-check}
   # D1_1: {file: data/setD1_1.csv, NADH: 0.1, NAD: 0.0, Pyr: <ρ*×0.1>, Lac: 0.0, Et_nM: <강건 Et*>, role: design-check}

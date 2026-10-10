@@ -66,6 +66,7 @@
 - [ ] M6-0 보완 인터뷰(F-13·F-14·F-15 수용 기준)
 
 ## 결정 기록
+- 2026-10-10 빠진 단계를 드러내는 실험(`scripts/suggest_design_test.py`): 숨은 막다른 복합체(K_i 5 mM)를 지금 계획(A·B·C·D′, 젖산 ≈ 10 mM 일정)으로 재면 EN·Lac·EQ·Pyr 모두 놓침. 젖산 0·30 mM 세트를 더하면 EN·Lac(K_i 4.8), 피루브산 5·10 mM 세트를 더하면 EQ·Pyr(K_i 4.9)을 찾음(1.6 mM까지는 상수가 흡수). `projects/ldh_ph10`에 선택 세트 R30·F0·P50·P100 권장(P50·P100은 설계가 가정한 EQ·Pyr K_i 확인, 피루브산 100 mM 저장액 필요). 후보 K_i를 고정해 실험 하나의 최적 조건을 계산하는 `--plan`은 시도 후 넣지 않음: 효과 크기가 정해지지 않는 상수에 달려 계산된 조건이 실제로 가려내지 못했음.
 - 2026-10-10 효소 실활(사용자 요청 "PINN만 할 수 있는 일"): PINN 옵션 `identification.pinn.inactivation: shared`가 모든 실험이 공유하는 활성 a(t)(모양 자유, 단조 감소)를 속도 상수와 함께 학습. `core/activity.py`(numpy만)와 `simulate(loss=...)`로 ③ 재해석·⑤ 설계에 반영, 그림 3e. ④ CRNT 검증은 반응망 자체(활성 효소 일정), 고전 피팅 기준선은 실활 없음, 설계 조건 Hopsan 대조는 실활 시 생략. 합성 시험(지연 후 급락 a(t), 시험용으로 고른 모양): PINN 64회 10 s에 8개 표본 모두 a(t) 복원, 같은 기저의 고전 피팅은 1회 659 s에 절반만. 예제 `projects/example_ldh_inactivation`은 표본 8(4개로는 강건 효소량 33.5 nM < 실제 필요 36.9 nM). `docs/inactivation/`.
 - 2026-10-10 빠진 반응 단계 제안 `enzopt suggest`: PINN 보정 항 exp(g(농도))로 어긋나는 곳, 막다른 복합체 후보 4종(EN·Lac, EQ·Pyr, E·Pyr, E·Lac)을 PINN에 넣어 ODE 재해석으로 순위, 상위 후보를 고전 피팅으로 확인. 판정 문턱(2σ·세트별 3σ·절반)은 임시(QUESTIONS Q-02). 합성 양성(숨은 EN·Lac K_i 5 mM → 제안 K_i 4.1 mM)·음성(제안 없음), Holmes는 s321(5.8σ)을 설명하는 후보 없음(E·NADH·Lac 가설 불지지; 어긋남은 NADH 0.8~1.4 mM 세트에 몰림). PINN의 K_i는 φ_X/K_i만 정해져 고전 피팅 값을 보고. `docs/suggest/`.
 - 2026-10-10 Hopsan `.hmf`에 블록 위치(GUI에서 겹치던 문제), 안내서 HTML 판 `docs/GUIDE.html`(`scripts/build_guide_html.py`, 보조 그림 A~J).
