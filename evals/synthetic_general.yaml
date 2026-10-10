@@ -1,0 +1,277 @@
+# F-13 현실적 합성 데이터 설정 (EVAL.md 부록 C, 2026-10-10 보완 인터뷰)
+# M6-0b에서 한 번 만들고 고치지 않는다(EVAL.md "변경 금지"). 생성기: `uv run enzopt synth evals/synthetic_general.yaml projects/general`
+# 항목은 사용자가 승인했고 수치는 Claude가 정했다. 단위: mM, s. 정답 kr의 종속 값은 열역학 제약(core.thermo)으로 맞춘 값이다.
+version: 2
+seed: 20261011            # 실험별 오차·잡음 난수의 시드(고정). 반응망마다 seed + 순번
+
+common:
+  observation: {t_first_s: 5.0, t_end_s: 900.0, dt_s: 10.0}   # 주 신호. 다른 시점의 신호는 신호마다 sampling
+  effects:                         # 부록 B와 같은 크기
+    start_time_error_s: 1.0        # 실제 시작 시각 = 명목 ± U(-1, 1) s (실험별, 모든 신호 공통)
+    enzyme_error_frac: 0.10        # 실제 Et = 명목 × U(0.9, 1.1) (실험별). 식별 쪽은 명목만 안다
+    temperature: {mean_C: 25.0, sd_C: 0.02, dt_s: 1.0}
+    draw_order: [enzyme_factor, start_offset, drift_slope_per_signal, noise_per_signal, temperature]
+  enzyme: {rule: first_train_half_life, half_life_s: 120.0}   # 명목 Et = 첫 학습 세트가 평형까지의 절반을 120 s에
+  prior: {rule: round_log10_truth, sd_decades: 1.5}            # 정답을 10의 거듭제곱으로 반올림(문헌 자릿수만 안다는 가정)
+  holdout_criterion:               # 학습 재현 + 홀드아웃 AC-05 틀 (EVAL.md AC-24·25·31)
+    train_sigma: 3.0               # 학습 재현: 모든 학습 세트·신호 RMSE ÷ σ ≤ 3인 표본이 절반 이상
+    train_fraction: 0.5
+    rmse_sigma: 2.0                # 홀드아웃: RMSE ≤ max(2σ, 기준 모델 RMSE × 1.5), 세트·신호마다 표본 평균과 최악
+    oracle_factor: 1.5
+    oracle: fitted_enzyme_scale    # 기준 모델 = 정답 메커니즘·상수 + 학습 세트로 맞춘 효소량 배율 하나
+    oracle_scale_bounds: [0.8, 1.3]
+
+networks:
+  uni_irreversible:
+    note: "기질 1개, 비가역(교과서 Michaelis–Menten), 등급 C"
+    species: [E, S, ES, P]
+    enzyme_species: [E, ES]
+    steps:
+      - E + S <=> ES
+      - ES -> E + P
+    kf: [1000, 100]
+    kr: [50, 0]   # 한 방향 단계는 0. 종속 단계 []는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: S <=> P}
+    signals:
+      - {name: A340, coefficients: {S: 6.22, ES: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: S            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {S: 0.2, role: train}
+      T2: {S: 0.05, P: 0.15, role: train}
+      H1: {S: 0.1, P: 0.1, role: holdout}
+      H2: {S: 0.3, role: holdout}
+
+  uni:
+    note: "기질 1개, 가역"
+    species: [E, S, ES, P]
+    enzyme_species: [E, ES]
+    steps:
+      - E + S <=> ES
+      - ES <=> E + P
+    kf: [2000, 200]
+    kr: [100, 1000]   # 한 방향 단계는 0. 종속 단계 [2]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: S <=> P, Kp: 4}
+    signals:
+      - {name: A340, coefficients: {S: 6.22, ES: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: S            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {S: 0.2, role: train}
+      T2: {P: 0.2, role: train}
+      H1: {S: 0.1, P: 0.1, role: holdout}
+      H2: {S: 0.3, role: holdout}
+
+  uni_iso:
+    note: "기질 1개, 가역 + 효소 위 변환"
+    species: [E, S, ES, EP, P]
+    enzyme_species: [E, ES, EP]
+    steps:
+      - E + S <=> ES
+      - ES <=> EP
+      - EP <=> E + P
+    kf: [2000, 300, 500]
+    kr: [100, 200, 3750]   # 한 방향 단계는 0. 종속 단계 [3]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: S <=> P, Kp: 4}
+    signals:
+      - {name: A340, coefficients: {S: 6.22, ES: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: S            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {S: 0.2, role: train}
+      T2: {P: 0.2, role: train}
+      H1: {S: 0.1, P: 0.1, role: holdout}
+      H2: {S: 0.3, role: holdout}
+
+  uni_bi_ordered:
+    note: "기질 1개 → 생성물 2개, 순서형"
+    species: [E, A, EA, EQP, EQ, P, Q]
+    enzyme_species: [E, EA, EQP, EQ]
+    steps:
+      - E + A <=> EA
+      - EA <=> EQP
+      - EQP <=> EQ + P
+      - EQ <=> E + Q
+    kf: [1000, 200, 500, 100]
+    kr: [50, 300, 1000, 66.6666666667]   # 한 방향 단계는 0. 종속 단계 [4]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: A <=> P + Q, Kp: 10}
+    signals:
+      - {name: A340, coefficients: {A: 6.22, EA: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: A            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {A: 0.2, Q: 5, role: train}
+      T2: {P: 0.2, Q: 5.2, role: train}
+      H1: {A: 0.1, P: 0.1, Q: 5.1, role: holdout}
+      H2: {A: 0.3, Q: 5, role: holdout}
+
+  theorell_chance:
+    note: "기질 2개, Theorell–Chance(가운데 복합체가 안 쌓임)"
+    species: [E, A, EA, B, EQ, P, Q]
+    enzyme_species: [E, EA, EQ]
+    steps:
+      - E + A <=> EA
+      - EA + B <=> EQ + P
+      - EQ <=> E + Q
+    kf: [10000, 5000, 200]
+    kr: [50, 300, 28985.5072464]   # 한 방향 단계는 0. 종속 단계 [3]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: A + B <=> P + Q, Kp: 23}
+    signals:
+      - {name: A340, coefficients: {A: 6.22, EA: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: A            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {A: 0.2, B: 0.2, P: 9.8, role: train}
+      T2: {Q: 0.2, P: 10, role: train}
+      H1: {A: 0.1, Q: 0.1, B: 0.1, P: 9.9, role: holdout}
+      H2: {A: 0.2, B: 0.5, P: 9.5, role: holdout}
+
+  random_bibi:
+    note: "기질 2개, 무작위형(갈래 순환 둘 + 전체 반응 순환 하나), 결핍 2"
+    species: [E, A, EA, B, EAB, EQP, EQ, P, Q, EB, EP]
+    enzyme_species: [E, EA, EAB, EQP, EQ, EB, EP]
+    steps:
+      - E + A <=> EA
+      - EA + B <=> EAB
+      - EAB <=> EQP
+      - EQP <=> EQ + P
+      - EQ <=> E + Q
+      - E + B <=> EB
+      - EB + A <=> EAB
+      - EQP <=> EP + Q
+      - EP <=> E + P
+    kf: [10000, 5000, 300, 1000, 200, 2000, 2000, 500, 300]
+    kr: [50, 500, 1000, 1000, 5217.39130435, 400, 5, 1000, 3913.04347826]   # 한 방향 단계는 0. 종속 단계 [5, 7, 9]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: A + B <=> P + Q, Kp: 23}
+    signals:
+      - {name: A340, coefficients: {A: 6.22, EA: 6.22, EAB: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: A            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {A: 0.2, B: 0.2, P: 9.8, role: train}
+      T2: {Q: 0.2, P: 10, role: train}
+      H1: {A: 0.1, Q: 0.1, B: 0.1, P: 9.9, role: holdout}
+      H2: {A: 0.2, B: 0.5, P: 9.5, role: holdout}
+
+  ping_pong:
+    note: "기질 2개, 핑퐁형(변형 효소 F)"
+    species: [E, A, EA, F, P, B, FB, Q]
+    enzyme_species: [E, EA, F, FB]
+    steps:
+      - E + A <=> EA
+      - EA <=> F + P
+      - F + B <=> FB
+      - FB <=> E + Q
+    kf: [10000, 300, 5000, 500]
+    kr: [100, 2000, 200, 8152.17391304]   # 한 방향 단계는 0. 종속 단계 [4]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: A + B <=> P + Q, Kp: 23}
+    signals:
+      - {name: A340, coefficients: {A: 6.22, EA: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: A            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {A: 0.2, B: 0.2, P: 9.8, role: train}
+      T2: {Q: 0.2, P: 10, role: train}
+      H1: {A: 0.1, Q: 0.1, B: 0.1, P: 9.9, role: holdout}
+      H2: {A: 0.2, B: 0.5, P: 9.5, role: holdout}
+
+  ordered_terter:
+    note: "기질 3개, 순서형"
+    species: [E, A, EA, B, EAB, C, EABC, ERQP, ERQ, P, ER, Q, R]
+    enzyme_species: [E, EA, EAB, EABC, ERQP, ERQ, ER]
+    steps:
+      - E + A <=> EA
+      - EA + B <=> EAB
+      - EAB + C <=> EABC
+      - EABC <=> ERQP
+      - ERQP <=> ERQ + P
+      - ERQ <=> ER + Q
+      - ER <=> E + R
+    kf: [10000, 5000, 3000, 300, 800, 500, 200]
+    kr: [50, 300, 500, 500, 1000, 2000, 9600]   # 한 방향 단계는 0. 종속 단계 [7]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: A + B + C <=> P + Q + R, Kp: 50}
+    signals:
+      - {name: A340, coefficients: {A: 6.22, EA: 6.22, EAB: 6.22, EABC: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: A            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {A: 0.2, B: 0.2, C: 0.2, Q: 10, role: train}
+      T2: {P: 0.2, R: 0.2, Q: 10.2, role: train}
+      H1: {A: 0.1, B: 0.1, C: 0.1, P: 0.1, Q: 10.1, R: 0.1, role: holdout}
+      H2: {A: 0.2, B: 0.2, C: 0.5, Q: 10, role: holdout}
+
+  ldh_dead_end:
+    note: "LDH + 막다른 복합체 EQ·Pyr(정식 단계, K_i 5 mM)"
+    species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD, EQP]
+    enzyme_species: [E, EN, ENP, EQL, EQ, EQP]
+    steps:
+      - E + NADH <=> EN
+      - EN + Pyr <=> ENP
+      - ENP <=> EQL
+      - EQL <=> EQ + Lac
+      - EQ <=> E + NAD
+      - EQ + Pyr <=> EQP
+    kf: [10000, 5000, 300, 1000, 200, 1000]
+    kr: [50, 500, 1000, 200, 26086.9565217, 5000]   # 한 방향 단계는 0. 종속 단계 [5]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: NADH + Pyr <=> Lac + NAD, Kp: 23}
+    signals:
+      - {name: A340, coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: NADH            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {NADH: 0.2, Pyr: 0.2, Lac: 9.8, role: train}
+      T2: {NADH: 0.2, Pyr: 10, role: train}
+      H1: {NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9, role: holdout}
+      H2: {NADH: 0.2, Pyr: 5, role: holdout}
+
+  ldh_competing:
+    note: "LDH 경쟁 기질: 피루브산과 2-옥소부티르산(Oxb → 2-하이드록시부티르산 Hbt), 전체 반응 둘"
+    species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD, Oxb, ENO, EQH, Hbt]
+    enzyme_species: [E, EN, ENP, EQL, EQ, ENO, EQH]
+    steps:
+      - E + NADH <=> EN
+      - EN + Pyr <=> ENP
+      - ENP <=> EQL
+      - EQL <=> EQ + Lac
+      - EQ <=> E + NAD
+      - EN + Oxb <=> ENO
+      - ENO <=> EQH
+      - EQH <=> EQ + Hbt
+    kf: [10000, 5000, 300, 1000, 200, 2000, 150, 800]
+    kr: [50, 500, 1000, 200, 26086.9565217, 400, 600, 153.333333333]   # 한 방향 단계는 0. 종속 단계 [5, 8]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: NADH + Pyr <=> Lac + NAD, Kp: 23}
+      - {overall: NADH + Oxb <=> Hbt + NAD, Kp: 10}
+    signals:
+      - {name: A340, coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22, ENO: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+      - {name: Hbt_mM, coefficients: {Hbt: 1}, sigma: 0.005, drift_per_900s: 0, sampling: {t_first_s: 30, dt_s: 60}}
+    analyte: NADH            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {NADH: 0.3, Pyr: 0.2, Oxb: 0.2, Lac: 5, role: train}
+      T2: {NAD: 0.3, Lac: 10, Hbt: 5, role: train}
+      H1: {NADH: 0.3, Pyr: 0.1, Oxb: 0.4, Lac: 5, role: holdout}
+      H2: {NADH: 0.2, NAD: 0.1, Pyr: 0.15, Lac: 5.05, Oxb: 0.15, Hbt: 0.05, role: holdout}
+
+  ldh_background:
+    note: "LDH + 효소 없는 NADH 분해(한 방향), 전체 반응 둘, 등급 C"
+    species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD]
+    enzyme_species: [E, EN, ENP, EQL, EQ]
+    steps:
+      - E + NADH <=> EN
+      - EN + Pyr <=> ENP
+      - ENP <=> EQL
+      - EQL <=> EQ + Lac
+      - EQ <=> E + NAD
+      - NADH -> NAD
+    kf: [10000, 5000, 300, 1000, 200, 0.0002]
+    kr: [50, 500, 1000, 200, 26086.9565217, 0]   # 한 방향 단계는 0. 종속 단계 [5]는 K′·순환에서 계산한 값
+    reactions:
+      - {overall: NADH + Pyr <=> Lac + NAD, Kp: 23}
+    signals:
+      - {name: A340, coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22}, sigma: 0.003, drift_per_900s: 0.002}
+    analyte: NADH            # 명목 효소량을 정하는 분자(첫 학습 세트)
+    experiments:
+      T1: {NADH: 0.2, NAD: 0, Pyr: 0.2, Lac: 9.8, role: train}
+      T2: {NADH: 0, NAD: 0.2, Pyr: 0, Lac: 10, role: train}
+      H1: {NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9, role: holdout}
+      H2: {NADH: 0.2, NAD: 0, Pyr: 0.5, Lac: 9.5, role: holdout}

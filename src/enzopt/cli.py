@@ -204,9 +204,15 @@ def cmd_doctor(a) -> int:
 
 
 def cmd_synth(a) -> int:
-    from .synth import load_config, write_project_data
+    from .synth import load_config, write_general_projects, write_project_data
 
-    res = write_project_data(load_config(a.config), Path(a.project))
+    cfg = load_config(a.config)
+    if cfg.get("networks"):  # F-13 config: one project folder per network
+        res = write_general_projects(cfg, Path(a.project), a.only or None)
+        for key, et in res.items():
+            print(f"합성 프로젝트 작성: {Path(a.project) / key} (명목 효소량 {et} nM)")
+        return 0
+    res = write_project_data(cfg, Path(a.project))
     print(f"합성 데이터 작성: {a.project}/data (명목 효소량 {res['Et_nominal_nM']} nM)")
     return 0
 
@@ -263,8 +269,9 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--hopsan", action="store_true", help="Hopsan을 필수로 점검")
     d.set_defaults(func=cmd_doctor)
     s = sub.add_parser("synth", help="현실적 합성 데이터로 프로젝트 data/ 작성")
-    s.add_argument("config", help="evals/synthetic.yaml")
+    s.add_argument("config", help="evals/synthetic.yaml 또는 evals/synthetic_general.yaml(반응망마다 폴더)")
     s.add_argument("project", help="프로젝트 폴더")
+    s.add_argument("--only", action="append", help="synthetic_general.yaml에서 이 반응망만(여러 번)")
     s.set_defaults(func=cmd_synth)
     b = sub.add_parser("dashboard", help="Streamlit 대시보드")
     b.add_argument("--port", type=int)

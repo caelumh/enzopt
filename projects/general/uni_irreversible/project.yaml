@@ -1,0 +1,35 @@
+# F-13 합성 시험 — evals/synthetic_general.yaml의 uni_irreversible에서 생성(enzopt synth). data/truth.json은 정답
+name: gen_uni_irreversible
+description: "기질 1개, 비가역(교과서 Michaelis–Menten), 등급 C"
+
+network:
+  name: uni_irreversible
+  species: [E, S, ES, P]
+  enzyme_species: [E, ES]
+  steps:
+    - E + S <=> ES
+    - ES -> E + P
+  observable: {name: A340, coefficients: {S: 6.22, ES: 6.22}}
+  thermodynamics:
+    reactions:
+      - {overall: S <=> P}
+  prior:                      # 사전분포 = 정답을 10의 거듭제곱으로 반올림, 1.5 자릿수
+    kf_log10: [3, 2]
+    kr_log10: [2]   # 가역 단계 중 종속 단계 [] 제외
+    sd_decades: 1.5
+
+experiments:
+  T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, S: 0.2, Et_nM: 17.04, role: train}
+  T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, S: 0.05, P: 0.15, Et_nM: 17.04, role: train}
+  H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, S: 0.1, P: 0.1, Et_nM: 17.04, role: holdout}
+  H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, S: 0.3, Et_nM: 17.04, role: holdout}
+
+identification:
+  seeds: 4
+  noise_sigma: 0.003
+
+simulation:
+  hopsan: {enabled: false}
+
+design:
+  enabled: false              # ⑤ 설계 목표는 M6-4에서

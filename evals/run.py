@@ -1,15 +1,16 @@
 """enzopt evaluation harness (evals/EVAL.md made executable). Frozen after milestone 1: do not edit.
+(Changed only through supplementary interviews: 2026-10-10 F-13 added AC-21..AC-32 and the 60 min long budget.)
 
     uv run python evals/run.py --tier quick     # gates + quick criteria (≤ 5 min)
-    uv run python evals/run.py --tier long      # gates + all criteria + Q1 (≤ 30 min)
+    uv run python evals/run.py --tier long      # gates + all criteria + Q1 (≤ 60 min)
 
 Gates  G1 `uv sync --locked` · G2 ruff check + format --check · G3 `pytest -m "not long"` · G4 AC-01/AC-02 did not
        turn from pass to fail compared with the previous results.tsv row.
-Criteria AC-01..AC-20 are mapped to pytest node-id prefixes (EVAL.md "검사 방법"); AC-10 runs `pytest tests/core`
+Criteria AC-01..AC-32 are mapped to pytest node-id prefixes (EVAL.md "검사 방법"); AC-10 runs `pytest tests/core`
        in the KIMM-CAD compatible env (.venv-kimmcad). A criterion passes when at least one matching test ran and
        every matching test passed (skips count as not passed). Criteria without tests yet count as failed.
 Metric Q1 = wall time of `enzopt run projects/example_ldh_synth` in full mode without cache (long tier only).
-Score  70 × (passed weight / 47) + 30 × min(1, 15 min / Q1). The quick tier reuses the last long result for
+Score  70 × (passed weight / 77) + 30 × min(1, 15 min / Q1). The quick tier reuses the last long result for
        long-only criteria and Q1 (evals/last_long.json).
 Writes evals/last.json (+ evals/last_long.json for the long tier) and appends one row to evals/results.tsv.
 """
@@ -35,7 +36,7 @@ LAST_LONG = EVALS / "last_long.json"
 EXAMPLE = ROOT / "projects" / "example_ldh_synth"
 COMPAT = ROOT / ".venv-kimmcad"
 COMPAT_PINS = ["numpy==1.26.4", "scipy==1.13.1", "matplotlib==3.9.1", "pytest"]
-BUDGET = {"quick": 300.0, "long": 1800.0}
+BUDGET = {"quick": 300.0, "long": 3600.0}
 Q1_TARGET_S = 15 * 60.0
 
 # id: (weight, tiers in which it is evaluated, node-id prefixes)
@@ -60,8 +61,21 @@ CRITERIA = {
     "AC-18": (2, ("long",), ["tests/test_design_check.py"]),
     "AC-19": (3, ("quick",), ["tests/test_dashboard.py::test_dashboard"]),
     "AC-20": (2, ("quick",), ["tests/test_dashboard.py::test_detached_run"]),
+    # F-13 (2026-10-10 supplementary interview)
+    "AC-21": (3, ("quick",), ["tests/test_general.py::test_renamed_ldh"]),
+    "AC-22": (2, ("quick",), ["tests/test_general.py::test_multi_signal"]),
+    "AC-23": (3, ("quick",), ["tests/test_general.py::test_cycle_constraints"]),
+    "AC-24": (3, ("long",), ["tests/test_general.py::test_ring_identification"]),
+    "AC-25": (3, ("long",), ["tests/test_general.py::test_branched_identification"]),
+    "AC-26": (2, ("long",), ["tests/test_general.py::test_comparisons"]),
+    "AC-27": (3, ("quick",), ["tests/test_general_design.py::test_assay"]),
+    "AC-28": (2, ("quick",), ["tests/test_general_design.py::test_yield"]),
+    "AC-29": (2, ("quick",), ["tests/test_general_design.py::test_selectivity"]),
+    "AC-30": (1, ("quick",), ["tests/test_general_design.py::test_time"]),
+    "AC-31": (3, ("long",), ["tests/test_general.py::test_multi_reaction_identification"]),
+    "AC-32": (3, ("long",), ["tests/test_general.py::test_e2e_all"]),
 }
-TOTAL_WEIGHT = sum(w for w, _, _ in CRITERIA.values())  # 47
+TOTAL_WEIGHT = sum(w for w, _, _ in CRITERIA.values())  # 77
 REGRESSION = ("AC-01", "AC-02")
 
 

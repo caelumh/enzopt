@@ -1,0 +1,48 @@
+# F-13 합성 시험 — evals/synthetic_general.yaml의 ldh_competing에서 생성(enzopt synth). data/truth.json은 정답
+name: gen_ldh_competing
+description: "LDH 경쟁 기질: 피루브산과 2-옥소부티르산(Oxb → 2-하이드록시부티르산 Hbt), 전체 반응 둘"
+
+network:
+  name: ldh_competing
+  species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD, Oxb, ENO, EQH, Hbt]
+  enzyme_species: [E, EN, ENP, EQL, EQ, ENO, EQH]
+  steps:
+    - E + NADH <=> EN
+    - EN + Pyr <=> ENP
+    - ENP <=> EQL
+    - EQL <=> EQ + Lac
+    - EQ <=> E + NAD
+    - EN + Oxb <=> ENO
+    - ENO <=> EQH
+    - EQH <=> EQ + Hbt
+  observable: {name: A340, coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22, ENO: 6.22}}
+  signals:                    # 주 신호 밖의 신호(같은 시점이면 CSV 열, 다른 시점이면 signal_files)
+    - {name: Hbt_mM, coefficients: {Hbt: 1}, sigma: 0.005}
+  thermodynamics:
+    reactions:
+      - {overall: NADH + Pyr <=> Lac + NAD, Kp: 23}
+      - {overall: NADH + Oxb <=> Hbt + NAD, Kp: 10}
+  prior:                      # 사전분포 = 정답을 10의 거듭제곱으로 반올림, 1.5 자릿수
+    kf_log10: [4, 4, 2, 3, 2, 3, 2, 3]
+    kr_log10: [2, 3, 3, 2, 3, 3]   # 가역 단계 중 종속 단계 [5, 8] 제외
+    Kp_log10: [1, 1]
+    sd_decades: 1.5
+
+control:                      # 비약가역 대조: 첫 종속 단계를 한 방향으로
+  one_way_steps: [5]
+
+experiments:
+  T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, NADH: 0.3, Pyr: 0.2, Oxb: 0.2, Lac: 5, Et_nM: 49.55, role: train, signal_files: {Hbt_mM: data/setT1_Hbt_mM.csv}}
+  T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, NAD: 0.3, Lac: 10, Hbt: 5, Et_nM: 49.55, role: train, signal_files: {Hbt_mM: data/setT2_Hbt_mM.csv}}
+  H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, NADH: 0.3, Pyr: 0.1, Oxb: 0.4, Lac: 5, Et_nM: 49.55, role: holdout, signal_files: {Hbt_mM: data/setH1_Hbt_mM.csv}}
+  H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, NADH: 0.2, NAD: 0.1, Pyr: 0.15, Lac: 5.05, Oxb: 0.15, Hbt: 0.05, Et_nM: 49.55, role: holdout, signal_files: {Hbt_mM: data/setH2_Hbt_mM.csv}}
+
+identification:
+  seeds: 4
+  noise_sigma: 0.003
+
+simulation:
+  hopsan: {enabled: false}
+
+design:
+  enabled: false              # ⑤ 설계 목표는 M6-4에서

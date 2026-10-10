@@ -1,0 +1,41 @@
+# F-13 합성 시험 — evals/synthetic_general.yaml의 uni_bi_ordered에서 생성(enzopt synth). data/truth.json은 정답
+name: gen_uni_bi_ordered
+description: "기질 1개 → 생성물 2개, 순서형"
+
+network:
+  name: uni_bi_ordered
+  species: [E, A, EA, EQP, EQ, P, Q]
+  enzyme_species: [E, EA, EQP, EQ]
+  steps:
+    - E + A <=> EA
+    - EA <=> EQP
+    - EQP <=> EQ + P
+    - EQ <=> E + Q
+  observable: {name: A340, coefficients: {A: 6.22, EA: 6.22}}
+  thermodynamics:
+    reactions:
+      - {overall: A <=> P + Q, Kp: 10}
+  prior:                      # 사전분포 = 정답을 10의 거듭제곱으로 반올림, 1.5 자릿수
+    kf_log10: [3, 2, 3, 2]
+    kr_log10: [2, 2, 3]   # 가역 단계 중 종속 단계 [4] 제외
+    Kp_log10: [1]
+    sd_decades: 1.5
+
+control:                      # 비약가역 대조: 첫 종속 단계를 한 방향으로
+  one_way_steps: [4]
+
+experiments:
+  T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, A: 0.2, Q: 5, Et_nM: 39.65, role: train}
+  T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, P: 0.2, Q: 5.2, Et_nM: 39.65, role: train}
+  H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, A: 0.1, P: 0.1, Q: 5.1, Et_nM: 39.65, role: holdout}
+  H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, A: 0.3, Q: 5, Et_nM: 39.65, role: holdout}
+
+identification:
+  seeds: 4
+  noise_sigma: 0.003
+
+simulation:
+  hopsan: {enabled: false}
+
+design:
+  enabled: false              # ⑤ 설계 목표는 M6-4에서

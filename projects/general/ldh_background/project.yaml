@@ -1,0 +1,43 @@
+# F-13 합성 시험 — evals/synthetic_general.yaml의 ldh_background에서 생성(enzopt synth). data/truth.json은 정답
+name: gen_ldh_background
+description: "LDH + 효소 없는 NADH 분해(한 방향), 전체 반응 둘, 등급 C"
+
+network:
+  name: ldh_background
+  species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD]
+  enzyme_species: [E, EN, ENP, EQL, EQ]
+  steps:
+    - E + NADH <=> EN
+    - EN + Pyr <=> ENP
+    - ENP <=> EQL
+    - EQL <=> EQ + Lac
+    - EQ <=> E + NAD
+    - NADH -> NAD
+  observable: {name: A340, coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22}}
+  thermodynamics:
+    reactions:
+      - {overall: NADH + Pyr <=> Lac + NAD, Kp: 23}
+  prior:                      # 사전분포 = 정답을 10의 거듭제곱으로 반올림, 1.5 자릿수
+    kf_log10: [4, 4, 2, 3, 2, -4]
+    kr_log10: [2, 3, 3, 2]   # 가역 단계 중 종속 단계 [5] 제외
+    Kp_log10: [1]
+    sd_decades: 1.5
+
+control:                      # 비약가역 대조: 첫 종속 단계를 한 방향으로
+  one_way_steps: [5]
+
+experiments:
+  T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, NADH: 0.2, NAD: 0, Pyr: 0.2, Lac: 9.8, Et_nM: 27.3, role: train}
+  T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, NADH: 0, NAD: 0.2, Pyr: 0, Lac: 10, Et_nM: 27.3, role: train}
+  H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9, Et_nM: 27.3, role: holdout}
+  H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, NADH: 0.2, NAD: 0, Pyr: 0.5, Lac: 9.5, Et_nM: 27.3, role: holdout}
+
+identification:
+  seeds: 4
+  noise_sigma: 0.003
+
+simulation:
+  hopsan: {enabled: false}
+
+design:
+  enabled: false              # ⑤ 설계 목표는 M6-4에서

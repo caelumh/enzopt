@@ -1,0 +1,227 @@
+"""Quasi-steady-state structure of an enzyme network (F-13: the PINN representation for any network).
+
+The enzyme forms are fast and the small molecules slow (Et ≪ substrate). For networks whose steps are first order
+in the enzyme forms (at most one enzyme form on each side, and either both sides or neither), the enzyme forms obey
+a linear system at given small-molecule concentrations: dφ/dt = L(x) φ, where each step X + ligands ⇌ Y + ligands is
+an edge X → Y with pseudo-first-order rate kf·Π(ligands) (and Y → X with kr·Π(ligands)). The quasi-steady distribution
+is the null vector of L with Σφ = 1 (King–Altman for a ring; any graph here).
+
+Slow coordinates: the net small-molecule changes that leave the enzyme forms unchanged span a space of dimension d
+(1 for one overall reaction; more with competing substrates or enzyme-free background steps). The small molecules are
+x = x0 + V ξ + δ, with ξ the d reaction extents, V the overall reactions (then the background steps) and δ the
+correction that puts the enzyme-bound amounts back into the conservation laws: C_s δ = −Et C_e (φ − e0).
+
+Only numpy (KIMM-CAD compatible); the PINN evaluates the same structure with torch.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .network import Network
+from .thermo import TOL, _null_space, _rank, species_vector
+
+
+class QssError(ValueError):
+    """The network has no quasi-steady representation (message is shown to the user)."""
+
+
+@dataclass
+class Edge:
+    step: int  # 0-based step index
+    a: int  # enzyme form index (into ``enzyme``) on the left
+    b: int  # on the right
+    lf: list  # [(small index, order)] ligands on the left (forward rate)
+    lr: list  # ligands on the right (reverse rate)
+    reversible: bool
+
+
+@dataclass
+class QssStructure:
+    species: list[str]
+    small: list[str]
+    enzyme: list[str]  # first = free enzyme
+    small_idx: list[int]  # indices into species
+    enzyme_idx: list[int]
+    edges: list[Edge]
+    background: list[int]  # enzyme-free steps (0-based)
+    reactants: list[list]  # per step: [(species index, order)] on the left
+    products: list[list]  # per step: on the right
+    N_s: np.ndarray  # (n_s × n_steps) net change of the small molecules per step
+    N_e: np.ndarray  # (n_e × n_steps)
+    V: np.ndarray  # (n_s × d) slow basis
+    W: np.ndarray  # (d × n_steps): dξ/dt = W r (projection of the small-molecule change onto V)
+    labels: list[str]  # name of each slow coordinate
+    Mcorr: np.ndarray  # (n_s × n_e): δ = Et · Mcorr (φ − e0)
+
+    @property
+    def d(self) -> int:
+        return self.V.shape[1]
+
+    def ranges(self, x0_small: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Per slow coordinate the extent range [lo, hi] that keeps the small molecules ≥ 0 (others held at 0)."""
+        lo = np.zeros(self.d)
+        hi = np.zeros(self.d)
+        for k in range(self.d):
+            v = self.V[:, k]
+            neg = [x0_small[i] / -v[i] for i in range(len(v)) if v[i] < -TOL]
+            pos = [-x0_small[i] / v[i] for i in range(len(v)) if v[i] > TOL]
+            hi[k] = min(neg) if neg else 0.0
+            lo[k] = max(pos) if pos else 0.0
+            if hi[k] < lo[k]:
+                hi[k] = lo[k]
+        return lo, hi
+
+    def small_scale(self, x0_list: list[np.ndarray]) -> np.ndarray:
+        """Typical size of each small molecule over the experiments (input scaling of auxiliary networks)."""
+        out = np.full(len(self.small), 1e-6)
+        for x0 in x0_list:
+            lo, hi = self.ranges(x0)
+            reach = np.abs(self.V) @ np.maximum(np.abs(lo), np.abs(hi))
+            out = np.maximum(out, x0 + reach)
+        return out
+
+
+def structure(network: Network, overall: list[str] | None = None) -> QssStructure:
+    """Build the quasi-steady structure; raises QssError when a step is not first order in the enzyme forms."""
+    ens = list(network.enzyme_species)
+    if not ens:
+        raise QssError("enzyme_species(효소 형태)가 없음 — 준정상 표현은 효소 형태가 필요함")
+    species = list(network.species)
+    idx = network.index()
+    small = [s for s in species if s not in ens]
+    s_pos = {s: i for i, s in enumerate(small)}
+    e_pos = {s: i for i, s in enumerate(ens)}
+    edges, background, reac, prod = [], [], [], []
+    n_steps = len(network.steps)
+    N = np.zeros((len(species), n_steps))
+    for j, st in enumerate(network.steps):
+        reac.append([(idx[s], int(c)) for s, c in st.lhs.items()])
+        prod.append([(idx[s], int(c)) for s, c in st.rhs.items()])
+        for s, c in st.lhs.items():
+            N[idx[s], j] -= c
+        for s, c in st.rhs.items():
+            N[idx[s], j] += c
+        el = [(s, c) for s, c in st.lhs.items() if s in e_pos]
+        er = [(s, c) for s, c in st.rhs.items() if s in e_pos]
+        if not el and not er:
+            background.append(j)
+            continue
+        if len(el) != 1 or len(er) != 1 or el[0][1] != 1 or er[0][1] != 1:
+            raise QssError(
+                f"단계 {j + 1} '{st}': 양쪽에 효소 형태가 하나씩(계수 1) 있어야 함 — 준정상 표현은 효소에 1차인 단계만"
+            )
+        lf = [(s_pos[s], int(c)) for s, c in st.lhs.items() if s in s_pos]
+        lr = [(s_pos[s], int(c)) for s, c in st.rhs.items() if s in s_pos]
+        edges.append(Edge(j, e_pos[el[0][0]], e_pos[er[0][0]], lf, lr, st.reversible))
+    small_idx = [idx[s] for s in small]
+    enzyme_idx = [idx[s] for s in ens]
+    N_s, N_e = N[small_idx], N[enzyme_idx]
+    # every enzyme form must be reachable from the free enzyme and back (strongly connected graph)
+    reach = _strongly_connected_to(len(ens), edges)
+    if not all(reach):
+        bad = [ens[i] for i, ok in enumerate(reach) if not ok]
+        raise QssError(f"효소 형태 {', '.join(bad)}: 자유 효소와 오가는 경로가 없음(준정상 분포가 정해지지 않음)")
+    # slow space: {N_s y : N_e y = 0}
+    Zy = _null_space(N_e).T if N_e.size else np.eye(n_steps)
+    S = N_s @ Zy if Zy.size else np.zeros((len(small), 0))
+    d = _rank(S)
+    if d == 0:
+        raise QssError("느린 변수가 없음(작은 분자가 바뀌는 전체 반응이 없음)")
+    cols, labels = [], []
+
+    def add(v, label):
+        cand = cols + [v]
+        M = np.column_stack(cand)
+        if _rank(M) > len(cols) and _rank(np.column_stack([S, v])) == d:
+            cols.append(v)
+            labels.append(label)
+
+    for o in overall or []:
+        add(species_vector(network, o)[small_idx], str(o))
+    for j in background:
+        add(N_s[:, j], str(network.steps[j]))
+    if len(cols) < d:  # complete with an orthonormal basis of the remainder
+        u, s, _ = np.linalg.svd(S)
+        for k in range(d):
+            if len(cols) == d:
+                break
+            v = u[:, k]
+            v = v / np.abs(v).max()
+            if v[np.argmax(np.abs(v) > TOL)] < 0:
+                v = -v
+            add(v, f"slow{len(cols) + 1}")
+    if len(cols) < d:
+        raise QssError("느린 변수 기저를 만들지 못함")
+    V = np.column_stack(cols)
+    W = np.linalg.pinv(V) @ N_s
+    W[np.abs(W) < 1e-12] = 0.0
+    # conservation laws C (rows, C N = 0) → bound-amount correction
+    C = _null_space(N.T)
+    C_s, C_e = C[:, small_idx], C[:, enzyme_idx]
+    Mcorr = -np.linalg.pinv(C_s) @ C_e if C.size else np.zeros((len(small), len(ens)))
+    Mcorr[np.abs(Mcorr) < 1e-12] = 0.0
+    return QssStructure(
+        species=species,
+        small=small,
+        enzyme=ens,
+        small_idx=small_idx,
+        enzyme_idx=enzyme_idx,
+        edges=edges,
+        background=background,
+        reactants=reac,
+        products=prod,
+        N_s=N_s,
+        N_e=N_e,
+        V=V,
+        W=W,
+        labels=labels,
+        Mcorr=Mcorr,
+    )
+
+
+def _strongly_connected_to(n: int, edges: list[Edge]) -> list[bool]:
+    """Forms that can reach form 0 and be reached from it."""
+    fwd = {i: set() for i in range(n)}
+    for e in edges:
+        fwd[e.a].add(e.b)
+        if e.reversible:
+            fwd[e.b].add(e.a)
+    bwd = {i: set() for i in range(n)}
+    for a, bs in fwd.items():
+        for b in bs:
+            bwd[b].add(a)
+
+    def visit(start, g):
+        seen, stack = {start}, [start]
+        while stack:
+            x = stack.pop()
+            for y in g[x]:
+                if y not in seen:
+                    seen.add(y)
+                    stack.append(y)
+        return seen
+
+    f, b = visit(0, fwd), visit(0, bwd)
+    return [i in f and i in b for i in range(n)]
+
+
+def qss_fractions(st: QssStructure, x_small: np.ndarray, kf: np.ndarray, kr: np.ndarray) -> np.ndarray:
+    """Quasi-steady enzyme distribution φ (sums to 1) at one small-molecule state (numpy reference)."""
+    n = len(st.enzyme)
+    L = np.zeros((n, n))
+    for e in st.edges:
+        wf = kf[e.step] * np.prod([x_small[i] ** o for i, o in e.lf]) if e.lf else kf[e.step]
+        L[e.b, e.a] += wf
+        L[e.a, e.a] -= wf
+        if e.reversible:
+            wr = kr[e.step] * np.prod([x_small[i] ** o for i, o in e.lr]) if e.lr else kr[e.step]
+            L[e.a, e.b] += wr
+            L[e.b, e.b] -= wr
+    A = -L[1:, 1:]
+    b = L[1:, 0]
+    psi = np.linalg.solve(A, b) if n > 1 else np.zeros(0)
+    phi = np.concatenate([[1.0], psi])
+    return phi / phi.sum()

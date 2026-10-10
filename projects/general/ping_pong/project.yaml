@@ -1,0 +1,41 @@
+# F-13 합성 시험 — evals/synthetic_general.yaml의 ping_pong에서 생성(enzopt synth). data/truth.json은 정답
+name: gen_ping_pong
+description: "기질 2개, 핑퐁형(변형 효소 F)"
+
+network:
+  name: ping_pong
+  species: [E, A, EA, F, P, B, FB, Q]
+  enzyme_species: [E, EA, F, FB]
+  steps:
+    - E + A <=> EA
+    - EA <=> F + P
+    - F + B <=> FB
+    - FB <=> E + Q
+  observable: {name: A340, coefficients: {A: 6.22, EA: 6.22}}
+  thermodynamics:
+    reactions:
+      - {overall: A + B <=> P + Q, Kp: 23}
+  prior:                      # 사전분포 = 정답을 10의 거듭제곱으로 반올림, 1.5 자릿수
+    kf_log10: [4, 2, 4, 3]
+    kr_log10: [2, 3, 2]   # 가역 단계 중 종속 단계 [4] 제외
+    Kp_log10: [1]
+    sd_decades: 1.5
+
+control:                      # 비약가역 대조: 첫 종속 단계를 한 방향으로
+  one_way_steps: [4]
+
+experiments:
+  T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, A: 0.2, B: 0.2, P: 9.8, Et_nM: 29.97, role: train}
+  T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, Q: 0.2, P: 10, Et_nM: 29.97, role: train}
+  H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, A: 0.1, Q: 0.1, B: 0.1, P: 9.9, Et_nM: 29.97, role: holdout}
+  H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, A: 0.2, B: 0.5, P: 9.5, Et_nM: 29.97, role: holdout}
+
+identification:
+  seeds: 4
+  noise_sigma: 0.003
+
+simulation:
+  hopsan: {enabled: false}
+
+design:
+  enabled: false              # ⑤ 설계 목표는 M6-4에서

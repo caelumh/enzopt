@@ -1,0 +1,44 @@
+# F-13 합성 시험 — evals/synthetic_general.yaml의 ordered_terter에서 생성(enzopt synth). data/truth.json은 정답
+name: gen_ordered_terter
+description: "기질 3개, 순서형"
+
+network:
+  name: ordered_terter
+  species: [E, A, EA, B, EAB, C, EABC, ERQP, ERQ, P, ER, Q, R]
+  enzyme_species: [E, EA, EAB, EABC, ERQP, ERQ, ER]
+  steps:
+    - E + A <=> EA
+    - EA + B <=> EAB
+    - EAB + C <=> EABC
+    - EABC <=> ERQP
+    - ERQP <=> ERQ + P
+    - ERQ <=> ER + Q
+    - ER <=> E + R
+  observable: {name: A340, coefficients: {A: 6.22, EA: 6.22, EAB: 6.22, EABC: 6.22}}
+  thermodynamics:
+    reactions:
+      - {overall: A + B + C <=> P + Q + R, Kp: 50}
+  prior:                      # 사전분포 = 정답을 10의 거듭제곱으로 반올림, 1.5 자릿수
+    kf_log10: [4, 4, 3, 2, 3, 3, 2]
+    kr_log10: [2, 2, 3, 3, 3, 3]   # 가역 단계 중 종속 단계 [7] 제외
+    Kp_log10: [2]
+    sd_decades: 1.5
+
+control:                      # 비약가역 대조: 첫 종속 단계를 한 방향으로
+  one_way_steps: [7]
+
+experiments:
+  T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, A: 0.2, B: 0.2, C: 0.2, Q: 10, Et_nM: 105.6, role: train}
+  T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, P: 0.2, R: 0.2, Q: 10.2, Et_nM: 105.6, role: train}
+  H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, A: 0.1, B: 0.1, C: 0.1, P: 0.1, Q: 10.1, R: 0.1, Et_nM: 105.6, role: holdout}
+  H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, A: 0.2, B: 0.2, C: 0.5, Q: 10, Et_nM: 105.6, role: holdout}
+
+identification:
+  seeds: 4
+  noise_sigma: 0.003
+
+simulation:
+  hopsan: {enabled: false}
+
+design:
+  enabled: false              # ⑤ 설계 목표는 M6-4에서
