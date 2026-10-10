@@ -22,6 +22,18 @@ a = exp(−h(t/T)), h = Σ_k w_k [σ((u − c_k)/s) − σ(−c_k/s)], w_k = sof
 In the residual it only rescales the enzyme forms, so the cost of learning a whole function is K more numbers per
 seed and no ODE solve (a classical fit of the same function has to integrate the ODE for every trial of its K
 coefficients).
+
+Missing-step search (option ``discrepancy: rate_factor``): the slow residual becomes dNADH/dt = −r₁·exp(g) with g a
+small network of the free concentrations (NADH, Pyr, Lac, NAD), one per seed and shared by all experiments. g = 0 means
+the five steps explain the data; where they do not, g learns by how much the rate is off. A step missing from the
+mechanism that only takes enzyme out of the cycle (a dead-end complex) multiplies the rate by 1/(1 + φ_X·[Y]/K_i) and
+leaves the equilibrium alone, so this form can represent it exactly; ``pipeline.suggest`` matches the learned g to such
+candidate steps.
+
+Candidate step (option ``discrepancy: dead_end`` with ``dead_end_form`` X and ``dead_end_ligand`` Y): the same factor
+in its mechanistic form, dNADH/dt = −r₁/(1 + φ_X·[Y]/K_i), with K_i learned per seed (prior 10 mM ± 1.5 decades).
+This is the five steps plus the dead-end complex X·Y in rapid equilibrium; ``pipeline.suggest`` fits every candidate
+this way and ranks them by the ODE re-solved with the extended network.
 """
 
 from __future__ import annotations
@@ -100,6 +112,12 @@ class PinnConfig:
     inactivation: str = "none"
     inact_k: int = 12  # number of sigmoid steps in h
     w_inact: float = 1e-2  # weight of h(T)² (prefers no loss of activity unless the data need it)
+    # missing-step search: "none" or "rate_factor" (dNADH/dt = −r₁·exp(g(NADH, Pyr, Lac, NAD)), see module docstring)
+    discrepancy: str = "none"
+    disc_width: int = 16
+    w_disc: float = 1e-2  # weight of mean g² relative to the physics weight (g only takes what the steps cannot)
+    dead_end_form: str = "EN"  # with discrepancy "dead_end": enzyme form X and ligand Y of the candidate complex
+    dead_end_ligand: str = "Lac"
 
 
 @dataclass
@@ -112,6 +130,8 @@ class PinnResult:
     loss_parts: dict
     history: list = field(default_factory=list)
     activity: dict | None = None  # inactivation: {"T", "c", "s", "w"} for activity_curve()
+    discrepancy: dict | None = None  # missing-step search: g and the states at collocation points (pipeline.suggest)
+    dead_end: dict | None = None  # candidate step: {"form", "ligand", "Ki_mM"}
 
 
 class BatchedMLP(torch.nn.Module):
@@ -159,6 +179,10 @@ class LdhPinn:
         self.S, self.E, self.B = S, E, S * E
         self.n_theta = N_THETA_IRR if cfg.irreversible_last else N_THETA_WR
         self.inact = cfg.inactivation == "shared"
+        self.dead = cfg.discrepancy == "dead_end"
+        n_inact = cfg.inact_k if self.inact else 0
+        self.inact_sl = slice(self.n_theta, self.n_theta + n_inact)  # θ columns: core, inactivation, log10 K_i
+        self.de_col = self.n_theta + n_inact
         pc = np.asarray(prior_center, float)[: self.n_theta]
         self.prior_c = torch.tensor(pc, dtype=self.dt, device=self.dev)
         self.T = float(max(e.t_obs.max() for e in exps))
@@ -171,7 +195,8 @@ class LdhPinn:
                 gens.append(g)
             jit = np.random.default_rng(100 + int(sd)).uniform(-cfg.init_jitter, cfg.init_jitter, len(pc))
             # inactivation weights (extra θ columns) start near zero: softplus(−5) ≈ 0.007, a(T) ≈ 0.95
-            theta0.append(np.concatenate([pc + jit, np.full(cfg.inact_k if self.inact else 0, -5.0)]))
+            extra = [np.full(n_inact, -5.0), np.array([1.0]) if self.dead else np.zeros(0)]  # K_i starts at 10 mM
+            theta0.append(np.concatenate([pc + jit, *extra]))
         self.theta = torch.nn.Parameter(torch.tensor(np.array(theta0), dtype=self.dt, device=self.dev))
         self.net = BatchedMLP(
             self.B, cfg.width, cfg.depth, 1 if cfg.representation == "qss" else 6, gens, self.dt, self.dev
@@ -223,12 +248,43 @@ class LdhPinn:
             self.inact_c = torch.tensor(np.linspace(0.0, 1.0, K), dtype=self.dt, device=self.dev)
             self.inact_s = 0.6 / max(1, K - 1)
             self.inact_u = self.Tb / self.T  # τ → u = t/T_max, per (seed, experiment)
+        self.disc = cfg.discrepancy == "rate_factor"
+        self.disc_params = torch.nn.ParameterList()
+        if self.disc:
+            n_max, s_max = max(Ntot), max(Stot)
+            self.disc_scale = torch.tensor([n_max, s_max, s_max, n_max], dtype=self.dt, device=self.dev).reshape(
+                1, 1, 4
+            )
+            w = cfg.disc_width
+            shapes = [(4, w), (1, w), (w, w), (1, w), (w, 1), (1, 1)]
+            init = []
+            for k, (a, b) in enumerate(shapes):
+                t = torch.zeros(S, a, b, dtype=torch.float64)
+                if k in (0, 2):  # last layer starts at zero: g = 0, i.e. the five steps as they are
+                    for i, sd in enumerate(cfg.seeds):
+                        t[i].uniform_(
+                            -1.0 / math.sqrt(a),
+                            1.0 / math.sqrt(a),
+                            generator=torch.Generator().manual_seed(7919 * int(sd) + k),
+                        )
+                init.append(torch.nn.Parameter(t.to(device=self.dev, dtype=self.dt)))
+            self.disc_params = torch.nn.ParameterList(init)
+
+    def disc_g(self, S: dict) -> torch.Tensor:
+        """g at the given states, (B, n, 1); one network per seed, the same for all of that seed's experiments."""
+        x = torch.cat([S["NADH"], S["Pyr"], S["Lac"], S["NAD"]], dim=-1) / self.disc_scale
+        n = x.shape[1]
+        x = x.reshape(self.S, self.E * n, 4)
+        W1, b1, W2, b2, W3, b3 = self.disc_params
+        h = torch.tanh(torch.baddbmm(b1, x, W1))
+        h = torch.tanh(torch.baddbmm(b2, h, W2))
+        return torch.baddbmm(b3, h, W3).reshape(self.B, n, 1)
 
     def activity_weights(self, theta: torch.Tensor):
         """(B, 1, K) non-negative step weights, repeated over each seed's experiments; None without inactivation."""
         if not self.inact:
             return None
-        w = torch.nn.functional.softplus(theta[:, self.n_theta :])
+        w = torch.nn.functional.softplus(theta[:, self.inact_sl])
         return w.unsqueeze(1).expand(self.S, self.E, w.shape[1]).reshape(self.B, 1, w.shape[1])
 
     def activity(self, tau: torch.Tensor, wB: torch.Tensor) -> torch.Tensor:
@@ -329,7 +385,16 @@ class LdhPinn:
             g.append(gj)
         r = [f[j] - g[j] for j in range(5)]
         s_slow = (self.hi - self.lo) / T
-        L_slow = (((dN / T + r[0]) / s_slow) ** 2).mean(dim=1)
+        if self.disc:
+            gd = self.disc_g(S)  # (not g: that name holds the backward rates above)
+            L_slow = (((dN / T + r[0] * torch.exp(gd)) / s_slow) ** 2).mean(dim=1)
+        elif self.dead:
+            Ki = (10.0 ** self.theta[:, self.de_col]).unsqueeze(1).expand(self.S, self.E).reshape(self.B, 1, 1)
+            ix = ENZYME.index(cfg.dead_end_form)
+            occ = phi[..., ix : ix + 1] * S[cfg.dead_end_ligand].clamp_min(0.0) / Ki
+            L_slow = (((dN / T + r[0] / (1.0 + occ)) / s_slow) ** 2).mean(dim=1)
+        else:
+            L_slow = (((dN / T + r[0]) / s_slow) ** 2).mean(dim=1)
         floor = self.Et * 1e-3
         Et = self.Et
         bal = [
@@ -352,14 +417,19 @@ class LdhPinn:
 
         Ld, Ls, Lf, Li = per_seed(L_data), per_seed(L_slow), per_seed(L_fast), per_seed(L_ic)
         Lp = ((self.theta[:, : self.n_theta] - self.prior_c) ** 2).sum(dim=1) / (2 * cfg.prior_sd**2)
+        if self.dead:  # log10 K_i around 10 mM
+            Lp = Lp + (self.theta[:, self.de_col] - 1.0) ** 2 / (2 * cfg.prior_sd**2)
         total = Ld + w_phys * (Ls + Lf) + cfg.w_ic * Li + cfg.w_prior * Lp
         parts = dict(data=Ld, slow=Ls, fast=Lf, ic=Li, prior=Lp)
         if self.inact:  # total loss of activity at the end of the longest experiment, h(1)
             c, s = self.inact_c, self.inact_s
-            w = torch.nn.functional.softplus(self.theta[:, self.n_theta :])
+            w = torch.nn.functional.softplus(self.theta[:, self.inact_sl])
             h_end = (w * (torch.sigmoid((1.0 - c) / s) - torch.sigmoid(-c / s))).sum(dim=1)
             parts["inact"] = h_end**2
             total = total + cfg.w_inact * parts["inact"]
+        if self.disc:
+            parts["disc"] = per_seed((gd**2).mean(dim=1))
+            total = total + w_phys * cfg.w_disc * parts["disc"]
         return total, parts
 
     # ------------------------------------------------------------------ training
@@ -393,6 +463,7 @@ class LdhPinn:
             [
                 {"params": [self.theta], "lr": lr(cfg.lr_theta)},
                 {"params": list(self.net.parameters()), "lr": lr(cfg.lr_net)},
+                {"params": list(self.disc_params), "lr": lr(cfg.lr_net)},
             ],
             capturable=graphs,
         )
@@ -451,14 +522,52 @@ class LdhPinn:
         kr = kr.detach().double().cpu().numpy()
         act = [None] * self.S
         if self.inact:
-            w = torch.nn.functional.softplus(self.theta.detach()[:, self.n_theta :]).double().cpu().numpy()
+            w = torch.nn.functional.softplus(self.theta.detach()[:, self.inact_sl]).double().cpu().numpy()
             c = self.inact_c.double().cpu().numpy().tolist()
             act = [{"kind": "steps", "T": self.T, "c": c, "s": self.inact_s, "w": w[i].tolist()} for i in range(self.S)]
+        disc = self._discrepancy_points() if self.disc else [None] * self.S
         out = []
         for i, sd in enumerate(cfg.seeds):
             Kp = None if cfg.irreversible_last else float(10 ** th[i, 9])
             r = PinnResult(int(sd), th[i].copy(), kf[i].copy(), kr[i].copy(), Kp, hist[i][-1][2], hist[i], act[i])
+            r.discrepancy = disc[i]
+            if self.dead:
+                Ki = float(10 ** th[i, self.de_col])
+                r.dead_end = {"form": cfg.dead_end_form, "ligand": cfg.dead_end_ligand, "Ki_mM": Ki}
             out.append(r)
+        return out
+
+    def _discrepancy_points(self, every: int = 3) -> list[dict]:
+        """Per seed: g, r₁, the free concentrations and the enzyme-form fractions φ at the collocation points."""
+        with torch.no_grad():
+            kf, kr = self.rates(self.theta)
+            kfB = kf.unsqueeze(1).expand(self.S, self.E, 5).reshape(self.B, 1, 5)
+            krB = kr.unsqueeze(1).expand(self.S, self.E, 5).reshape(self.B, 1, 5)
+            St, _, _, _, _ = self.states(self.tau_col, kfB, krB, self.activity_weights(self.theta))
+            g = self.disc_g(St)
+            r1 = kfB[..., 0:1] * St["E"] * St["NADH"] - krB[..., 0:1] * St["EN"]
+            Et = St["E"] + St["EN"] + St["ENP"] + St["EQL"] + St["EQ"]
+
+            def np_(x):
+                return x.detach().double().cpu().numpy()[:, ::every, 0]
+
+            t = np_(self.tau_col * self.Tb)
+            cols = {k: np_(St[k]) for k in ("NADH", "Pyr", "Lac", "NAD")}
+            phi = {k: np_(St[k] / Et) for k in ENZYME}
+            gg, rr = np_(g), np_(r1)
+        out = []
+        for i in range(self.S):
+            rows = range(i * self.E, (i + 1) * self.E)
+            out.append(
+                {
+                    "experiment": [self.exps[b - i * self.E].name for b in rows for _ in range(t.shape[1])],
+                    "t": t[list(rows)].ravel().tolist(),
+                    **{k: v[list(rows)].ravel().tolist() for k, v in cols.items()},
+                    **{f"phi_{k}": v[list(rows)].ravel().tolist() for k, v in phi.items()},
+                    "r1": rr[list(rows)].ravel().tolist(),
+                    "g": gg[list(rows)].ravel().tolist(),
+                }
+            )
         return out
 
     def _log(self, hist, it, total, parts):
@@ -468,7 +577,12 @@ class LdhPinn:
             hist[i].append((it, float(tv[i]), {k: float(pv[k][i]) for k in pv}))
 
     def _params(self):
-        return [self.theta] + list(self.net.parameters())
+        """Per-seed tensors first (θ, discrepancy network; leading dim S), then the per-(seed, experiment) MLPs."""
+        return [self.theta] + list(self.disc_params) + list(self.net.parameters())
+
+    @property
+    def _n_seed_params(self) -> int:
+        return 1 + len(self.disc_params)
 
     def _lbfgs(self, iters, hist, progress):
         """Batched L-BFGS: every seed keeps its own history and step length (seeds stay independent)."""
@@ -476,14 +590,16 @@ class LdhPinn:
         S = self.S
         E = self.E
 
+        k_seed = self._n_seed_params
+
         def seed_view(tensors):
             """Flatten parameter-shaped tensors into (S, n_per_seed)."""
-            parts = [tensors[0].reshape(S, -1)]
-            for t in tensors[1:]:
+            parts = [t.reshape(S, -1) for t in tensors[:k_seed]]
+            for t in tensors[k_seed:]:
                 parts.append(t.reshape(S, E, -1).reshape(S, -1))
             return torch.cat(parts, dim=1)
 
-        sizes = [p[0].numel() if i == 0 else p.reshape(S, E, -1)[0].numel() for i, p in enumerate(params)]
+        sizes = [p[0].numel() if i < k_seed else p.reshape(S, E, -1)[0].numel() for i, p in enumerate(params)]
 
         def assign(x):
             off = 0

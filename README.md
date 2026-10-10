@@ -38,6 +38,7 @@ uv run enzopt pack runs/example_ldh_synth/<실행 폴더>   # 제출용 zip 하�
 | `enzopt run --resume <실행 폴더>` | 중단된 실행을 끊긴 단계부터 이어서 (`--from-stage 3_fit`처럼 특정 단계부터 다시) |
 | `enzopt run ... --device cpu --precision float64` | PINN 장치·정밀도 지정(기본은 project.yaml) |
 | `enzopt check <프로젝트>` | 측정 직후 점검: 판정·데이터 검사만 임시 폴더에서. 실험별 점 수·처음/끝값·K'로 푼 예상 평형과의 차이·끝 기울기·온도 |
+| `enzopt suggest <프로젝트> [--verify N] [--quick]` | 빠진 반응 단계 제안: PINN 보정 항으로 어긋나는 곳을 찾고, 후보 단계(막다른 복합체 4종)를 PINN으로 맞춰 순위를 매긴 뒤 고전 피팅으로 확인. 결과는 `runs/<프로젝트>/<날짜_시각>_suggest/`, 근거는 `docs/suggest/` |
 | `enzopt pack <실행 폴더> [-o x.zip]` | 입력 데이터·설정 사본·그림·CSV·Hopsan `.hmf`·검증 보고를 zip 하나로 |
 | `enzopt doctor [--hopsan]` | 환경 점검 |
 | `enzopt synth evals/synthetic.yaml <프로젝트>` | 현실적 합성 데이터로 `data/` 작성(예제 생성용) |

@@ -1,4 +1,4 @@
-"""Command line: ``enzopt run | pack | doctor | synth | dashboard``."""
+"""Command line: ``enzopt run | check | suggest | pack | doctor | synth | dashboard``."""
 
 from __future__ import annotations
 
@@ -106,6 +106,14 @@ def cmd_check(a) -> int:
     return 0
 
 
+def cmd_suggest(a) -> int:
+    from .pipeline.suggest import run_suggest
+
+    out = run_suggest(Path(a.project), quick=a.quick, verify_top=a.verify, runs_root=a.runs_root)
+    print(f"결과: {out}")
+    return 0
+
+
 def cmd_pack(a) -> int:
     from .pack import pack_run
 
@@ -156,6 +164,12 @@ def build_parser() -> argparse.ArgumentParser:
     c = sub.add_parser("check", help="측정 직후 점검: ①판정·②데이터 검사만(임시 폴더, 결과를 남기지 않음)")
     c.add_argument("project", help="프로젝트 폴더")
     c.set_defaults(func=cmd_check)
+    g = sub.add_parser("suggest", help="빠진 반응 단계 제안: PINN 보정 항 → 후보 단계 대조 → 고전 피팅 검증")
+    g.add_argument("project", help="프로젝트 폴더")
+    g.add_argument("--quick", action="store_true", help="짧은 모드(시드 2 × 재시작 2, 검증 축소)")
+    g.add_argument("--verify", type=int, default=1, help="고전 피팅으로 확인할 상위 후보 수(0 = 생략)")
+    g.add_argument("--runs-root", help="결과 폴더 상위(기본: <저장소>/runs)")
+    g.set_defaults(func=cmd_suggest)
     p = sub.add_parser("pack", help="실행 폴더를 제출용 zip 하나로 묶기")
     p.add_argument("run_dir")
     p.add_argument("-o", "--output", help="zip 경로(기본: <실행 폴더>.zip)")

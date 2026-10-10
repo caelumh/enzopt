@@ -578,3 +578,69 @@ def design_figures(out: Path, res, summ: dict, check: dict) -> list:
             )
         )
     return figs
+
+
+# ------------------------------------------------------------------------------------------ missing-step suggestion
+def suggest_figure(
+    out: Path, chosen: list, per_seed: list, summ: dict, rank: list, ver: list, sigma: float, obs: str = "A340"
+) -> dict:
+    """(a) where the written steps fall short: exp(−g) − 1 over time, per training experiment (median seed);
+    (b) every candidate fitted by the PINN, training RMSE of the re-solved ODE in units of σ (dots: seeds);
+    (c) the best candidates and the five steps fitted again by least squares: training and held-out RMSE."""
+    i_med = int(np.argsort([s["rms_g"] for s in per_seed])[len(per_seed) // 2])
+    pts = chosen[i_med].discrepancy
+    y = np.expm1(-np.asarray(pts["g"], float))
+    t = np.asarray(pts["t"], float)
+    fig, ax = new_figure(DOUBLE, 2.5, ncols=3)
+    a = ax[0, 0]
+    rows = []
+    for j, n in enumerate(dict.fromkeys(pts["experiment"])):
+        sel = np.array([e == n for e in pts["experiment"]])
+        a.plot(t[sel], y[sel], color=color(j), ls=linestyle(j), lw=1.0, label=n)
+        rows += [[n, float(u), float(v)] for u, v in zip(t[sel], y[sel], strict=True)]
+    a.axhline(0, color="0.5", lw=0.5)
+    a.set(xlabel="time (s)", ylabel="rate shortfall exp(−g) − 1", title="(a) where the steps fall short")
+    a.legend(frameon=False, fontsize=5, ncol=2)
+    a = ax[0, 1]
+    for xi, r in enumerate(rank):
+        v = np.array([q["train_rmse"] for q in r["per_seed"]]) / sigma
+        c = "0.4" if r["step"] is None else color(xi)
+        a.plot(xi + np.linspace(-0.15, 0.15, len(v)), v, "o", ms=3, mfc="none", color=c)
+        a.plot([xi - 0.25, xi + 0.25], [np.median(v)] * 2, color=c, lw=1.5)
+        base_med = next(np.median([q["train_rmse"] for q in rr["per_seed"]]) for rr in rank if rr["step"] is None)
+        if r["Ki_mM_median"] and np.median(v) * sigma < 0.9 * base_med:
+            a.annotate(
+                f"Ki {r['Ki_mM_median']:.2g}",
+                (xi, np.median(v)),
+                xytext=(0, 5),
+                textcoords="offset points",
+                ha="center",
+                fontsize=5,
+            )
+    a.axhline(1, color=color(3), ls=":", lw=0.7)
+    a.axhline(3, color=color(3), ls="--", lw=0.6)
+    a.set_yscale("log")
+    a.set_xticks(range(len(rank)), [r["name"].replace(" (as written)", "") for r in rank], fontsize=6)
+    a.set(ylabel="training RMSE / σ (ODE re-solved)", title="(b) PINN fit with each candidate")
+    a = ax[0, 2]
+    if ver:
+        ok = [v for v in ver if "error" not in v]
+        lab = [v["network"].replace(" (as written)", "") for v in ok]
+        x = np.arange(len(ok))
+        a.bar(x - 0.18, [v["train_rmse"] / sigma for v in ok], 0.36, color="0.7", label="training")
+        if all(v["holdout_rmse"] is not None for v in ok):
+            a.bar(x + 0.18, [v["holdout_rmse"] / sigma for v in ok], 0.36, color=color(0), label="held-out")
+        a.axhline(1, color=color(3), ls=":", lw=0.7)
+        a.set_xticks(x, lab, fontsize=6)
+        a.set_yscale("log")
+        a.set(ylabel="RMSE / σ", title="(c) least-squares check")
+        a.legend(frameon=False, fontsize=5.5)
+    else:
+        a.axis("off")
+        a.text(0.5, 0.5, "no least-squares check", ha="center", va="center")
+    fig.suptitle(
+        f"missing-step search ({obs}, σ = {sigma:g}): rms g = {summ['rms_g_median']:.3f} "
+        + "(includes the PINN's own misfit; the decision is the least-squares check)",
+        fontsize=7.5,
+    )
+    return save(fig, out, "fig_suggest", ["experiment", "time_s", "shortfall"], rows)
