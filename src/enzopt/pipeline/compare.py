@@ -212,7 +212,12 @@ def run_comparisons(ctx: RunContext, train, every, prior, pinn_cfg, prog_base: f
 
         from ..pinn.general import PinnExperiment, supports, train_pinn
 
-        one_way = [i + 1 for i, st in enumerate(ctrl_net.steps) if not st.reversible]
+        # steps the control makes one-way (steps already one-way in the network, e.g. a background step, are not listed)
+        one_way = [
+            i + 1
+            for i, (a, b) in enumerate(zip(p.network.steps, ctrl_net.steps, strict=True))
+            if a.reversible and not b.reversible
+        ]
         why = supports(ctrl_net, p.overall)
         if why:
             summary["control"] = {"skipped": f"대조 반응망의 PINN 표현을 만들 수 없음: {why}"}

@@ -74,9 +74,9 @@ projects/<이름>/
 | `network.prior` | 사전분포: `kf_log10`(모든 단계), `kr_log10`(가역 단계 중 열역학 종속 단계 제외, 또는 가역 단계마다 하나), `Kp_log10`(전체 반응이 여럿이면 목록), `sd_decades`(기본 1.5). 종속 단계는 `enzopt mechanisms`·① 판정 보고·오류 문구에 나옴 |
 | `control.one_way_steps` | 비약가역 대조 반응망(F-10): 이 단계들을 한 방향으로 |
 | `experiments.<이름>` | 초기 농도(종 이름: mM), `Et_nM`, `role`(train / holdout / design-check), `file`, `temp_file`, (선택) `format`(`temp_col` 포함), `time_offset_s`, `signal_files` |
-| `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, restarts, representation: qss, time_scale: per_experiment, inactivation: none|shared}`, `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: ode|pinn`, `exclusion_sigma`(기본 3) |
+| `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, restarts, representation: qss, time_scale: per_experiment, inactivation: none|shared, range_margin: 0}`(range_margin: 반응 하나일 때 시그모이드 범위 여유, 선택), `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: ode|pinn`, `exclusion_sigma`(기본 3) |
 | `simulation` | `t_long_s`, `same_class_runs`, `class_seed`, `hopsan: {enabled, one_step_k1: auto, representative_experiment, max_steps}` |
-| `design` | `target: assay`, `analyte`, `partner`(ρ = partner₀/analyte₀), `free_enzyme`, `analyte0_mM`, `conversion`, `time_s`, `Kp`, `dead_end: {step, enzyme_species, kf, Ki_mM}`, `rho_grid: auto`, `Et_bounds_mM`, `bisection_iters`, `check_t_end_s`, `pipette: {volume_uL, enzyme_uL, stocks_mM, limit_test_rhos, limit_test_enzyme_multiples}` |
+| `design` | `target`(`assay` 분석 대상 소모 · `yield` 생성물 수율 · `selectivity` 선택도 + 수율 · `time` 효소량 상한에서 도달 시간 최소), `analyte`, `partner`(ρ = partner₀/analyte₀, 기질 1개면 `null`: 효소량만 찾음), `fixed_ratio`(다른 짝 기질 = analyte₀의 배수), `product`·`side_product`·`yield`·`selectivity`(수율·선택도 목표), `Et_max_nM`(시간 목표), `free_enzyme`, `analyte0_mM`, `conversion`, `time_s`, `Kp`, `dead_end: {step, enzyme_species, kf, Ki_mM}`, `rho_grid: auto`, `Et_bounds_mM`, `bisection_iters`, `check_t_end_s`, `pipette: {volume_uL, enzyme_uL, stocks_mM, limit_test_rhos(auto = ρ_min × 0.3·0.6), limit_test_enzyme_multiples}`. 평형 한계는 분석 대상의 전체 반응과 K′로 수치 계산(기질 수·계수 무관, 약가역·결핍 0·전체 반응 하나일 때만) |
 | `quick` | 짧은 모드에서 바꿀 값(`seeds`, `same_class_runs`, `rho_grid`, `bisection_iters`, `baseline_starts`, `hopsan` …) |
 
 단위: 농도 mM, 시간 s, 효소량은 nM으로 입력(내부 mM).
@@ -125,6 +125,7 @@ uv run python evals/run.py --tier long      # 관문 + 모든 기준 + Q1(전체
 
 ## 알려 둘 것
 
+- **일반 반응망(F-13, 브랜치 `feature/general-network`)**: ③ PINN이 단계마다 효소 형태가 양쪽에 하나씩인 반응망이면 무엇이든 받습니다(메커니즘 목록 9종, 막다른 복합체, 전체 반응 둘 이상: 경쟁 기질·효소 없는 배경 반응). 열역학 제약은 순환에서 자동, 신호는 여럿, ⑤는 목표 4종. 시험용 합성 반응망 11개는 `projects/general/`(`uv run enzopt synth evals/synthetic_general.yaml projects/general`). 시험 결과: 11개 모두 학습 데이터에 잡음 수준(0.96~1.4σ)으로 맞지만, 학습 세트가 정하지 못하는 조건(학습 범위 밖 짝 기질 농도 등)에서는 학습에 똑같이 맞는 상수들이 서로 다르게 예측합니다 — 고전 피팅도 같음(QUESTIONS Q-03). 설계에 쓸 조건은 학습 세트에 넣어 재야 합니다
 - **효소 실활**(`identification.pinn.inactivation: shared`): 측정 중에 효소가 활성을 잃으면 같은 적합류의 곡선이 평형 전에 서로 다른 값에서 멈추고, 실활을 모르는 모델은 모든 표본이 3σ 검증에서 빠집니다. 이 옵션을 켜면 PINN이 모든 실험이 공유하는 활성 곡선 a(t)(효소를 넣은 뒤 시간, 모양은 정하지 않음)를 속도 상수와 함께 학습합니다. ③의 ODE 재해석·⑤ 설계·그림 3a~3c는 a(t)를 넣어 풀고, 그림 3e에 a(t)를 그립니다. ④ CRNT 검증은 반응망 자체(활성 효소 일정)에 대해 합니다. 고전 피팅 기준선은 실활을 넣지 않고, 설계 조건의 Hopsan 대조는 생략합니다. 예제 `projects/example_ldh_inactivation`, 근거와 고전 피팅과의 비교는 `docs/inactivation/`.
 - PINN 표현은 명세 방법론(4.2·4.3)의 "효소 형태 = 신경망 출력"이 아니라 **준정상 효소 분포**(King–Altman)입니다(2026-10-09 결정). 원래 표현은 `identification.pinn.representation: full`로 남아 있고, 실패 근거는 `docs/pinn_representation/`(`uv run python scripts/compare_pinn_representation.py`로 재현).
 - 표본 제외(SC5-3): 학습된 속도 상수로 ODE를 다시 푼 학습 RMSE > 3σ인 시드는 뺍니다(`exclusion_rmse: ode`, `exclusion_sigma: 3`).

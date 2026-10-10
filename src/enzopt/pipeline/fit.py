@@ -93,6 +93,7 @@ def pinn_config(p, ident: dict, seeds: list[int], device: str, dtype: str, sigma
         observable=p.observable_weights(),
         overall=p.overall,
         prefer_dependent=[p.haldane_step] if p.haldane_step else None,
+        range_margin=float(pc.get("range_margin", 0.0)),
     )
 
 

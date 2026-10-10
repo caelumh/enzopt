@@ -108,7 +108,9 @@ network:
 | `ping_pong` | 기질 2개, 핑퐁형 | A |
 | `ordered_terter` | 기질 3개, 순서형 | A |
 
-곁가지는 `dead_end`(막다른 복합체·저해제), `step`(손으로 적은 한 줄 + `enzyme_forms`), `background`(효소 없는 배경 반응)입니다. `uv run enzopt mechanisms`가 목록을, `uv run enzopt mechanisms ordered_bibi --substrates NADH,Pyr --products Lac,NAD --letters NADH=N,Pyr=P,Lac=L,NAD=Q`가 만들어지는 반응식·판정·보존 법칙과 붙여 넣을 YAML을 보여 줍니다. LDH 글자로 `ordered_bibi`를 고르면 손으로 적은 다섯 단계와 똑같아 PINN도 그대로 돕니다. 다른 메커니즘은 ①판정·고전 피팅·④검증·⑤설계까지 쓸 수 있고 ③ PINN은 아직 LDH만 지원합니다(F-13).
+곁가지는 `dead_end`(막다른 복합체·저해제), `step`(손으로 적은 한 줄 + `enzyme_forms`), `background`(효소 없는 배경 반응)입니다. `uv run enzopt mechanisms`가 목록을, `uv run enzopt mechanisms ordered_bibi --substrates NADH,Pyr --products Lac,NAD --letters NADH=N,Pyr=P,Lac=L,NAD=Q`가 만들어지는 반응식·판정·보존 법칙과 붙여 넣을 YAML을 보여 줍니다. LDH 글자로 `ordered_bibi`를 고르면 손으로 적은 다섯 단계와 똑같습니다. 다른 메커니즘도 ③ PINN을 포함해 ①~⑤가 돕니다(F-13): 단계마다 효소 형태가 양쪽에 하나씩이면 되고, 전체 반응이 둘 이상(경쟁 기질, 효소 없는 배경 반응)이면 `thermodynamics.reactions`에 반응마다 K′를 적습니다. 열역학 제약(Haldane·Wegscheider)은 반응망의 순환에서 자동으로 걸리고, 종속으로 둔 k₋ 단계는 판정 보고(`1_verdict/report.txt`)에 나옵니다. 신호가 여럿이면(예: A340과 HPLC 생성물 농도) `network.signals`와 실험의 `signal_files`에 적습니다.
+
+주의: 학습 세트가 정하지 못하는 조건은 표본들이 서로 다르게 예측합니다. 합성 시험 11개 반응망에서 학습 데이터에는 모두 잡음 수준으로 맞았지만, 짝 기질을 학습 범위 밖으로 올린 조건에서는 학습에 똑같이 맞는 상수들이 크게 갈렸습니다(고전 피팅도 같음). 설계에 쓸 범위의 농도는 학습 세트에 넣어 재세요.
 
 어느 쪽이든 맞는 메커니즘을 고르는 것은 사용자의 몫입니다. 틀렸는지는 결과에서 드러납니다(9절, `enzopt suggest`).
 

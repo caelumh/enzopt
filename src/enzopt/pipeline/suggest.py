@@ -13,8 +13,8 @@
    training RMSE is within 2σ; otherwise a candidate is suggested when it at least halves the training RMSE. The
    held-out RMSE is reported next to it, and K_i comes from the least-squares fit (the PINN only fixes φ_X/K_i).
 
-Only the LDH ordered bi-bi PINN exists (F-13), so the candidates are the dead-end complexes that an empty substrate
-site of E, EN (holds NADH) or EQ (holds NAD⁺) can form with pyruvate or lactate.
+The candidate list is written for the LDH ordered bi-bi network: the dead-end complexes that an empty substrate site of
+E, EN (holds NADH) or EQ (holds NAD⁺) can form with pyruvate or lactate (the PINN itself is general since F-13).
 """
 
 from __future__ import annotations
@@ -326,7 +326,7 @@ def run_suggest(project_dir, quick: bool = False, verify_top: int = 1, runs_root
 
     p = load_project(project_dir)
     if not matches_network(p.network):
-        raise SystemExit("빠진 단계 제안은 아직 LDH 순차 bi-bi 반응망만 지원(F-13)")
+        raise SystemExit("빠진 단계 제안의 후보 목록(막다른 복합체 4종)은 LDH 순차 bi-bi 반응망용")
     ident = p.identification
     obs = p.observable["name"]
     tmp = Path(tempfile.mkdtemp(prefix="enzopt_suggest_"))

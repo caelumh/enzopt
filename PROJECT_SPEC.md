@@ -385,7 +385,7 @@ design: {target: assay, NADH0: 0.1, conversion: 0.99, time_s: 300, Kp: 23}
 - (build 2026-10-10, F-13 M6-1) ④ 겉보기 1단계 모형: 느린 좌표(전체 반응, 효소 없는 단계)마다 한 단계, k₁은 혼합 1–2 s의 작은 분자 변화를 느린 기저에 투영해 구함. 관측 기질 = 관측식 계수가 가장 큰 전체 반응 왼쪽 종. 파일은 LDH면 `ldh_one_step.hmf` 그대로, 다른 반응망은 `one_step.hmf`
 - (build 2026-10-10, F-13 M6-1) 빠진 단계 제안(`enzopt suggest`)은 LDH 후보 4종 그대로(LDH 전용 기능으로 둠)
 
-- (build 2026-10-10, F-13 M6-2) 일반 PINN 표현의 세부: 닻 종(느린 좌표마다 관측 분자 하나의 자유 농도 = x0 + Vξ, 잔차는 그 분자 수지), 전체 반응 하나면 시그모이드 범위에 5% 여유(`range_margin`), 둘 이상이면 ξ = 척도·(u(τ) − u(0)), L-BFGS 기본 1000(짧은 모드도 같음)
+- (build 2026-10-10, F-13 M6-2) 일반 PINN 표현의 세부: 닻 종(느린 좌표마다 관측 분자 하나의 자유 농도 = x0 + Vξ, 잔차는 그 분자 수지), 전체 반응 하나면 시그모이드 범위(여유 `identification.pinn.range_margin`은 선택, 기본 0), 둘 이상이면 ξ = 척도·(u(τ) − u(0)), L-BFGS 기본 1000(짧은 모드도 같음)
 - (build 2026-10-10, F-13 M6-4) ⑤: 평형 한계는 분석 대상의 전체 반응 하나와 K′로 수치 계산, 전체 반응이 여럿이면 쓰지 않음(정방향만). 다른 짝 기질은 `design.fixed_ratio`(분석 대상 초기 농도의 배수), 목표 `target: assay|yield|selectivity|time`(`product`·`side_product`·`yield`·`selectivity`·`Et_max_nM`), 평형 한계 시험 ρ 기본 auto = ρ_min × 0.3·0.6
 
 ## 미결정
