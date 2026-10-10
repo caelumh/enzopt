@@ -59,8 +59,8 @@
     <text x="76" y="461">학습된 상수로 미분방정식을 다시 풀어 데이터와 비교 → 3σ 넘는 시드 제외</text>
     <text x="76" y="481">비교 모델: 고전 피팅(최소제곱) · 비약가역 대조 → 홀드아웃 오차 표</text>
     <text x="76" y="501" font-size="11.5" fill="#555">출력: 속도 상수 표본(시드마다 한 벌) · 그림 3a~3e</text>
-    <rect x="410" y="380" width="184" height="18" rx="9" fill="#fff4e8" stroke="#D55E00" stroke-width="0.8"/>
-    <text x="502" y="393" text-anchor="middle" font-size="11" fill="#9a3c00">남은 표본 &lt; 2 → ⑤에서 멈춤</text>
+    <rect x="352" y="380" width="242" height="18" rx="9" fill="#fff4e8" stroke="#D55E00" stroke-width="0.8"/>
+    <text x="473" y="393" text-anchor="middle" font-size="11" fill="#9a3c00">남은 표본 1개면 ⑤에서, 0개면 ④에서 멈춤</text>
 
     <!-- 4 -->
     <rect x="60" y="550" width="540" height="110" rx="8" fill="#fff" stroke="#009E73" stroke-width="1.6"/>

@@ -209,7 +209,8 @@ def run_fit_stage(ctx: RunContext) -> None:
         "design_blocked": len(kept) < MIN_SAMPLES,
     }
     if summary["design_blocked"]:
-        ctx.warn(f"남은 표본 {len(kept)}개 < {MIN_SAMPLES}: 설계 단계에서 멈춤(SC5-3)")
+        where = "④ 해석부터" if not kept else "⑤ 설계에서"
+        ctx.warn(f"남은 표본 {len(kept)}개 < {MIN_SAMPLES}: {where} 멈춤(SC5-3)")
     ctx.flag("n_samples", len(kept))
     plots.write_rows(
         out / "predictions.csv", ["model", "experiment", "role", "time_s", "A340_model", "A340_obs"], preds
