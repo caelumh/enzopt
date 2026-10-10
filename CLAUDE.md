@@ -23,7 +23,7 @@
 
 ## 작업 규칙
 - 작업을 시작하고 끝낼 때 PROGRESS.md를 갱신한다.
-- 완성과 개선의 기준은 evals/EVAL.md다. 이 파일과 evals/ 하네스·`baselines.json`·`synthetic.yaml`은 고치지 않고, 기준에 문제가 있으면 evals/QUESTIONS.md에 적는다.
+- 완성과 개선의 기준은 evals/EVAL.md다. 이 파일과 evals/ 하네스·`baselines.json`·`synthetic.yaml`·`synthetic_general.yaml`은 고치지 않고, 기준에 문제가 있으면 evals/QUESTIONS.md에 적는다.
 - CRNT 판정·검증 기준과 허용 오차(보존 표류 1e-6, |ln Q/K| 0.01, 리아푸노프 비증가, AC-05 문턱)는 바꾸지 않는다.
 - 명세에 없는 결정은 추천안으로 진행하고 PROGRESS.md "결정 기록"과 PROJECT_SPEC.md "가정"에 적는다. 단 과학적 판단(사전분포 값, 수렴·판정 기준, 허용 오차)은 evals/QUESTIONS.md에 남긴다. 되돌리기 어려운 결정은 묻는다.
 - CADKIMM(`C:\Users\cael\Desktop\CADKIMM`)은 손대지 않는다(대회 기록). 기준값 재현은 사본에서 한다.

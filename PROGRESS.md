@@ -1,6 +1,6 @@
 # 진행 상황
 
-> 상태: 진행 중 · 점수 100.00(47/47) · 브랜치 feature/real-data(main 병합 결정 대기) · 현재 작업: 후보 단계를 가르는 실험 제안(enzopt suggest --plan) · 다음: 10/10 파일럿 측정(사용자) · 최종 갱신: 2026-10-10
+> 상태: 진행 중 · 브랜치 feature/general-network(F-13, feature/real-data에서 갈라짐. 대회용 feature/real-data는 100.00(47/47) 그대로) · 현재 작업: M6-0a F-13 보완 인터뷰 끝 → M6-0b 하네스 · 다음: 10/10 파일럿 측정(사용자, feature/real-data) · 최종 갱신: 2026-10-10
 
 ## 사용자 필요 작업
 - [ ] 분광광도계 내보내기 파일(파일럿) 전달 — 필요 시점: M3 끝(늦어도 10/11 실험 직후, 10/12 재계산 전) — 원본 파일을 `projects/<이름>/data/raw/`에 두고 알려 주면 변환기를 맞춘다
@@ -62,10 +62,18 @@
 ### 개선 사이클 2 — 종료: AC-01~AC-20 전부 통과 + Q1 ≤ 15분(E5) 또는 시도 15회, 브랜치 improve/20261009-2
 - [x] 개선 루프 진행 (AC-05 문턱 C 0.0142 · D' 0.0368) — 기준선 95.53 → 100.00 (시도 1회, 채택 1). 7e01b97 표본마다 PINN 8회 재시작 + 학습 ODE RMSE 최저 해 선택: 홀드아웃 C 최악 0.0098, D' 최악 0.0063, 남은 표본 4/4. 사전 조사(48개 시작점): 학습 RMSE 상위 해는 모두 D' 0.005~0.008, 최선-of-4는 12그룹 중 2개 실패, 최선-of-6·8은 실패 0
 
-### M6 (대회 뒤) ③ 단계 — 보완 인터뷰로 기준을 더한 뒤 시작
-- [ ] M6-0 보완 인터뷰(F-13·F-14·F-15 수용 기준)
+### M6 ③ 단계 — F-13은 앞당겨 `feature/general-network`에서(명세 "F-13 범위"), F-14·F-15는 대회 뒤
+- [x] M6-0a 보완 인터뷰 F-13 — 범위 G1~G8, 기준 AC-21~32(합계 77), 긴 평가 60분, 부록 C 합성 반응망 11개 (2026-10-10)
+- [ ] M6-0b 하네스에 AC-21~32 반영 + `evals/synthetic_general.yaml`(부록 C) — 끝: `evals/run.py --tier quick`이 새 기준을 세어 점수를 낸다(미구현은 실패)
+- [ ] M6-1 이름·관측식 일반화 + 여러 신호 — 끝: AC-21·22, AC-01~20 유지
+- [ ] M6-2 반응 하나짜리 전부(연립방정식 준정상, 자동 열역학 제약) — 끝: AC-23·24·25, AC-01~20 유지
+- [ ] M6-3 고전 피팅·대조 모델 일반화 — 끝: AC-26
+- [ ] M6-4 ⑤ 일반화 + 수율·선택도·도달 시간 목표 — 끝: AC-27~30
+- [ ] M6-5 전체 반응 둘 이상 + 끝-끝 — 끝: AC-31·32
+- [ ] M6-0c 보완 인터뷰(F-14·F-15 수용 기준) — 대회 뒤
 
 ## 결정 기록
+- 2026-10-10 F-13 보완 인터뷰(사용자 요청 "PINN이 왜 순서형만" 뒤): 범위를 전체 반응 둘 이상까지, ③④⑤ 모두, 고전 피팅·대조 포함, 열역학 제약 자동, ⑤에 수율·선택도·도달 시간 목표, 실험마다 여러 신호. 지금 별도 브랜치 `feature/general-network`에서 M6-1~5 순서. 기준 AC-21~32(합계 47 → 77), 반응망 12개, 학습 재현 + 홀드아웃 AC-05 틀, 합성 수치는 Claude(부록 C), LDH도 일반 PINN 하나, 긴 평가 60분. 기록: PROJECT_SPEC.md "F-13 범위"·E1·E4·E5·가정, evals/EVAL.md(AC-21~32, 부록 C), CLAUDE.md 변경 금지 목록.
 - 2026-10-10 반응식 고르기(사용자 요청): `network.mechanism`으로 메커니즘 9종(uni_irreversible·uni·uni_iso·uni_bi_ordered·ordered_bibi·theorell_chance·random_bibi·ping_pong·ordered_terter)과 곁가지(dead_end·step·background) 중에서 고르면 species·enzyme_species·steps·overall·haldane_step을 만든다(`core/mechanisms.py`, 순수 Python). 효소 형태 이름 = 효소 + 붙은 분자의 글자(LDH 글자면 손으로 쓴 다섯 단계와 같아 PINN 그대로). `enzopt mechanisms`가 목록·판정 등급·붙여 넣을 YAML. random_bibi의 갈래 고리 열역학 제약은 아직 적용 안 함(참고 문구). 사전분포 값은 사용자가 채움(빈칸 _로 표시).
 - 2026-10-10 빠진 단계를 드러내는 실험(`scripts/suggest_design_test.py`): 숨은 막다른 복합체(K_i 5 mM)를 지금 계획(A·B·C·D′, 젖산 ≈ 10 mM 일정)으로 재면 EN·Lac·EQ·Pyr 모두 놓침. 젖산 0·30 mM 세트를 더하면 EN·Lac(K_i 4.8), 피루브산 5·10 mM 세트를 더하면 EQ·Pyr(K_i 4.9)을 찾음(1.6 mM까지는 상수가 흡수). `projects/ldh_ph10`에 선택 세트 R30·F0·P50·P100 권장(P50·P100은 설계가 가정한 EQ·Pyr K_i 확인, 피루브산 100 mM 저장액 필요). 후보 K_i를 고정해 실험 하나의 최적 조건을 계산하는 `--plan`은 시도 후 넣지 않음: 효과 크기가 정해지지 않는 상수에 달려 계산된 조건이 실제로 가려내지 못했음.
 - 2026-10-10 효소 실활(사용자 요청 "PINN만 할 수 있는 일"): PINN 옵션 `identification.pinn.inactivation: shared`가 모든 실험이 공유하는 활성 a(t)(모양 자유, 단조 감소)를 속도 상수와 함께 학습. `core/activity.py`(numpy만)와 `simulate(loss=...)`로 ③ 재해석·⑤ 설계에 반영, 그림 3e. ④ CRNT 검증은 반응망 자체(활성 효소 일정), 고전 피팅 기준선은 실활 없음, 설계 조건 Hopsan 대조는 실활 시 생략. 합성 시험(지연 후 급락 a(t), 시험용으로 고른 모양): PINN 64회 10 s에 8개 표본 모두 a(t) 복원, 같은 기저의 고전 피팅은 1회 659 s에 절반만. 예제 `projects/example_ldh_inactivation`은 표본 8(4개로는 강건 효소량 33.5 nM < 실제 필요 36.9 nM). `docs/inactivation/`.
