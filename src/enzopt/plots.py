@@ -268,13 +268,19 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
         fig.suptitle(title, fontsize=7.5)
         figs.append(save(fig, out, fig_name, ["model", "experiment", "time_s", p.observable["name"]], rows))
     # (c) rate constants
-    names = [f"k+{i}" for i in range(1, 6)] + [f"k-{i}" for i in range(1, 6)]
-    fig, ax = new_figure(SINGLE, 0.62 * SINGLE)
+    rev = [i for i, st in enumerate(p.network.steps) if st.reversible]
+    n_st = len(p.network.steps)
+    names = [f"k+{i}" for i in range(1, n_st + 1)] + [f"k-{i + 1}" for i in rev]
+
+    def logk(s):  # k₊ of every step, k₋ of the reversible ones
+        return np.log10(np.concatenate([s["kf"], [s["kr"][i] for i in rev]]))
+
+    fig, ax = new_figure(SINGLE if len(names) <= 12 else DOUBLE, 0.62 * SINGLE)
     ax = ax[0, 0]
     rows = []
-    x = np.arange(10)
+    x = np.arange(len(names))
     for i, s in enumerate(samples):
-        v = np.log10(np.concatenate([s["kf"], s["kr"]]))
+        v = logk(s)
         st = (
             dict(marker=marker(i), ms=3, lw=0.6, color=color(i))
             if s["kept"]
@@ -291,7 +297,7 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
     for f in sorted((out / "baseline").glob("fit_start*.json")) if (out / "baseline").exists() else []:
         s = json.loads(f.read_text(encoding="utf-8"))
         if "kf" in s:
-            v = np.log10(np.concatenate([s["kf"], s["kr"]]))
+            v = logk(s)
             ax.plot(x, v, "+", ms=5, color="#0072B2", label=None if labelled else "classical fit (each start)")
             labelled = True
             rows += [

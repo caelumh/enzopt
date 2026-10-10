@@ -1,6 +1,6 @@
 # 진행 상황
 
-> 상태: 진행 중 · 브랜치 feature/general-network(F-13, feature/real-data에서 갈라짐. 대회용 feature/real-data는 100.00(47/47) 그대로) · 현재 작업: M6-1 이름·관측식·여러 신호(진행 중) · 점수 72.73(47/77) · 다음: 10/10 파일럿 측정(사용자, feature/real-data) · 최종 갱신: 2026-10-10
+> 상태: 진행 중 · 브랜치 feature/general-network(F-13, feature/real-data에서 갈라짐. 대회용 feature/real-data는 100.00(47/47) 그대로) · 현재 작업: M6-2 반응 하나짜리 전부 식별 시험(진행 중) · 다음: 10/10 파일럿 측정(사용자, feature/real-data) · 최종 갱신: 2026-10-10
 
 ## 사용자 필요 작업
 - [ ] 분광광도계 내보내기 파일(파일럿) 전달 — 필요 시점: M3 끝(늦어도 10/11 실험 직후, 10/12 재계산 전) — 원본 파일을 `projects/<이름>/data/raw/`에 두고 알려 주면 변환기를 맞춘다
@@ -65,8 +65,8 @@
 ### M6 ③ 단계 — F-13은 앞당겨 `feature/general-network`에서(명세 "F-13 범위"), F-14·F-15는 대회 뒤
 - [x] M6-0a 보완 인터뷰 F-13 — 범위 G1~G8, 기준 AC-21~32(합계 77), 긴 평가 60분, 부록 C 합성 반응망 11개 (2026-10-10)
 - [x] M6-0b 하네스에 AC-21~32 반영 + `evals/synthetic_general.yaml`(부록 C) — 빠른 평가 72.73(47/77, 관문 통과, 새 기준은 테스트 없음). 합성 반응망 11개(종속 k₋는 `core/thermo.py`로 맞춤), `enzopt synth evals/synthetic_general.yaml projects/general`이 반응망마다 프로젝트를 씀. 함께: `core/thermo.py`(열역학 제약 자동), `core/qss.py`(준정상 구조), `pinn/general.py`(일반 PINN, LDH도 이것으로: `pinn/ldh.py`는 기본값만). 빠른 테스트 90개 통과
-- [ ] (진행 중) M6-1 이름·관측식 일반화 + 여러 신호 — 끝: AC-21·22, AC-01~20 유지
-- [ ] M6-2 반응 하나짜리 전부(연립방정식 준정상, 자동 열역학 제약) — 끝: AC-23·24·25, AC-01~20 유지
+- [x] M6-1 이름·관측식 일반화 + 여러 신호 — AC-21(LDH 이름판: ③ 학습 RMSE·⑤ ρ*·Et* 같음)·AC-22(신호 열·신호 파일, 오류에 파일·줄, 신호마다 σ) 통과, AC-23(순환 조건 12개 반응망)도 통과. 빠른 테스트 105개 통과. `project.yaml`: `thermodynamics.reactions`, `network.signals`, `signal_files`. ③은 `pinn.general`로(문은 `supports()`), 비교 모델은 θ 배치 객체로, ④ 겉보기 1단계 모형은 느린 좌표마다 한 단계
+- [ ] (진행 중) M6-2 반응 하나짜리 전부(연립방정식 준정상, 자동 열역학 제약) — 끝: AC-23·24·25, AC-01~20 유지
 - [ ] M6-3 고전 피팅·대조 모델 일반화 — 끝: AC-26
 - [ ] M6-4 ⑤ 일반화 + 수율·선택도·도달 시간 목표 — 끝: AC-27~30
 - [ ] M6-5 전체 반응 둘 이상 + 끝-끝 — 끝: AC-31·32

@@ -68,11 +68,12 @@ projects/<이름>/
 | `network.enzyme_species` | 효소 형태(합 = Et). 첫째가 자유 효소 |
 | `network.steps` | 반응식. 가역은 `A + B <=> C`, 한 방향은 `C -> D`. 계수는 `2X + Y` |
 | `network.mechanism` | `species`·`enzyme_species`·`steps` 대신 메커니즘을 고름: `{type: ordered_bibi, substrates: [NADH, Pyr], products: [Lac, NAD], letters: {NADH: N, Pyr: P, Lac: L, NAD: Q}, add: [{dead_end: {form: EQ, ligand: Pyr}}]}`. `thermodynamics.overall`·`haldane_step`은 자동. 목록과 붙여 넣을 조각은 `enzopt mechanisms` |
-| `network.observable` | 관측식. `coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22}` → A340 = 6.22·(NADH+EN+ENP) |
-| `network.thermodynamics` | `overall`(전체 반응식, 적합류 생성에 씀), `Kp`(K'), `haldane_step`(K'로 k₋를 정하는 단계 번호) |
-| `network.prior` | 사전분포: `kf_log10`(모든 단계), `kr_log10`(가역 단계 중 Haldane 단계 제외), `Kp_log10`, `sd_decades`(기본 1.5) |
+| `network.observable` | 관측식(주 신호). `coefficients: {NADH: 6.22, EN: 6.22, ENP: 6.22}` → A340 = 6.22·(NADH+EN+ENP) |
+| `network.signals` | (선택) 주 신호 밖의 신호 목록 `[{name: Hbt_mM, coefficients: {Hbt: 1}, sigma: 0.005}]`. 같은 시점이면 실험 CSV의 열(머리글 = name), 다른 시점(HPLC 등)이면 실험의 `signal_files: {Hbt_mM: data/A_Hbt.csv}`. 학습·3σ 판정은 신호마다 RMSE ÷ σ로 합침 |
+| `network.thermodynamics` | `overall`(전체 반응식, 적합류 생성에 씀), `Kp`(K'), (선택) `haldane_step`(종속으로 둘 단계 번호). 전체 반응이 여럿이면 `reactions: [{overall: …, Kp: …}, …]`. 열역학 제약(Haldane·Wegscheider)은 반응망의 순환에서 자동으로 걸고 종속 k₋를 고름(`core/thermo.py`) |
+| `network.prior` | 사전분포: `kf_log10`(모든 단계), `kr_log10`(가역 단계 중 열역학 종속 단계 제외, 또는 가역 단계마다 하나), `Kp_log10`(전체 반응이 여럿이면 목록), `sd_decades`(기본 1.5). 종속 단계는 `enzopt mechanisms`·① 판정 보고·오류 문구에 나옴 |
 | `control.one_way_steps` | 비약가역 대조 반응망(F-10): 이 단계들을 한 방향으로 |
-| `experiments.<이름>` | 초기 농도(종 이름: mM), `Et_nM`, `role`(train / holdout / design-check), `file`, `temp_file`, (선택) `format`(`temp_col` 포함), `time_offset_s` |
+| `experiments.<이름>` | 초기 농도(종 이름: mM), `Et_nM`, `role`(train / holdout / design-check), `file`, `temp_file`, (선택) `format`(`temp_col` 포함), `time_offset_s`, `signal_files` |
 | `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, restarts, representation: qss, time_scale: per_experiment, inactivation: none|shared}`, `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: ode|pinn`, `exclusion_sigma`(기본 3) |
 | `simulation` | `t_long_s`, `same_class_runs`, `class_seed`, `hopsan: {enabled, one_step_k1: auto, representative_experiment, max_steps}` |
 | `design` | `target: assay`, `analyte`, `partner`(ρ = partner₀/analyte₀), `free_enzyme`, `analyte0_mM`, `conversion`, `time_s`, `Kp`, `dead_end: {step, enzyme_species, kf, Ki_mM}`, `rho_grid: auto`, `Et_bounds_mM`, `bisection_iters`, `check_t_end_s`, `pipette: {volume_uL, enzyme_uL, stocks_mM, limit_test_rhos, limit_test_enzyme_multiples}` |
@@ -97,7 +98,7 @@ project.yaml    설정 사본          inputs/   입력 사본(이어서 실행�
 ## 단계별 계산 요약
 
 - **① 판정**: 복합체·연결 성분·강연결 성분(Kosaraju)·약가역성·결핍·정수 보존 법칙. 등급 A(약가역·결핍 0: 영속 + 적합류마다 평형 하나), B(약가역: 영속), C(약가역 아님: "149 보장 없음: 멸종 가능" 띠를 모든 결과에 남기고 계속 진행).
-- **③ 식별**: LDH 순차 bi-bi PINN(보존 법칙 4개·Haldane 내장, 효소 형태는 준정상 King–Altman 해, 실험마다 NADH(t) 신경망). 표본(시드)마다 8번 재시작해 학습 데이터에 ODE로 가장 잘 맞는 해를 고릅니다(지역 최소에서 외삽이 갈리는 문제 방지). GPU float32 + CUDA 그래프로 시드 × 재시작을 묶어 학습(4 × 8 ≈ 10 s), GPU가 없으면 CPU float64. 학습된 속도 상수로 ODE를 다시 풀어 모든 실험의 RMSE를 기록하고, ODE 재해석 학습 RMSE > 3σ인 시드는 표본에서 뺍니다(남은 표본이 1개면 ⑤에서, 0개면 ④에서 멈춤). 같은 데이터·사전분포·시작점으로 고전 피팅(다중 시작점 최소제곱)과 비약가역 대조 PINN을 함께 돌려 홀드아웃 외삽을 한 표로 비교합니다.
+- **③ 식별**: 일반 PINN(F-13, `pinn/general.py`): 단계마다 효소 형태가 양쪽에 하나씩인 반응망이면 무엇이든. 효소 형태는 준정상 분포(효소 그래프의 연립방정식, LDH 고리에서는 King–Altman 해), 실험마다 신경망이 전체 반응의 반응 좌표를 배우고, 보존 법칙·열역학 제약은 반응망에서 계산해 내장(LDH: 보존 법칙 4개·Haldane). 표본(시드)마다 8번 재시작해 학습 데이터에 ODE로 가장 잘 맞는 해를 고릅니다(지역 최소에서 외삽이 갈리는 문제 방지). GPU float32 + CUDA 그래프로 시드 × 재시작을 묶어 학습(4 × 8 ≈ 10 s), GPU가 없으면 CPU float64. 학습된 속도 상수로 ODE를 다시 풀어 모든 실험의 RMSE를 기록하고, ODE 재해석 학습 RMSE > 3σ인 시드는 표본에서 뺍니다(남은 표본이 1개면 ⑤에서, 0개면 ④에서 멈춤). 같은 데이터·사전분포·시작점으로 고전 피팅(다중 시작점 최소제곱)과 비약가역 대조 PINN을 함께 돌려 홀드아웃 외삽을 한 표로 비교합니다.
 - **④ 해석**: 표본마다 같은 적합류의 무작위 초기 상태와 다른 적합류 하나를 scipy(Radau, 해석적 야코비안)로 풀고 CRNT 검증(보존 표류 < 1e-6, 양수, |ln Q/K| < 0.01, 리아푸노프 비증가, 적합류 일관성). 실패하면 "수치 오류 의심"으로 표시하고 Δt를 1/10로 줄여 한 번 다시 풉니다. Hopsan은 겉보기 1단계 반응의 적합류 배치와 대표 표본 하나의 완전 메커니즘(작은 Δt)을 풀어 scipy와의 최대 차이를 기록합니다.
 - **⑤ 설계**: CRNT 평형 한계 ρ_min(약가역·결핍 0일 때만 대수식 사용) → ρ 격자에서 표본 전체를 만족하는 최소 효소량(강건)과 공칭 표본만 만족하는 효소량(공칭) → 강건 최적 ρ*·Et*(학습 실험 효소량 E₀의 배수) → 두 설계를 표본마다 넣은 전환율 → 피펫 표 → 설계 조건 예측 곡선(scipy 표본 전체 + Hopsan 대표 표본 + 확인 실험 점).
 

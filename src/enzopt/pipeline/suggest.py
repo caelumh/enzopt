@@ -114,6 +114,7 @@ def _prior_ext(p, Ki_mM: float | None) -> np.ndarray:
 def verify(p, train, every, cands: list[dict], starts: int, max_nfev: int, progress=None) -> list[dict]:
     """Classical multi-start fits of the base network and of base + each candidate; RMSE per experiment."""
     from ..core.design import n_workers
+    from ..core.thermo import layout
     from .common import rmse, safe_curve
     from .compare import _fit_one, theta_to_rates
 
@@ -124,19 +125,21 @@ def verify(p, train, every, cands: list[dict], starts: int, max_nfev: int, progr
     nets = [("base (as written)", p.network, None)]
     for c in cands:
         nets.append((c["name"], p.network.with_extra_steps([c["step"]], extra_species=[c["complex"]]), c))
-    jobs, meta = [], []
+    jobs, meta, lays = [], [], []
     for i, (_label, net, c) in enumerate(nets):
         Ki = (c or {}).get("Ki_mM_median") or 5.0
         prior = _prior_ext(p, Ki if c else None)
+        lay = layout(net, p.overall, [p.haldane_step] if p.haldane_step else None)
+        lays.append(lay)
         args = (
             net,
-            [(e.initial, e.Et, t, y) for _, e, t, y in train],
+            lay,
+            [(e.initial, e.Et, t, y, []) for _, e, t, y in train],
             coeff,
             sigma,
             prior,
             w_prior,
             sd,
-            p.haldane_step,
         )
         for s in range(starts):
             theta0 = prior + np.random.default_rng(100 + s).uniform(-1.0, 1.0, len(prior))
@@ -152,7 +155,7 @@ def verify(p, train, every, cands: list[dict], starts: int, max_nfev: int, progr
             out.append({"network": label, "error": "모든 시작점 실패"})
             continue
         best = min(mine, key=lambda f: f["cost"])
-        kf, kr = theta_to_rates(np.array(best["theta"]), net, p.haldane_step)
+        kf, kr = theta_to_rates(np.array(best["theta"]), lays[i])
         k = net.rate_vector(kf, kr)
         per = {}
         for name, e, t, y in every:

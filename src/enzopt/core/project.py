@@ -15,7 +15,8 @@ from .network import Network, NetworkError, Step
 from .yamlio import load_yaml
 
 ROLES = ("train", "holdout", "design-check")
-EXPERIMENT_KEYS = ("file", "temp_file", "Et_nM", "role", "format", "time_offset_s")
+EXPERIMENT_KEYS = ("file", "temp_file", "Et_nM", "role", "format", "time_offset_s", "signal_files")
+RESERVED_SIGNALS = ("time_s", "t_c")
 
 DEFAULTS: dict = {
     "identification": {
@@ -117,6 +118,7 @@ class Experiment:
     temp_file: Path | None = None
     format: dict | None = None
     time_offset_s: float = 0.0  # added to recorded times: time since enzyme addition (e.g. mixing dead time)
+    signal_files: dict = field(default_factory=dict)  # further signals sampled at other times: {name: path}
 
     @property
     def Et(self) -> float:
@@ -140,11 +142,61 @@ class Project:
     design: dict
     quick_overrides: dict = field(default_factory=dict)
     mechanism: object = None  # core.mechanisms.Expanded when network.mechanism chose the steps
+    signals: list = field(default_factory=list)  # further signals [{name, coefficients, sigma}] (F-13 G6)
+    layout: object = None  # core.thermo.ThermoLayout: θ layout and dependent k₋ (F-13 G4)
 
     # ------------------------------------------------------------------ helpers
     @property
-    def Kp(self) -> float:
-        return float(self.thermodynamics["Kp"])
+    def Kp(self) -> float | None:
+        """K′ of the first overall reaction (None when no overall reaction has one)."""
+        v = self.thermodynamics.get("Kp")
+        return None if v is None else float(v)
+
+    @property
+    def reactions(self) -> list[dict]:
+        """Overall reactions [{overall, Kp}] (one for the old single-reaction form)."""
+        return list(self.thermodynamics.get("reactions") or [])
+
+    @property
+    def overall(self) -> list[str]:
+        return [r["overall"] for r in self.reactions]
+
+    def prior_vector(self, layout=None):
+        """Prior centre as θ = log10 [kf, free kr, K′ of the constraining overall reactions] (``core.thermo``)."""
+        import numpy as np
+
+        lay = layout or self.layout
+        pr = self.prior
+        kf = [float(x) for x in pr["kf_log10"]]
+        kr = [float(x) for x in pr["kr_log10"]]
+        n_rev = sum(1 for st in self.network.steps if st.reversible)
+        if len(kr) == n_rev and n_rev != lay.n_free_kr:  # one value per reversible step: keep the free ones
+            rev = [i for i, st in enumerate(self.network.steps) if st.reversible]
+            kr = [kr[rev.index(i)] for i in lay.free_kr]
+        kp = pr.get("Kp_log10")
+        if kp is None:
+            kp = [float(np.log10(self.reactions[o]["Kp"])) for o in lay.overall_used]
+        elif not isinstance(kp, list | tuple):
+            kp = [float(kp)] * len(lay.overall_used)
+        else:
+            kp = [float(x) for x in kp][: len(lay.overall_used)]
+        return np.array(kf + kr + kp, float)
+
+    def kr_prior_all(self):
+        """log10 k₋ prior of every step (free: the prior; dependent: implied at the prior centre; one-way: nan)."""
+        import numpy as np
+
+        lay = self.layout
+        th = self.prior_vector()
+        out = np.full(len(self.network.steps), np.nan)
+        n = len(self.network.steps)
+        for j, i in enumerate(lay.free_kr):
+            out[i] = th[n + j]
+        if lay.dependent:
+            dep = lay.A @ th
+            for j, i in enumerate(lay.dependent):
+                out[i] = dep[j]
+        return out
 
     @property
     def haldane_step(self) -> int | None:
@@ -170,13 +222,19 @@ class Project:
     def input_files(self) -> list[Path]:
         files = [self.root / "project.yaml"]
         for e in self.experiments.values():
-            for f in (e.file, e.temp_file):
+            for f in (e.file, e.temp_file, *e.signal_files.values()):
                 if f is not None:
                     files.append(f)
         return files
 
     def observable_weights(self) -> dict:
         return dict(self.observable["coefficients"])
+
+    def all_signals(self, sigma: float | None = None) -> list[dict]:
+        """Primary observable then the further signals: [{name, coefficients, sigma}] (primary σ = noise_sigma)."""
+        s0 = float(self.identification["noise_sigma"]) if sigma is None else float(sigma)
+        prim = {"name": self.observable["name"], "coefficients": self.observable_weights(), "sigma": s0}
+        return [prim] + [dict(x) for x in self.signals]
 
     def settings(self, quick: bool) -> dict:
         """Effective identification/simulation/design settings for the chosen mode."""
@@ -259,17 +317,66 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
         "name": str(obs.get("name", "A340")),
         "coefficients": {k: float(v) for k, v in obs["coefficients"].items()},
     }
+    signals = []
+    names = {observable["name"].lower()}
+    for i, sg in enumerate(net.get("signals") or [], start=1):
+        if not isinstance(sg, dict) or not sg.get("name") or not sg.get("coefficients") or sg.get("sigma") is None:
+            raise ProjectError(f"network.signals {i}번째: name, coefficients, sigma가 모두 있어야 함")
+        nm = str(sg["name"])
+        if nm.lower() in names or nm.lower() in RESERVED_SIGNALS:
+            raise ProjectError(f"network.signals: 신호 이름 '{nm}'이 겹치거나 쓸 수 없는 이름")
+        names.add(nm.lower())
+        for s_ in sg["coefficients"]:
+            if s_ not in network.species:
+                raise ProjectError(f"신호 '{nm}'의 종 '{s_}'이 species 목록에 없음")
+        signals.append(
+            {
+                "name": nm,
+                "coefficients": {k: float(v) for k, v in sg["coefficients"].items()},
+                "sigma": _num(sg["sigma"], f"network.signals.{nm}.sigma"),
+            }
+        )
 
     thermo = dict(net.get("thermodynamics") or {})
-    if "Kp" not in thermo:
-        raise ProjectError("network.thermodynamics.Kp(평형 상수 K')가 없음")
-    thermo["Kp"] = _num(thermo["Kp"], "network.thermodynamics.Kp")
+    if thermo.get("reactions") is not None:  # F-13: several overall reactions [{overall, Kp}]
+        rx = thermo["reactions"]
+        if not isinstance(rx, list) or not all(isinstance(r, dict) and r.get("overall") for r in rx):
+            raise ProjectError("network.thermodynamics.reactions: [{overall: 전체 반응식, Kp: K'}, ...] 형식이어야 함")
+        reactions = [
+            {
+                "overall": str(r["overall"]),
+                "Kp": None if r.get("Kp") is None else _num(r["Kp"], f"thermodynamics.reactions '{r['overall']}'.Kp"),
+            }
+            for r in rx
+        ]
+        if reactions:
+            thermo.setdefault("overall", reactions[0]["overall"])
+            if reactions[0]["Kp"] is not None:
+                thermo.setdefault("Kp", reactions[0]["Kp"])
+    else:
+        if thermo.get("Kp") is not None:
+            thermo["Kp"] = _num(thermo["Kp"], "network.thermodynamics.Kp")
+        reactions = [{"overall": str(thermo["overall"]), "Kp": thermo.get("Kp")}] if thermo.get("overall") else []
+    thermo["reactions"] = reactions
+    if thermo.get("Kp") is not None:
+        thermo["Kp"] = _num(thermo["Kp"], "network.thermodynamics.Kp")
     hs = thermo.get("haldane_step")
     if hs is not None:
         hs = int(hs)
         if not (1 <= hs <= len(network.steps)) or not network.steps[hs - 1].reversible:
             raise ProjectError(f"haldane_step {hs}: 가역 단계 번호여야 함")
         thermo["haldane_step"] = hs
+    from .thermo import ThermoError, layout
+
+    try:
+        lay = layout(network, [r["overall"] for r in reactions], [hs] if hs else None)
+    except ThermoError as e:
+        raise ProjectError(f"network.thermodynamics: {e}") from None
+    for o in lay.overall_used:
+        if reactions[o]["Kp"] is None:
+            raise ProjectError(f"전체 반응 '{reactions[o]['overall']}'의 K'(Kp)가 없음 — 가역 순환이 이 반응을 이룸")
+    if not reactions and thermo.get("Kp") is None and any(st.reversible for st in network.steps):
+        raise ProjectError("network.thermodynamics.Kp(평형 상수 K')가 없음")
 
     prior = dict(net.get("prior") or {})
     n = len(network.steps)
@@ -278,9 +385,18 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
             listed = "; ".join(f"{i}. {st}" for i, st in enumerate(network.steps, start=1))
             raise ProjectError(f"prior.kf_log10 개수가 단계 수({n})와 다름 — 단계: {listed}")
         n_rev = sum(1 for st in network.steps if st.reversible)
-        n_kr = n_rev - (1 if hs else 0)
-        if len(prior.get("kr_log10", [])) != n_kr:
-            raise ProjectError(f"prior.kr_log10 개수가 {n_kr}이어야 함(가역 단계 {n_rev}개, Haldane 단계 제외)")
+        n_kr = lay.n_free_kr
+        if len(prior.get("kr_log10", [])) not in (n_kr, n_rev):
+            dep = ", ".join(str(i + 1) for i in lay.dependent) or "없음"
+            raise ProjectError(
+                f"prior.kr_log10 개수가 {n_kr}이어야 함(가역 단계 {n_rev}개 중 열역학 종속 단계 {dep} 제외; "
+                f"가역 단계마다 {n_rev}개를 적어도 됨)"
+            )
+        kp = prior.get("Kp_log10")
+        if isinstance(kp, list | tuple) and len(kp) < len(lay.overall_used):
+            raise ProjectError(f"prior.Kp_log10 개수가 K'를 쓰는 전체 반응 수({len(lay.overall_used)})보다 적음")
+        if kp is not None and not isinstance(kp, list | tuple) and len(lay.overall_used) > 1:
+            raise ProjectError("prior.Kp_log10: 전체 반응이 여럿이면 목록으로 적음")
         prior.setdefault("sd_decades", 1.5)
 
     control = raw.get("control")
@@ -314,7 +430,11 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
             temp_file=(root / e["temp_file"]) if e.get("temp_file") else None,
             format=e.get("format"),
             time_offset_s=_num(e.get("time_offset_s", 0.0), f"experiments.{name}.time_offset_s"),
+            signal_files={str(k): root / v for k, v in (e.get("signal_files") or {}).items()},
         )
+        for k in exps[str(name)].signal_files:
+            if k not in [sg["name"] for sg in signals]:
+                raise ProjectError(f"experiments.{name}.signal_files: '{k}'는 network.signals에 없는 신호")
     if not any(x.role == "train" for x in exps.values()):
         raise ProjectError("학습(role: train) 실험이 하나도 없음")
 
@@ -322,7 +442,7 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
     sim = _merge(DEFAULTS["simulation"], raw.get("simulation") or {})
     des = _merge(DEFAULTS["design"], raw.get("design") or {})
     if des.get("Kp") is None:
-        des["Kp"] = thermo["Kp"]
+        des["Kp"] = thermo.get("Kp")
     if des.get("dead_end"):
         de = des["dead_end"]
         if "step" not in de or "kf" not in de or "Ki_mM" not in de:
@@ -348,6 +468,8 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
         design=des,
         quick_overrides=quick,
         mechanism=mech,
+        signals=signals,
+        layout=lay,
     )
 
 

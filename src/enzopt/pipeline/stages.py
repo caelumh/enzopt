@@ -32,6 +32,9 @@ def stage_verdict(ctx: RunContext) -> None:
         m = p.mechanism
         lines += [f"반응식: 메커니즘 목록의 {m.mechanism}에서 만듦 (전체 반응 {m.overall}, Haldane {m.haldane_step})"]
         lines += [f"  참고: {t}" for t in m.notes] + [""]
+    if p.overall:
+        kps = ", ".join(f"{r['overall']} (K' {r['Kp']:g})" if r["Kp"] else r["overall"] for r in p.reactions)
+        lines += [f"전체 반응: {kps}", f"열역학 제약: {p.layout.describe()}", ""]
     titles = {"main": "식별 반응망", "control": "비약가역 대조 반응망", "design": "설계 반응망(막다른 복합체 포함)"}
     for k, v in vds.items():
         lines.append(f"== {titles.get(k, k)}: {v['name']} ==")
@@ -125,6 +128,21 @@ def stage_data(ctx: RunContext) -> None:
             temps[name] = (temp.t, temp.y)
         else:
             temps[name] = None
+        sig_info = {}
+        for sg in p.signals:  # further signals (F-13 G6): own file at other times, or a column of the main CSV
+            nm = sg["name"]
+            ss = _read_signal(exp, nm)
+            write_series(out / f"sig_{name}__{nm}.csv", ss.t, ss.y, ("time_s", nm))
+            sig_info[nm] = {
+                "file": ss.path.name,
+                "n": int(len(ss.t)),
+                "t_first_s": float(ss.t[0]),
+                "t_last_s": float(ss.t[-1]),
+                "first": float(ss.y[0]),
+                "last": float(ss.y[-1]),
+            }
+        if sig_info:
+            info["signals"] = sig_info
         summary[name] = info
         series[name] = (s.t, s.y)
         roles[name] = exp.role
@@ -158,3 +176,30 @@ def stage_design(ctx: RunContext) -> None:
 def load_series(ctx: RunContext, name: str) -> tuple[np.ndarray, np.ndarray]:
     d = np.loadtxt(ctx.run_dir / "2_data" / f"exp_{name}.csv", delimiter=",", skiprows=1, ndmin=2)
     return d[:, 0], d[:, 1]
+
+
+def load_signals(ctx: RunContext, name: str) -> list[tuple]:
+    """Further signals of one experiment: [(signal, t, y, sigma, coefficients)] (empty for one-signal projects)."""
+    out = []
+    for sg in ctx.project.signals:
+        f = ctx.run_dir / "2_data" / f"sig_{name}__{sg['name']}.csv"
+        d = np.loadtxt(f, delimiter=",", skiprows=1, ndmin=2)
+        out.append((sg["name"], d[:, 0], d[:, 1], float(sg["sigma"]), dict(sg["coefficients"])))
+    return out
+
+
+def _read_signal(exp, name: str):
+    """One further signal of an experiment, checked like the main series (file and line in every error)."""
+    from ..core.dataio import A340_MAX, DataError, read_series
+
+    vmax = A340_MAX if name.upper() == "A340" else None
+    if name in exp.signal_files:
+        ss = read_series(exp.signal_files[name], value_column=name, max_value=vmax)
+    else:
+        if exp.format:
+            raise DataError(f"실험 {exp.name}: 신호 {name} — 변환기(format)를 쓰는 실험은 signal_files로 줌")
+        ss = read_series(exp.file, value_column=name, max_value=vmax)
+    off = float(getattr(exp, "time_offset_s", 0.0) or 0.0)
+    if off:
+        ss.t = ss.t + off
+    return ss
