@@ -74,16 +74,39 @@ def sample_rates(network: Network, sample: dict) -> np.ndarray:
     return network.rate_vector(sample["kf"], sample["kr"])
 
 
-def design_rates(design_network: Network, sample: dict, design_cfg: dict, Kp: float, haldane_step: int | None):
-    """Rate vector for the design network: identified steps + dead-end step; k₋(haldane) recomputed with design K'."""
+def design_rates(
+    design_network: Network,
+    sample: dict,
+    design_cfg: dict,
+    Kp: float | None,
+    haldane_step: int | None,
+    overall: list[str] | None = None,
+    design_overall: int = 0,
+):
+    """Rate vector for the design network: identified steps + dead-end step; the dependent k₋ recomputed with the
+    design K' of overall reaction ``design_overall`` (the others keep the sample's K'). Without ``overall`` the LDH
+    form: k₋(haldane_step) from the design K'."""
     from ..core.massaction import haldane_kr
 
     kf = list(sample["kf"])
     kr = list(sample["kr"])
-    if haldane_step:
-        kr = list(haldane_kr(np.array(kf, float), np.array(kr, float), Kp, haldane_step))
     de = design_cfg.get("dead_end")
     if de:
         kf.append(float(de["kf"]))
         kr.append(float(de["kf"]) * float(de["Ki_mM"]))
+    if overall:
+        from ..core.thermo import layout
+
+        lay = layout(design_network, overall, [haldane_step] if haldane_step else None)
+        kp_sample = sample.get("Kp_all") or ([sample["Kp"]] if sample.get("Kp") else [])
+        kp = [1.0] * len(overall)
+        for c, o in enumerate(lay.overall_used):
+            kp[o] = kp_sample[c] if c < len(kp_sample) else 1.0
+        if Kp is not None and design_overall in lay.overall_used:
+            kp[design_overall] = float(Kp)
+        kf2, kr2 = lay.rates(lay.theta(np.array(kf, float), np.array(kr, float), kp))
+        return design_network.rate_vector(kf2, kr2)
+    if haldane_step:
+        n = len(sample["kf"])
+        kr[:n] = list(haldane_kr(np.array(kf[:n], float), np.array(kr[:n], float), Kp, haldane_step))
     return design_network.rate_vector(kf, kr)

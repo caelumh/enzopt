@@ -84,6 +84,7 @@ class PinnConfig:
     observable: dict | None = None  # primary signal {species: coefficient}; None = ε340·(NADH + EN + ENP)
     overall: list | None = None  # overall reactions (strings): slow coordinates and K′ constraints
     prefer_dependent: list | None = None  # 1-based steps to make dependent first (old haldane_step)
+    range_margin: float = 0.05  # sigmoid range widened by this fraction on each side (initial point off the edge)
 
 
 @dataclass
@@ -144,6 +145,17 @@ class BatchedMLP(torch.nn.Module):
         return h, dh
 
 
+def _conservation(qs) -> np.ndarray:
+    """Conservation-law rows C (C N = 0) over all species of the structure's network."""
+    from ..core.thermo import _null_space
+
+    n = len(qs.species)
+    N = np.zeros((n, qs.N_s.shape[1]))
+    N[qs.small_idx, :] = qs.N_s
+    N[qs.enzyme_idx, :] = qs.N_e
+    return _null_space(N.T)
+
+
 def _mul(a, b):
     return b if a is None else (a if b is None else a * b)
 
@@ -166,11 +178,46 @@ class GeneralPinn:
         self.qs = structure(net, cfg.overall)
         self.lay = layout(net, cfg.overall, cfg.prefer_dependent)
         qs, lay = self.qs, self.lay
+        # orient each slow coordinate so that the primary signal grows with it: for LDH ξ is then the free NADH
+        # coordinate of the original LDH PINN (same sigmoid range and initial point), which keeps its training path
+        prim0 = cfg.observable or {"NADH": cfg.eps340, "EN": cfg.eps340, "ENP": cfg.eps340}
+        c_s = np.array([float(prim0.get(s, 0.0)) for s in qs.small])
+        sgn = np.where(c_s @ qs.V < 0, -1.0, 1.0)
+        qs.V = qs.V * sgn
+        # anchors: one observed small molecule per slow coordinate. Its free concentration is exactly x0 + V ξ (the
+        # bound-amount correction goes to the other molecules) and the slow residual is its exact balance, so for
+        # LDH ξ is the free NADH and dξ/dt = −r₁ as in the original LDH PINN (decision 2026-10-10)
+        seen = np.zeros(len(qs.small))
+        for e in exps:
+            for _n, _t, _y, _s, cf in e.extra:
+                seen += np.array([abs(float(cf.get(s, 0.0))) for s in qs.small])
+        prio = sorted(range(len(qs.small)), key=lambda i: (-abs(c_s[i]), -seen[i], i))
+        anchors: list[int] = []
+        for i in prio:
+            if len(anchors) == qs.d:
+                break
+            if np.linalg.matrix_rank(qs.V[anchors + [i], :]) > len(anchors):
+                anchors.append(i)
+        VA = qs.V[anchors, :]
+        qs.W = np.linalg.solve(VA, qs.N_s[anchors, :])
+        qs.W[np.abs(qs.W) < 1e-12] = 0.0
+        others = [i for i in range(len(qs.small)) if i not in anchors]
+        C = _conservation(qs)
+        Mc = np.zeros((len(qs.small), len(qs.enzyme)))
+        if C.size and others:
+            Mc[others, :] = -np.linalg.pinv(C[:, [qs.small_idx[i] for i in others]]) @ C[:, qs.enzyme_idx]
+        Mc[np.abs(Mc) < 1e-12] = 0.0
+        qs.Mcorr = Mc
+        self.anchors = [qs.small[i] for i in anchors]
         self.exps = exps
         S, E = len(cfg.seeds), len(exps)
         self.S, self.E, self.B = S, E, S * E
         self.n_steps = len(net.steps)
         self.d, self.ns, self.ne = qs.d, len(qs.small), len(qs.enzyme)
+        # one slow coordinate: ξ in a sigmoid range (positivity built in); several: ξ = scale·(u(τ) − u(0)), exact
+        # initial condition and no box (per-coordinate boxes cut off states such as NADH formed by one reaction and
+        # used by another; boxes over the whole feasible polytope are too wide to resolve the extents)
+        self.lin = self.d > 1
         self.n_theta = lay.n_theta
         self.inact = cfg.inactivation == "shared"
         self.dead = cfg.discrepancy == "dead_end"
@@ -225,9 +272,15 @@ class GeneralPinn:
             ok = sp > 1e-9
             if not ok.any():
                 raise ValueError(f"실험 {e.name}: 반응이 진행될 수 없음(기질·생성물의 초기 농도 확인)")
+            # the sigmoid range is widened by range_margin·span on each side: the initial point ξ = 0 usually sits on
+            # an edge of the feasible range (no product yet), where sigmoid(u) saturates and the network can hardly
+            # leave it fast enough; the data then pull θ away from the ODE optimum (2026-10-10, appendix C tests)
+            mg = 0.0 if self.lin else float(cfg.range_margin)
+            l = np.where(ok, l - mg * sp, l)
+            sp = np.where(ok, sp * (1.0 + 2.0 * mg), 0.0)
             x0s.append(x0)
             lo.append(l)
-            span.append(np.where(ok, sp, 0.0))
+            span.append(sp)
             msk.append(ok.astype(float))
             p0.append(np.clip(np.where(ok, (0.0 - l) / np.where(ok, sp, 1.0), 0.5), 1e-4, 1 - 1e-4))
             Et.append(e.Et)
@@ -236,6 +289,11 @@ class GeneralPinn:
             a = np.tile(np.asarray(v, float).reshape(E, width), (S, 1))
             return torch.tensor(a, dtype=self.dt, device=self.dev).reshape(self.B, 1, width)
 
+        if self.lin:  # ξ = scale·(u(τ) − u(0)): the range of each coordinate is only its scale (all coordinates live)
+            sp_all = np.array(span, float)
+            sp_max = sp_all.max(axis=0)
+            span = [np.where(s_ > 1e-9, s_, sp_max) for s_ in sp_all]
+            msk = [(s_ > 1e-9).astype(float) for s_ in span]
         self.x0s = rep(x0s, self.ns)
         self.lo, self.span, self.maskd, self.p0 = (rep(v, self.d) for v in (lo, span, msk, p0))
         self.n_valid = self.maskd.sum(dim=-1, keepdim=True).clamp_min(1.0)
@@ -406,9 +464,15 @@ class GeneralPinn:
         out, dout = self.net(tau)
         d = self.d
         u, du = out[..., :d], dout[..., :d]
-        sig = torch.sigmoid(u)
-        xi = self.lo + self.span * sig
-        dxi = self.span * sig * (1.0 - sig) * du
+        if self.lin:
+            u0 = self.net(self.tau0[: tau.shape[0]])[0][..., :d]
+            sig = u
+            xi = self.span * (u - u0)
+            dxi = self.span * du
+        else:
+            sig = torch.sigmoid(u)
+            xi = self.lo + self.span * sig
+            dxi = self.span * sig * (1.0 - sig) * du
         Et = self.Et if wB is None else self.Et * self.activity(tau, wB)
         xs_app = self.x0s + xi @ self.Vt
         if self.cfg.representation == "qss":
@@ -457,7 +521,7 @@ class GeneralPinn:
         # physics at collocation points
         X, xs, phi, dxi, _, dphi = self.states(self.tau_col, kfB, krB, wB)
         T = self.Tb
-        f, g = self.step_rates(X, kfB, krB)
+        f, g = self.step_rates(X.clamp_min(0.0), kfB, krB)  # the widened range may dip just below zero
         r = torch.cat([f[j] - g[j] for j in range(n)], dim=-1)  # (B, n_col, n_steps)
         J = r @ self.Wt  # (B, n_col, d)
         s_slow = self.span.clamp_min(1e-12) / T
@@ -486,9 +550,12 @@ class GeneralPinn:
                 scale = (gross + floor) if cfg.fast_norm == "gross" else s_slow[..., :1]
                 L_fast = L_fast + (((self.Et * dphi[..., i : i + 1] / T - net_flux) / scale) ** 2).mean(dim=1)
         # initial condition: ξ(0) = 0
-        _, _, _, _, sig0, _ = self.states(self.tau0, kfB, krB)
-        L_ic = ((((sig0 - self.p0) / 0.01) ** 2) * self.maskd).sum(dim=-1) / self.n_valid.squeeze(-1)
-        L_ic = L_ic.reshape(self.B, 1)
+        if self.lin:  # exact by construction
+            L_ic = torch.zeros_like(L_slow)
+        else:
+            _, _, _, _, sig0, _ = self.states(self.tau0, kfB, krB)
+            L_ic = ((((sig0 - self.p0) / 0.01) ** 2) * self.maskd).sum(dim=-1) / self.n_valid.squeeze(-1)
+            L_ic = L_ic.reshape(self.B, 1)
 
         def per_seed(x):
             return x.reshape(self.S, self.E).mean(dim=1)

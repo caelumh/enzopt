@@ -135,6 +135,37 @@ def load_config(path: str | Path) -> dict:
 
 
 # ------------------------------------------------------------------------------------------------ F-13 (version 2)
+# ⑤ design goal of each generated project (project settings, not part of the frozen synthetic data)
+GENERAL_DESIGNS = {
+    "uni_irreversible": {"analyte": "S", "partner": None, "conversion": 0.99, "stocks_mM": {"S": 2.0}},
+    "uni": {"analyte": "S", "partner": None, "conversion": 0.75, "stocks_mM": {"S": 2.0}},
+    "uni_iso": {"analyte": "S", "partner": None, "conversion": 0.75, "stocks_mM": {"S": 2.0}},
+    "uni_bi_ordered": {"analyte": "A", "partner": None, "conversion": 0.99, "stocks_mM": {"A": 2.0}},
+    "theorell_chance": {"analyte": "A", "partner": "B", "stocks_mM": {"A": 2.0, "B": 50.0}},
+    "random_bibi": {"analyte": "A", "partner": "B", "stocks_mM": {"A": 2.0, "B": 50.0}},
+    "ping_pong": {"analyte": "A", "partner": "B", "stocks_mM": {"A": 2.0, "B": 50.0}},
+    "ordered_terter": {
+        "analyte": "A",
+        "partner": "B",
+        "fixed_ratio": {"C": 5.0},
+        "stocks_mM": {"A": 2.0, "B": 50.0, "C": 50.0},
+    },
+    "ldh_dead_end": {"analyte": "NADH", "partner": "Pyr", "stocks_mM": {"NADH": 2.0, "Pyr": 100.0}},
+    "ldh_competing": {
+        "target": "selectivity",
+        "analyte": "NADH",
+        "partner": "Pyr",
+        "fixed_ratio": {"Oxb": 1.0},
+        "product": "Lac",
+        "side_product": "Hbt",
+        "selectivity": 0.8,
+        "yield": 0.6,
+        "stocks_mM": {"NADH": 2.0, "Pyr": 100.0, "Oxb": 10.0},
+    },
+    "ldh_background": {"analyte": "NADH", "partner": "Pyr", "stocks_mM": {"NADH": 2.0, "Pyr": 100.0}},
+}
+
+
 def _round_prior(values) -> list[int]:
     return [int(round(float(np.log10(v)))) for v in values]
 
@@ -273,10 +304,31 @@ def general_project_yaml(cfg: dict, key: str, res: dict) -> str:
         "simulation:",
         "  hopsan: {enabled: false}",
         "",
-        "design:",
-        "  enabled: false              # ⑤ 설계 목표는 M6-4에서",
     ]
+    L += _design_yaml(GENERAL_DESIGNS.get(key))
     return "\n".join(L) + "\n"
+
+
+def _design_yaml(d: dict | None) -> list[str]:
+    if not d:
+        return ["design:", "  enabled: false"]
+    L = ["design:", f"  target: {d.get('target', 'assay')}", f"  analyte: {d['analyte']}"]
+    L += [
+        f"  partner: {d['partner'] or 'null'}" + ("            # 기질 1개: 효소량만 찾음" if not d["partner"] else "")
+    ]
+    if d.get("fixed_ratio"):
+        L += [f"  fixed_ratio: {_yaml_flow(d['fixed_ratio'])}   # 다른 짝 기질 = 분석 대상 초기 농도의 배수"]
+    for k in ("product", "side_product", "selectivity", "yield"):
+        if k in d:
+            L += [f"  {k}: {d[k]}"]
+    L += [
+        "  analyte0_mM: 0.1",
+        f"  conversion: {d.get('conversion', 0.99)}",
+        "  time_s: 300",
+        "  pipette:",
+        f"    stocks_mM: {_yaml_flow(d['stocks_mM'])}",
+    ]
+    return L
 
 
 def write_general_projects(cfg: dict, root: Path, only: list[str] | None = None) -> dict:
@@ -314,8 +366,8 @@ def write_general_projects(cfg: dict, root: Path, only: list[str] | None = None)
                 clean={k: [float(x) for x in v["clean"]] for k, v in s["signals"].items()},
                 drift_per_s={k: v["slope"] for k, v in s["signals"].items()},
             )
-        with open(data / "truth.json", "w", encoding="utf-8") as fh:
+        with open(data / "truth.json", "w", encoding="utf-8", newline="\n") as fh:
             json.dump(truth, fh, indent=1, ensure_ascii=False)
-        (d / "project.yaml").write_text(general_project_yaml(cfg, key, res), encoding="utf-8")
+        (d / "project.yaml").write_bytes(general_project_yaml(cfg, key, res).encode("utf-8"))
         out[key] = res["Et_nominal_nM"]
     return out

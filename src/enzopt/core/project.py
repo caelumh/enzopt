@@ -27,7 +27,7 @@ DEFAULTS: dict = {
         "precision": "auto",
         "pinn": {
             "adam_iters": 2000,
-            "lbfgs_iters": 300,
+            "lbfgs_iters": 1000,  # 2026-10-10 F-13: 300 → 1000 (training fit 1.2–2σ → ≈1.1σ on the appendix C networks)
             "width": 32,
             "depth": 3,
             "w_prior": 1e-2,
@@ -75,14 +75,14 @@ DEFAULTS: dict = {
             "volume_uL": 1000.0,
             "enzyme_uL": 10.0,
             "stocks_mM": {"NADH": 2.0, "Pyr": 10.0},
-            "limit_test_rhos": [1.5, 3.0],
+            "limit_test_rhos": "auto",  # auto: ρ_min × 0.3 and × 0.6 (below the equilibrium limit)
             "limit_test_enzyme_multiples": [[10, 20], [10]],
         },
     },
     "quick": {
         "seeds": 2,
         "adam_iters": 2000,  # PINN iterations are not reduced: fewer leave seeds unconverged (excluded by SC5-3)
-        "lbfgs_iters": 300,
+        "lbfgs_iters": None,  # None: as in full mode
         "same_class_runs": 3,
         "rho_grid": "auto_quick",
         "bisection_iters": 10,
@@ -245,7 +245,8 @@ class Project:
             q = self.quick_overrides
             ident["seeds"] = q["seeds"]
             ident["pinn"]["adam_iters"] = q["adam_iters"]
-            ident["pinn"]["lbfgs_iters"] = q["lbfgs_iters"]
+            if q.get("lbfgs_iters") is not None:
+                ident["pinn"]["lbfgs_iters"] = q["lbfgs_iters"]
             ident["baseline_fit"]["starts"] = q["baseline_starts"]
             ident["baseline_fit"]["max_nfev"] = q["baseline_max_nfev"]
             ident["control"]["seeds"] = q["control_seeds"]
@@ -448,9 +449,11 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
         if "step" not in de or "kf" not in de or "Ki_mM" not in de:
             raise ProjectError("design.dead_end: step, kf, Ki_mM이 모두 있어야 함")
     quick = _merge(DEFAULTS["quick"], raw.get("quick") or {})
-    for s in (des["analyte"], des["partner"], des["free_enzyme"]):
-        if des.get("enabled", True) and s not in network.species:
-            raise ProjectError(f"design: 종 '{s}'이 species 목록에 없음")
+    if des.get("enabled", True):
+        names = [des["analyte"], des.get("partner"), des["free_enzyme"], des.get("product"), des.get("side_product")]
+        for s in [x for x in names if x] + list(des.get("fixed_ratio") or {}):
+            if s not in network.species:
+                raise ProjectError(f"design: 종 '{s}'이 species 목록에 없음")
 
     return Project(
         root=root,

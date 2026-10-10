@@ -7,7 +7,15 @@ import numpy as np
 
 from .. import plots
 from ..core.crnt import verdict
-from ..core.design import AssayDesign, default_rho_grid, equilibrium_conversion, rho_min_equilibrium, run_design
+from ..core.design import (
+    GOALS,
+    AssayDesign,
+    default_rho_grid,
+    equilibrium_conversion_of,
+    rho_min_of,
+    run_design,
+    run_time_design,
+)
 from .common import design_rates, load_samples
 from .runner import RunContext, StageFailed, write_json
 from .sim import HOPSAN_DT_FACTOR
@@ -24,17 +32,21 @@ def run_design_stage(ctx: RunContext) -> None:
     if not des.get("enabled", True):
         write_json(out / "design_summary.json", {"skipped": "design.enabled: false"})
         return
-    if des.get("target", "assay") != "assay":
-        raise StageFailed(
-            f"design.target '{des.get('target')}'는 아직 지원하지 않음(assay). 반응기 설계는 F-14(③ 단계)"
-        )
+    goal = str(des.get("target", "assay"))
+    if goal not in GOALS:
+        raise StageFailed(f"design.target '{goal}'는 {', '.join(GOALS)} 중 하나. 연속 반응기 설계는 F-14")
     fit = ctx.read_stage_json("3_fit", "fit_summary.json")
     if fit.get("design_blocked"):
         raise StageFailed(f"남은 표본 {len(fit.get('kept', []))}개 < 2 — 설계 중단(SC5-3). ③ 식별의 제외 사유 확인")
     samples = load_samples(ctx.run_dir)
     dnet = p.design_network()
-    Kp = float(des["Kp"])
-    rates = [design_rates(dnet, s, des, Kp, p.haldane_step) for s in samples]
+    ov_i = next((i for i, r in enumerate(p.reactions) if des["analyte"] in r["overall"].split()), None)
+    ov = p.reactions[ov_i]["overall"] if ov_i is not None else None
+    Kp = des.get("Kp")
+    if Kp is None and ov_i is not None:
+        Kp = p.reactions[ov_i]["Kp"]
+    Kp = float(Kp) if Kp is not None else None
+    rates = [design_rates(dnet, s, des, Kp, p.haldane_step, p.overall, ov_i or 0) for s in samples]
     acts = [s.get("activity") for s in samples]
     if any(acts):
         from ..core.activity import horizon
@@ -44,23 +56,34 @@ def run_design_stage(ctx: RunContext) -> None:
         if t_need > T:
             ctx.warn(f"효소 활성 a(t)는 학습 실험 길이 {T:.0f} s까지만 근거가 있음: {t_need:.0f} s까지는 외삽")
     vd = verdict(dnet.reactions(), dnet.name)
-    use_limit = vd.unique_equilibrium
+    why = limit_reason(vd, Kp, ov, len(p.reactions))
+    use_limit = why is None
     if not use_limit:
-        why = "약가역 아님" if not vd.weakly_reversible else f"결핍 {vd.deficiency} ≠ 0"
-        ctx.warn(f"설계 반응망 {why}: 평형 한계 대수식을 쓰지 않고 정방향 해석만으로 설계 범위를 탐색")
+        ctx.warn(f"설계 반응망 {why}: 평형 한계를 쓰지 않고 정방향 해석만으로 설계 범위를 탐색")
     design = AssayDesign(
         dnet,
         des["analyte"],
-        des["partner"],
+        des.get("partner"),
         des["free_enzyme"],
         float(des["analyte0_mM"]),
         float(des["conversion"]),
         float(des["time_s"]),
-        Kp,
+        Kp if Kp is not None else 1.0,
+        fixed={k: float(v) for k, v in (des.get("fixed_ratio") or {}).items()},
+        goal=goal,
+        product=des.get("product"),
+        side_product=des.get("side_product"),
+        yield_min=float(des.get("yield", 0.9)),
+        selectivity_min=float(des.get("selectivity", 0.9)),
+        overall=ov,
     )
     grid = des.get("rho_grid", "auto")
-    if use_limit:
-        rmin = rho_min_equilibrium(design.conversion, Kp)
+    if not design.partner:  # one substrate: only the enzyme amount is chosen
+        rhos = [1.0]
+    elif use_limit:
+        rmin = rho_min_of(design)
+        if rmin is None or not np.isfinite(rmin):
+            raise StageFailed(f"어떤 ρ에서도 평형 전환율이 {design.conversion:g}에 닿지 않음(K' 확인)")
         rhos = (
             default_rho_grid(rmin, quick=(grid == "auto_quick")) if isinstance(grid, str) else [float(r) for r in grid]
         )
@@ -71,6 +94,9 @@ def run_design_stage(ctx: RunContext) -> None:
             else [float(r) for r in grid]
         )
     lo, hi = (float(x) for x in des.get("Et_bounds_mM", [1e-6, 1e-2]))
+    if goal == "time":
+        _time_design(ctx, p, des, design, rates, rhos, acts, out)
+        return
 
     def prog(f, m):
         ctx.progress(0.75 * f, f"U자 곡선 · {m}")
@@ -122,7 +148,8 @@ def run_design_stage(ctx: RunContext) -> None:
             ["rho", "conversion_eq", "NADH_left_uM"],
             [[r["rho"], r["conversion_eq"], r["NADH_left_uM"]] for r in res.equilibrium_limit],
         )
-    pip = pipette_table(des, res, E0, Kp, use_limit)
+    summ["goal"] = goal
+    pip = pipette_table(des, res, E0, design, use_limit)
     plots.write_rows(out / "pipette.csv", list(pip[0].keys()), [list(r.values()) for r in pip])
     (out / "pipette.txt").write_text(pipette_text(pip, summ), encoding="utf-8")
     summ["pipette"] = pip
@@ -140,27 +167,48 @@ def run_design_stage(ctx: RunContext) -> None:
     write_json(out / "figures.json", figs)
 
 
-def pipette_table(des: dict, res, E0: float | None, Kp: float, use_limit: bool) -> list[dict]:
+def limit_reason(vd, Kp: float | None, overall: str | None, n_reactions: int) -> str | None:
+    """Why the CRNT equilibrium limit cannot be used for the design (None: it can)."""
+    if not vd.weakly_reversible:
+        return "약가역 아님"
+    if vd.deficiency != 0:
+        return f"결핍 {vd.deficiency} ≠ 0(평형 유일성 보장 없음)"
+    if n_reactions > 1:
+        return "전체 반응이 여럿(평형이 서로 얽힘)"
+    if overall is None or Kp is None:
+        return "분석 대상의 전체 반응이나 K'가 없음"
+    return None
+
+
+def pipette_table(des: dict, res, E0: float | None, design: AssayDesign, use_limit: bool) -> list[dict]:
     pp = des["pipette"]
     V = float(pp["volume_uL"])
     Ve = float(pp["enzyme_uL"])
     a0 = float(des["analyte0_mM"])
-    sa = float(pp["stocks_mM"][des["analyte"]])
-    sp = float(pp["stocks_mM"][des["partner"]])
-    va = a0 * V / sa
+    stocks = pp["stocks_mM"]
+    missing = [s for s in [design.analyte, design.partner, *design.fixed] if s and s not in stocks]
+    if missing:
+        raise StageFailed(f"design.pipette.stocks_mM에 저장액 농도가 없음: {', '.join(missing)}")
+    va = a0 * V / float(stocks[design.analyte])
+    fixed_uL = {s: float(m) * a0 * V / float(stocks[s]) for s, m in design.fixed.items()}
     rows = []
+    goal = design.goal
+    metric = {"assay": "전환율", "time": "전환율", "yield": "수율", "selectivity": "선택도"}[goal]
+    mkey = {"assay": "conversion", "time": "conversion", "yield": "yield", "selectivity": "selectivity"}[goal]
 
     def row(name, purpose, rho, Et_mM, record, reps, pred):
-        vp = rho * a0 * V / sp
+        vp = rho * a0 * V / float(stocks[design.partner]) if design.partner else 0.0
         ve = Ve if Et_mM and Et_mM > 0 else 0.0
-        buf = V - va - vp - ve
+        buf = V - va - vp - sum(fixed_uL.values()) - ve
+        part = {f"{design.partner}_stock_uL": vp} if design.partner else {}
         rows.append(
             {
                 "set": name,
                 "purpose": purpose,
                 "rho": rho,
-                f"{des['analyte']}_stock_uL": va,
-                f"{des['partner']}_stock_uL": vp,
+                f"{design.analyte}_stock_uL": va,
+                **part,
+                **{f"{s}_stock_uL": v for s, v in fixed_uL.items()},
                 "buffer_uL": buf,
                 "enzyme_uL": ve,
                 "Et_final_nM": (Et_mM or 0.0) * 1e6,
@@ -172,10 +220,14 @@ def pipette_table(des: dict, res, E0: float | None, Kp: float, use_limit: bool) 
             }
         )
 
-    if use_limit and E0:
-        pairs = zip(pp.get("limit_test_rhos", []), pp.get("limit_test_enzyme_multiples", []), strict=False)
+    if use_limit and E0 and design.partner:
+        lt = pp.get("limit_test_rhos", "auto")
+        if lt in (None, "auto"):  # below ρ_min, where the equilibrium (not the enzyme) limits the conversion
+            rmin = rho_min_of(design)
+            lt = [float(f"{0.3 * rmin:.3g}"), float(f"{0.6 * rmin:.3g}")] if rmin and np.isfinite(rmin) else []
+        pairs = zip(lt, pp.get("limit_test_enzyme_multiples", []), strict=False)
         for i, (rho, mults) in enumerate(pairs):
-            f = equilibrium_conversion(float(rho), Kp)
+            f = equilibrium_conversion_of(design, float(rho))
             tag = f"L{i + 1}"
             for m in mults:
                 row(
@@ -196,7 +248,7 @@ def pipette_table(des: dict, res, E0: float | None, Kp: float, use_limit: bool) 
         res.Et_star,
         f"{des['time_s']:g} s 끝값 + 5분",
         3,
-        f"표본 {len(rob)}개 최악 전환율 {min(c['conversion'] for c in rob):.4f}",
+        f"표본 {len(rob)}개 최악 {metric} {min(c.get(mkey, float('nan')) for c in rob):.4f}",
     )
     row(
         "D0",
@@ -206,7 +258,7 @@ def pipette_table(des: dict, res, E0: float | None, Kp: float, use_limit: bool) 
         f"{des['time_s']:g} s 끝값 + 5분",
         3,
         f"표본 {len(nom)}개 중 미달 {sum(c['fail'] for c in nom)}개, "
-        f"최악 전환율 {min(c['conversion'] for c in nom):.4f}",
+        f"최악 {metric} {min(c.get(mkey, float('nan')) for c in nom):.4f}",
     )
     row("Z", "효소 없음(대조)", res.rho_star, 0.0, "10분", 1, "변화 없음")
     for r in rows:
@@ -306,3 +358,52 @@ def design_check_curves(ctx: RunContext, design: AssayDesign, rates, samples, re
     info["_hopsan"] = hop
     info["_conf"] = conf
     return info
+
+
+def _time_design(ctx: RunContext, p, des: dict, design: AssayDesign, rates, rhos, acts, out) -> None:
+    """Goal ``time``: the enzyme amount fixed at ``Et_max_nM``; the ρ with the soonest worst-sample arrival."""
+    if des.get("Et_max_nM") is None:
+        raise StageFailed("design.target time: 효소량 상한 design.Et_max_nM이 필요함")
+    Et = float(des["Et_max_nM"]) * 1e-6
+    t_max = float(des.get("t_max_s", max(10 * float(des["time_s"]), 3600.0)))
+    ctx.progress(0.2, "도달 시간 격자")
+    res = run_time_design(design, rates, rhos, Et, t_max, activities=acts)
+    summ = res.summary()
+    train = p.by_role("train")
+    E0 = train[0].Et if train else None
+    summ.update({"conversion": design.conversion, "analyte0_mM": design.analyte0, "E0_mM": E0})
+    plots.write_rows(
+        out / "time_table.csv",
+        ["rho", "time_nominal_s", "time_robust_s"],
+        [[r, a, b] for r, a, b in zip(res.rhos, res.time_nominal, res.time_robust, strict=True)],
+    )
+    pp = des["pipette"]
+    V, Ve, a0 = float(pp["volume_uL"]), float(pp["enzyme_uL"]), design.analyte0
+    stocks = pp["stocks_mM"]
+    va = a0 * V / float(stocks[design.analyte])
+    vp = res.rho_star * a0 * V / float(stocks[design.partner]) if design.partner else 0.0
+    vf = sum(float(m) * a0 * V / float(stocks[s_]) for s_, m in design.fixed.items())
+    pip = [
+        {
+            "set": "D1",
+            "purpose": "도달 시간 최소",
+            "rho": res.rho_star,
+            "buffer_uL": V - va - vp - vf - Ve,
+            "Et_final_nM": Et * 1e6,
+            "record": f"{res.time_star:.0f} s까지 + 5분",
+            "predicted": f"표본 최악 도달 시간 {res.time_star:.0f} s",
+        },
+        {
+            "set": "Z",
+            "purpose": "효소 없음(대조)",
+            "rho": res.rho_star,
+            "buffer_uL": V - va - vp - vf,
+            "Et_final_nM": 0.0,
+            "record": "10분",
+            "predicted": "변화 없음",
+        },
+    ]
+    plots.write_rows(out / "pipette.csv", list(pip[0].keys()), [list(r.values()) for r in pip])
+    summ["pipette"] = pip
+    ctx.flag("design", {"rho_star": res.rho_star, "Et_nM": Et * 1e6, "robust_time_s": res.time_star})
+    write_json(out / "design_summary.json", summ)

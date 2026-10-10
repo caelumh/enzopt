@@ -37,4 +37,11 @@ simulation:
   hopsan: {enabled: false}
 
 design:
-  enabled: false              # ⑤ 설계 목표는 M6-4에서
+  target: assay
+  analyte: A
+  partner: B
+  analyte0_mM: 0.1
+  conversion: 0.99
+  time_s: 300
+  pipette:
+    stocks_mM: {A: 2, B: 50}

@@ -205,3 +205,203 @@ def test_cycle_constraints_ldh_matches_haldane_step():
     kr_h = haldane_kr(kf, kr, 23.0, 5)
     kf2, kr2 = p.layout.rates(p.layout.theta(kf, kr_h, [23.0]))
     assert np.allclose(kr2, kr_h, rtol=1e-12)
+
+
+# ------------------------------------------------------------------------------------------------ long tier
+RING = ["uni_irreversible", "uni", "uni_iso", "uni_bi_ordered", "theorell_chance", "ping_pong", "ordered_terter"]
+BRANCHED = ["random_bibi", "ldh_dead_end"]
+MULTI = ["ldh_competing", "ldh_background"]
+
+
+@pytest.fixture(scope="session")
+def general_run(tmp_path_factory):
+    """Full-mode run through ③ (seeds 4, restarts 8, comparison models) of one appendix C network, once per session."""
+    root = tmp_path_factory.mktemp("runs_general")
+    cache: dict = {}
+
+    def get(key: str):
+        if key not in cache:
+            r = run_cli("run", GENERAL / key, "--no-cache", "--stop-after", "3_fit", "--runs-root", root, timeout=3600)
+            rd = run_dir_from(r.stdout)
+            m = manifest(rd)
+            assert m["stages"]["3_fit"]["status"] == "done", (key, m.get("error"))
+            cache[key] = rd
+        return cache[key]
+
+    return get
+
+
+def _signals(p, e) -> list[tuple]:
+    """[(signal, t, y, sigma, coefficients)] of one experiment, primary first, read from the project files."""
+    from enzopt.core.dataio import read_series
+
+    sig0 = float(p.identification["noise_sigma"])
+    out = []
+    for i, sg in enumerate(p.all_signals(sig0)):
+        f = e.signal_files.get(sg["name"], e.file) if i else e.file
+        s = read_series(f, value_column=sg["name"], max_value=None)
+        out.append((sg["name"], s.t, s.y, float(sg["sigma"]), sg["coefficients"]))
+    return out
+
+
+def oracle_rmse(key: str) -> dict:
+    """Holdout RMSE of the reference model per (experiment, signal): the synthetic truth (mechanism and rate
+    constants) with one enzyme-amount scale fitted to the training sets by least squares in units of σ."""
+    from scipy.optimize import minimize_scalar
+
+    from enzopt.core.project import load_project
+    from enzopt.pipeline.common import curve, rmse
+
+    crit = load_yaml(EVALS / "synthetic_general.yaml")["common"]["holdout_criterion"]
+    assert crit["oracle"] == "fitted_enzyme_scale"
+    p = load_project(GENERAL / key)
+    truth = json.loads((GENERAL / key / "data" / "truth.json").read_text(encoding="utf-8"))
+    k = p.network.rate_vector(truth["kf"], truth["kr"])
+    sig = {n: _signals(p, e) for n, e in p.experiments.items()}
+
+    def errs(name, scale):
+        e = p.experiments[name]
+        return {s: rmse(curve(p.network, k, e.initial, e.Et * scale, t, cf), y) / sg for s, t, y, sg, cf in sig[name]}
+
+    train = [n for n, e in p.experiments.items() if e.role == "train"]
+    lo, hi = crit["oracle_scale_bounds"]
+    best = minimize_scalar(
+        lambda x: sum(v**2 for n in train for v in errs(n, x).values()), bounds=(lo, hi), method="bounded"
+    ).x
+    out = {}
+    for n, e in p.experiments.items():
+        if e.role == "holdout":
+            sg = {s: g for s, _t, _y, g, _c in sig[n]}
+            out.update({(n, s): v * sg[s] for s, v in errs(n, best).items()})
+    return out
+
+
+def identification_report(key: str, rd) -> dict:
+    """Training reproduction and the holdout AC-05 frame (EVAL.md, F-13) of one run."""
+    from enzopt.core.project import load_project
+
+    crit = load_yaml(EVALS / "synthetic_general.yaml")["common"]["holdout_criterion"]
+    p = load_project(GENERAL / key)
+    prim = p.observable["name"]
+    sigma = {s["name"]: float(s["sigma"]) for s in p.all_signals()}
+    samples = [json.loads(f.read_text(encoding="utf-8")) for f in sorted((rd / "3_fit" / "samples").glob("*.json"))]
+
+    def rm(s, exp):  # {signal: RMSE} of one sample and experiment
+        if "rmse_ode_signals" in s:
+            return s["rmse_ode_signals"][exp]
+        return {prim: s["rmse_ode"][exp]}
+
+    train = [n for n, e in p.experiments.items() if e.role == "train"]
+    ok_train = []
+    for s in samples:
+        vals = [v / sigma[sg] if v is not None else np.inf for n in train for sg, v in rm(s, n).items()]
+        ok_train.append(bool(vals) and max(vals) <= float(crit["train_sigma"]))
+    oracle = oracle_rmse(key)
+    kept = [s for s in samples if s["kept"]]
+    hold = {}
+    for (exp, sg), o in oracle.items():
+        limit = max(float(crit["rmse_sigma"]) * sigma[sg], float(crit["oracle_factor"]) * o)
+        vals = [rm(s, exp)[sg] for s in kept]
+        vals = [np.inf if v is None else v for v in vals]
+        hold[f"{exp}/{sg}"] = {
+            "oracle": o,
+            "limit": limit,
+            "mean": float(np.mean(vals)) if vals else np.inf,
+            "worst": float(np.max(vals)) if vals else np.inf,
+        }
+    rep = {
+        "train_ok_fraction": float(np.mean(ok_train)) if ok_train else 0.0,
+        "n_samples": len(samples),
+        "n_kept": len(kept),
+        "holdout": hold,
+    }
+    print(key, json.dumps(rep, ensure_ascii=False))
+    return rep
+
+
+def check_identification(key: str, rd) -> None:
+    crit = load_yaml(EVALS / "synthetic_general.yaml")["common"]["holdout_criterion"]
+    rep = identification_report(key, rd)
+    assert rep["train_ok_fraction"] >= float(crit["train_fraction"]), (key, "training", rep)
+    assert rep["n_kept"] > 0, (key, "no kept samples", rep)
+    for name, h in rep["holdout"].items():
+        assert h["mean"] <= h["limit"], (key, name, "mean", h)
+        assert h["worst"] <= h["limit"], (key, name, "worst", h)
+
+
+@pytest.mark.long
+@pytest.mark.parametrize("key", RING)
+def test_ring_identification(general_run, key):
+    check_identification(key, general_run(key))
+
+
+@pytest.mark.long
+@pytest.mark.parametrize("key", BRANCHED)
+def test_branched_identification(general_run, key):
+    check_identification(key, general_run(key))
+
+
+@pytest.mark.long
+@pytest.mark.parametrize("key", MULTI)
+def test_multi_reaction_identification(general_run, key):
+    check_identification(key, general_run(key))
+
+
+@pytest.mark.long
+@pytest.mark.parametrize("key", RING + BRANCHED + MULTI)
+def test_comparisons(general_run, key):
+    """AC-26: classical fit and the non-WR control through the same flow, with the AC-16/17 table and figures."""
+    import csv
+
+    from enzopt.core.project import load_project
+
+    rd = general_run(key)
+    p = load_project(GENERAL / key)
+    d = rd / "3_fit"
+    f = json.loads((d / "fit_summary.json").read_text(encoding="utf-8"))
+    cl = f["comparisons"]["classical"]
+    assert len(cl["starts"]) >= 2 and len([x for x in cl["fits"] if "kf" in x]) >= 2
+    with open(d / "holdout_comparison.csv", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    holdouts = [n for n, e in p.experiments.items() if e.role == "holdout"]
+    models = ["classical", "PINN (WR)"] + (["nonWR"] if p.control else [])
+    for m in models:
+        for exp in holdouts:
+            vals = [float(r["rmse_A340"]) for r in rows if r["model"] == m and r["experiment"] == exp]
+            assert vals and all(v == v and v >= 0 for v in vals), (key, m, exp)
+    for ext in ("csv", "pdf", "png"):
+        assert (d / f"fig3d_holdout_table.{ext}").exists()
+    if p.control:
+        c = f["comparisons"]["control"]
+        assert c["one_way_steps"] == p.control["one_way_steps"] and len(c["fits"]) >= 1, (key, c)
+        assert all(x["kr"][s - 1] == 0.0 for x in c["fits"] for s in c["one_way_steps"])
+        with open(d / "fig3b_holdout.csv", encoding="utf-8") as fh:
+            labels = {r["model"] for r in csv.DictReader(fh)}
+        assert any(m.startswith("nonWR") for m in labels) and any(m.startswith("WR") for m in labels)
+        v = json.loads((rd / "1_verdict" / "verdict.json").read_text(encoding="utf-8"))
+        assert v["networks"]["control"]["weakly_reversible"] is False
+
+
+@pytest.mark.long
+def test_e2e_all(tmp_path):
+    """AC-32: every appendix C network and the renamed LDH run ①–⑤ in short mode; non-WR ones carry the band."""
+    from enzopt.core.crnt import verdict
+    from enzopt.core.project import load_project
+
+    keys = RING + BRANCHED + MULTI
+    projects = [GENERAL / k for k in keys] + [renamed_ldh(tmp_path)]
+    failed = []
+    for proj in projects:
+        r = run_cli("run", proj, "--quick", "--runs-root", tmp_path / "runs")
+        rd = run_dir_from(r.stdout)
+        m = manifest(rd)
+        if m["status"] != "completed":
+            failed.append((proj.name, m.get("error")))
+            continue
+        for st in ("1_verdict", "2_data", "3_fit", "4_sim", "5_design"):
+            assert m["stages"][st]["status"] in ("done", "cached"), (proj.name, st)
+        p = load_project(proj)
+        if not verdict(p.network.reactions(), "m").weakly_reversible:
+            rep = (rd / "1_verdict" / "report.txt").read_text(encoding="utf-8")
+            assert "149 보장 없음" in rep, proj.name
+    assert not failed, failed

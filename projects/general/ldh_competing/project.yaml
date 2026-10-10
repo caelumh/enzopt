@@ -45,4 +45,16 @@ simulation:
   hopsan: {enabled: false}
 
 design:
-  enabled: false              # ⑤ 설계 목표는 M6-4에서
+  target: selectivity
+  analyte: NADH
+  partner: Pyr
+  fixed_ratio: {Oxb: 1}   # 다른 짝 기질 = 분석 대상 초기 농도의 배수
+  product: Lac
+  side_product: Hbt
+  selectivity: 0.8
+  yield: 0.6
+  analyte0_mM: 0.1
+  conversion: 0.99
+  time_s: 300
+  pipette:
+    stocks_mM: {NADH: 2, Pyr: 100, Oxb: 10}

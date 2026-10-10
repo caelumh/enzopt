@@ -61,7 +61,8 @@ class QssStructure:
         return self.V.shape[1]
 
     def ranges(self, x0_small: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Per slow coordinate the extent range [lo, hi] that keeps the small molecules ≥ 0 (others held at 0)."""
+        """Per slow coordinate the extent range [lo, hi] that keeps the small molecules ≥ 0 with the other
+        coordinates at 0 (exact for one coordinate; with several only a scale, see ``pinn.general``)."""
         lo = np.zeros(self.d)
         hi = np.zeros(self.d)
         for k in range(self.d):

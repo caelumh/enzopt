@@ -9,6 +9,12 @@ rate-constant sample (robust) — or for the nominal sample only (nominal, to sh
 CRNT gives the equilibrium limit: weakly reversible + deficiency 0 → one equilibrium per compatibility class, fixed
 by K' whatever the rate constants. With no products at t = 0 the equilibrium conversion f solves
 K' = f² / ((ρ − f)(1 − f)); the smallest ρ that allows ``conversion`` is ρ_min = c + c²/((1 − c)K').
+
+F-13 (G5): any overall reaction (``overall``: the equilibrium of A + B + C ⇌ P + Q + R … is solved numerically, so one,
+two or three substrates and any stoichiometry), further partners at fixed multiples of analyte₀ (``fixed``), one
+substrate (no partner: only the enzyme amount is chosen), and other goals: ``yield`` (product formed ≥ yield ×
+analyte₀), ``selectivity`` (product / (product + side product) ≥ s and the yield), ``time`` (with the enzyme amount
+fixed, the ρ that reaches the conversion soonest in the worst sample).
 """
 
 from __future__ import annotations
@@ -21,7 +27,9 @@ import numpy as np
 
 from .activity import enzyme_loss
 from .massaction import MassAction, SimulationError, SolverSettings, haldane_kr, simulate
-from .network import Network, x0_vector
+from .network import Network, Step, x0_vector
+
+GOALS = ("assay", "yield", "selectivity", "time")
 
 # CADKIMM placeholder constants (design_optimize.py): used for the synthetic-sample regression only
 KF0 = np.array([1e4, 5e3, 300.0, 1000.0, 200.0, 1e3])
@@ -42,6 +50,13 @@ class AssayDesign:
     atol_enzyme_rel: float = 1e-9
     atol_other: float = 1e-12
     _model: MassAction | None = field(default=None, repr=False, compare=False)
+    fixed: dict = field(default_factory=dict)  # further species at t = 0, as multiples of analyte₀
+    goal: str = "assay"  # assay | yield | selectivity | time
+    product: str | None = None  # yield / selectivity: the wanted product
+    side_product: str | None = None  # selectivity: the unwanted product
+    yield_min: float = 0.9
+    selectivity_min: float = 0.9
+    overall: str | None = None  # overall reaction of the analyte (numerical equilibrium limit); None = LDH formula
 
     @property
     def model(self) -> MassAction:
@@ -53,10 +68,26 @@ class AssayDesign:
     def target(self) -> float:
         return (1.0 - self.conversion) * self.analyte0
 
+    def initial(self, rho: float) -> dict:
+        d = {self.analyte: self.analyte0}
+        if self.partner:
+            d[self.partner] = rho * self.analyte0
+        for sp, m in (self.fixed or {}).items():
+            d[sp] = float(m) * self.analyte0
+        return d
+
     def x0(self, Et: float, rho: float) -> np.ndarray:
-        return x0_vector(
-            self.network, {self.analyte: self.analyte0, self.partner: rho * self.analyte0}, Et, self.free_enzyme
-        )
+        return x0_vector(self.network, self.initial(rho), Et, self.free_enzyme)
+
+    @property
+    def product_per_analyte(self) -> float:
+        """Product formed per analyte consumed in the overall reaction (1 without one)."""
+        if not (self.overall and self.product):
+            return 1.0
+        st = Step.parse(self.overall)
+        a = st.lhs.get(self.analyte) or st.rhs.get(self.analyte) or 1.0
+        p_ = st.rhs.get(self.product) or st.lhs.get(self.product) or 1.0
+        return float(p_) / float(a)
 
     def atol(self, Et: float) -> np.ndarray:
         ens = set(self.network.enzyme_species)
@@ -76,9 +107,124 @@ class AssayDesign:
             return float("nan")
         return float(X[-1, self.network.index()[self.analyte]])
 
+    def evaluate(self, k, Et: float, rho: float, activity: dict | None = None) -> dict:
+        """Analyte left, conversion, yield and selectivity at ``time_s`` and whether the goal is met."""
+        try:
+            X = self.trajectory(k, Et, rho, [self.time_s], activity)[-1]
+        except SimulationError:
+            return {"analyte": float("nan"), "conversion": float("nan"), "ok": False}
+        i = self.network.index()
+        x = float(X[i[self.analyte]])
+        out = {"analyte": x, "conversion": 1 - x / self.analyte0}
+        if self.product:
+            P = float(X[i[self.product]])
+            out["yield"] = P / (self.analyte0 * self.product_per_analyte)
+            if self.side_product:
+                Sd = float(X[i[self.side_product]])
+                out["selectivity"] = P / (P + Sd) if P + Sd > 0 else 0.0
+        out["ok"] = self.meets_values(out)
+        return out
+
+    def meets_values(self, v: dict, tol: float = 0.0) -> bool:
+        if not np.isfinite(v.get("analyte", np.nan)):
+            return False
+        if self.goal in ("assay", "time"):
+            return v["analyte"] <= self.target * (1 + tol)
+        ok = v.get("yield", -1.0) >= self.yield_min * (1 - tol)
+        if self.goal == "selectivity":
+            ok = ok and v.get("selectivity", -1.0) >= self.selectivity_min * (1 - tol)
+        return bool(ok)
+
+    def meets(self, k, Et: float, rho: float, activity: dict | None = None) -> bool:
+        if self.goal == "assay":  # the original test, kept identical (CADKIMM regression)
+            return self.analyte_at(k, Et, rho, activity=activity) <= self.target
+        return self.evaluate(k, Et, rho, activity)["ok"]
+
+    def time_to_target(self, k, Et: float, rho: float, t_max: float, activity: dict | None = None) -> float:
+        """First time the analyte is down to the target (linear interpolation on 2000 points); inf if never."""
+        t = np.linspace(0.0, t_max, 2001)
+        try:
+            X = self.trajectory(k, Et, rho, t, activity)
+        except SimulationError:
+            return float("inf")
+        y = X[:, self.network.index()[self.analyte]]
+        hit = np.nonzero(y <= self.target)[0]
+        if not len(hit):
+            return float("inf")
+        j = int(hit[0])
+        if j == 0:
+            return 0.0
+        return float(t[j - 1] + (t[j] - t[j - 1]) * (y[j - 1] - self.target) / (y[j - 1] - y[j]))
+
 
 def rho_min_equilibrium(conv: float, Kp: float) -> float:
     return conv + conv**2 / ((1 - conv) * Kp)
+
+
+def equilibrium_state(overall: str, x0: dict, Kp: float) -> dict:
+    """Small-molecule concentrations at the equilibrium of one overall reaction (enzyme-bound amounts neglected):
+    the extent ξ solves ln Q(ξ) = ln K' (any stoichiometry; brentq on the feasible interval)."""
+    from scipy.optimize import brentq
+
+    st = Step.parse(overall)
+    lhs, rhs = st.lhs, st.rhs
+    x = {sp: float(x0.get(sp, 0.0)) for sp in list(lhs) + list(rhs)}
+    hi = min(x[sp] / c for sp, c in lhs.items())
+    lo = -min(x[sp] / c for sp, c in rhs.items())
+    ln_k = float(np.log(Kp))
+
+    def f(xi):
+        num = sum(c * np.log(max(x[sp] + c * xi, 1e-300)) for sp, c in rhs.items())
+        den = sum(c * np.log(max(x[sp] - c * xi, 1e-300)) for sp, c in lhs.items())
+        return num - den - ln_k
+
+    eps = 1e-12 * (hi - lo)
+    if hi - lo <= 1e-300:
+        xi = 0.0
+    else:
+        a_, b_ = lo + eps, hi - eps
+        fa, fb = f(a_), f(b_)
+        if fa >= 0:  # equilibrium at the product-free end (within 1e-12 of the range)
+            xi = a_
+        elif fb <= 0:  # complete reaction
+            xi = b_
+        else:
+            xi = brentq(f, a_, b_, xtol=1e-16 + 1e-15 * (hi - lo), rtol=1e-14)
+    out = dict(x)
+    for sp, c in lhs.items():
+        out[sp] = x[sp] - c * xi
+    for sp, c in rhs.items():
+        out[sp] = x[sp] + c * xi
+    return out
+
+
+def equilibrium_conversion_of(design: AssayDesign, rho: float) -> float:
+    """Equilibrium conversion of the analyte at ratio ρ (``design.overall``; LDH formula without one)."""
+    if not design.overall:
+        return equilibrium_conversion(rho, design.Kp)
+    eq = equilibrium_state(design.overall, design.initial(rho), design.Kp)
+    return 1.0 - eq[design.analyte] / design.analyte0
+
+
+def rho_min_of(design: AssayDesign) -> float | None:
+    """Smallest ρ whose equilibrium allows ``conversion`` (None without a partner; inf if no ρ ≤ 10⁶ does)."""
+    from scipy.optimize import brentq
+
+    if not design.overall:
+        return rho_min_equilibrium(design.conversion, design.Kp)
+    if not design.partner:
+        return None
+    c = design.conversion
+
+    def g(lr):
+        return equilibrium_conversion_of(design, float(np.exp(lr))) - c
+
+    lo, hi = np.log(1e-3), np.log(1e6)
+    if g(hi) < 0:
+        return float("inf")
+    if g(lo) >= 0:
+        return float(np.exp(lo))
+    return float(np.exp(brentq(g, lo, hi, xtol=1e-12)))
 
 
 def equilibrium_conversion(rho: float, Kp: float) -> float:
@@ -118,7 +264,9 @@ def min_Et(
     acts = activities or [None] * len(samples)
 
     def ok(Et):
-        return all(design.analyte_at(k, Et, rho, activity=a) <= target for k, a in zip(samples, acts, strict=True))
+        if design.goal == "assay":
+            return all(design.analyte_at(k, Et, rho, activity=a) <= target for k, a in zip(samples, acts, strict=True))
+        return all(design.meets(k, Et, rho, a) for k, a in zip(samples, acts, strict=True))
 
     if not ok(hi):
         return float("nan")
@@ -196,12 +344,22 @@ def run_design(
     enzyme activity a(t) of each sample (None = no inactivation)."""
     lo, hi = Et_bounds
     acts = list(activities) if activities is not None else [None] * len(samples)
-    rmin = rho_min_equilibrium(design.conversion, design.Kp) if use_equilibrium_limit else None
+    rmin = rho_min_of(design) if use_equilibrium_limit else None
     eq_rows = []
     if use_equilibrium_limit:
-        for r in [1.0, 1.5, 2.0, 3.0, rmin, 8.0]:
-            f = equilibrium_conversion(r, design.Kp)
-            eq_rows.append({"rho": r, "conversion_eq": f, "NADH_left_uM": (1 - f) * design.analyte0 * 1e3})
+        if design.partner or not design.overall:
+            for r in [1.0, 1.5, 2.0, 3.0, rmin, 8.0]:
+                if r is None or not np.isfinite(r):
+                    continue
+                f = equilibrium_conversion_of(design, r)
+                eq_rows.append({"rho": r, "conversion_eq": f, "NADH_left_uM": (1 - f) * design.analyte0 * 1e3})
+        else:
+            f = equilibrium_conversion_of(design, 1.0)
+            eq_rows.append({"rho": None, "conversion_eq": f, "NADH_left_uM": (1 - f) * design.analyte0 * 1e3})
+            if f < design.conversion:
+                raise SimulationError(
+                    f"평형 전환율 {f:.4f} < 목표 {design.conversion:g}: 효소량과 무관하게 도달할 수 없음(K' 확인)"
+                )
     tasks = [(design, float(r), samples, lo, hi, iters, acts) for r in rhos]
     w = workers if workers is not None else n_workers(len(tasks))
     rows = []
@@ -224,17 +382,25 @@ def run_design(
     check = []
     for label, Et in (("nominal", Et_nom), ("robust", Et_rob)):
         for i, k in enumerate(samples):
-            x = design.analyte_at(k, Et, rho_s, activity=acts[i]) if np.isfinite(Et) else float("nan")
-            check.append(
-                {
-                    "design": label,
-                    "sample": i,
-                    "Et_mM": float(Et),
-                    "NADH_at_target_mM": x,
-                    "conversion": 1 - x / design.analyte0,
-                    "fail": bool(not np.isfinite(x) or x > design.target * (1 + 1e-6)),
-                }
-            )
+            if design.goal == "assay":
+                x = design.analyte_at(k, Et, rho_s, activity=acts[i]) if np.isfinite(Et) else float("nan")
+                ev = {"analyte": x, "conversion": 1 - x / design.analyte0}
+                fail = bool(not np.isfinite(x) or x > design.target * (1 + 1e-6))
+            else:
+                ev = design.evaluate(k, Et, rho_s, acts[i]) if np.isfinite(Et) else {"analyte": float("nan")}
+                fail = not design.meets_values(ev, tol=1e-6)
+            row = {
+                "design": label,
+                "sample": i,
+                "Et_mM": float(Et),
+                "NADH_at_target_mM": ev["analyte"],
+                "conversion": ev.get("conversion", float("nan")),
+                "fail": bool(fail),
+            }
+            for key in ("yield", "selectivity"):
+                if key in ev:
+                    row[key] = ev[key]
+            check.append(row)
     return DesignResult(
         rmin,
         [float(r) for r in arr[:, 0]],
@@ -245,4 +411,58 @@ def run_design(
         float(Et_nom),
         check,
         eq_rows,
+    )
+
+
+@dataclass
+class TimeDesignResult:
+    rhos: list[float]
+    time_nominal: list[float]
+    time_robust: list[float]
+    rho_star: float
+    Et: float
+    time_star: float
+    t_max: float
+
+    def summary(self) -> dict:
+        return {
+            "goal": "time",
+            "rho_star": self.rho_star,
+            "Et_mM": self.Et,
+            "Et_nM": self.Et * 1e6,
+            "robust_time_s": self.time_star,
+            "t_max_s": self.t_max,
+        }
+
+
+def _time_row(args):
+    design, rho, samples, Et, t_max, acts = args
+    ts = [design.time_to_target(k, Et, rho, t_max, a) for k, a in zip(samples, acts, strict=True)]
+    return rho, ts[0], max(ts)
+
+
+def run_time_design(
+    design: AssayDesign,
+    samples: list[np.ndarray],
+    rhos: list[float],
+    Et: float,
+    t_max: float,
+    workers: int | None = None,
+    activities: list[dict | None] | None = None,
+) -> TimeDesignResult:
+    """Goal ``time``: with the enzyme amount ``Et`` fixed, the ρ whose worst sample reaches the conversion soonest."""
+    acts = list(activities) if activities is not None else [None] * len(samples)
+    tasks = [(design, float(r), samples, Et, t_max, acts) for r in rhos]
+    w = workers if workers is not None else n_workers(len(tasks))
+    if w > 1 and len(tasks) > 1:
+        with ProcessPoolExecutor(max_workers=w) as ex:
+            rows = list(ex.map(_time_row, tasks))
+    else:
+        rows = [_time_row(t) for t in tasks]
+    rob = [r[2] for r in rows]
+    if not np.isfinite(min(rob)):
+        raise SimulationError(f"효소량 {Et * 1e6:.4g} nM로는 어떤 ρ에서도 {t_max:g} s 안에 목표 전환율에 닿지 않음")
+    j = int(np.argmin(rob))
+    return TimeDesignResult(
+        [r[0] for r in rows], [r[1] for r in rows], rob, float(rows[j][0]), float(Et), float(rob[j]), float(t_max)
     )
