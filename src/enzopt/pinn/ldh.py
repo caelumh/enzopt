@@ -15,6 +15,13 @@ Change from CADKIMM (decision 2026-10-09, see PROGRESS.md): the slow residual is
 characteristic rate (hi − lo)/T instead of Ntot/100 per s, and w_phys is ramped up during Adam to a large final
 value. With the CADKIMM scaling the network fitted the data while the ODE residual stayed ≈ 25 %, so the learned
 rate constants did not reproduce the data when the ODE was re-solved.
+
+Enzyme inactivation (option ``inactivation: shared``): the active enzyme is Et·a(t), t = time since the enzyme was
+added, with one a(t) shared by all experiments and learned with the rate constants, without choosing its shape:
+a = exp(−h(t/T)), h = Σ_k w_k [σ((u − c_k)/s) − σ(−c_k/s)], w_k = softplus(·) ≥ 0, so a(0) = 1 and a never rises.
+In the residual it only rescales the enzyme forms, so the cost of learning a whole function is K more numbers per
+seed and no ODE solve (a classical fit of the same function has to integrate the ODE for every trial of its K
+coefficients).
 """
 
 from __future__ import annotations
@@ -87,6 +94,10 @@ class PinnConfig:
     # τ = t/T_e with each experiment's own last time (default) or one shared T_max. Per experiment keeps short runs
     # from crowding into the first few collocation points (Holmes 1988 check, 2026-10-09: set 172 error 11.9 → 5.1 %)
     time_scale: str = "per_experiment"
+    # enzyme activity a(t): "none" (a ≡ 1) or "shared" (one monotone a(t) for all experiments, see module docstring)
+    inactivation: str = "none"
+    inact_k: int = 12  # number of sigmoid steps in h
+    w_inact: float = 1e-2  # weight of h(T)² (prefers no loss of activity unless the data need it)
 
 
 @dataclass
@@ -98,6 +109,29 @@ class PinnResult:
     Kp: float | None
     loss_parts: dict
     history: list = field(default_factory=list)
+    activity: dict | None = None  # inactivation: {"T", "c", "s", "w"} for activity_curve()
+
+
+def activity_curve(act: dict | None, t) -> np.ndarray:
+    """a(t) of a PinnResult (1 everywhere without inactivation)."""
+    t = np.asarray(t, float)
+    if not act:
+        return np.ones_like(t)
+    u = t[..., None] / act["T"]
+    c, s, w = np.asarray(act["c"]), float(act["s"]), np.asarray(act["w"])
+    h = (w * (1.0 / (1.0 + np.exp(-(u - c) / s)) - 1.0 / (1.0 + np.exp(c / s)))).sum(axis=-1)
+    return np.exp(-h)
+
+
+def activity_rate(act: dict | None, t) -> np.ndarray:
+    """λ(t) = −d ln a/dt: the first-order loss rate of every enzyme form that gives a(t) (1/s)."""
+    t = np.asarray(t, float)
+    if not act:
+        return np.zeros_like(t)
+    u = t[..., None] / act["T"]
+    c, s, w = np.asarray(act["c"]), float(act["s"]), np.asarray(act["w"])
+    sg = 1.0 / (1.0 + np.exp(-(u - c) / s))
+    return (w * sg * (1.0 - sg) / s).sum(axis=-1) / act["T"]
 
 
 class BatchedMLP(torch.nn.Module):
@@ -144,6 +178,7 @@ class LdhPinn:
         S, E = len(cfg.seeds), len(exps)
         self.S, self.E, self.B = S, E, S * E
         self.n_theta = N_THETA_IRR if cfg.irreversible_last else N_THETA_WR
+        self.inact = cfg.inactivation == "shared"
         pc = np.asarray(prior_center, float)[: self.n_theta]
         self.prior_c = torch.tensor(pc, dtype=self.dt, device=self.dev)
         self.T = float(max(e.t_obs.max() for e in exps))
@@ -155,7 +190,8 @@ class LdhPinn:
                 g = torch.Generator().manual_seed(int(sd) * 1000 + len(gens) % E)
                 gens.append(g)
             jit = np.random.default_rng(100 + int(sd)).uniform(-cfg.init_jitter, cfg.init_jitter, len(pc))
-            theta0.append(pc + jit)
+            # inactivation weights (extra θ columns) start near zero: softplus(−5) ≈ 0.007, a(T) ≈ 0.95
+            theta0.append(np.concatenate([pc + jit, np.full(cfg.inact_k if self.inact else 0, -5.0)]))
         self.theta = torch.nn.Parameter(torch.tensor(np.array(theta0), dtype=self.dt, device=self.dev))
         self.net = BatchedMLP(
             self.B, cfg.width, cfg.depth, 1 if cfg.representation == "qss" else 6, gens, self.dt, self.dev
@@ -202,6 +238,24 @@ class LdhPinn:
         self.mask = torch.tensor(np.tile(mask, (S, 1)), dtype=self.dt, device=self.dev).unsqueeze(-1)
         self.n_obs = self.mask.sum(dim=1, keepdim=True)
         self.tau0 = torch.zeros(self.B, 1, 1, dtype=self.dt, device=self.dev)
+        if self.inact:
+            K = cfg.inact_k
+            self.inact_c = torch.tensor(np.linspace(0.0, 1.0, K), dtype=self.dt, device=self.dev)
+            self.inact_s = 0.6 / max(1, K - 1)
+            self.inact_u = self.Tb / self.T  # τ → u = t/T_max, per (seed, experiment)
+
+    def activity_weights(self, theta: torch.Tensor):
+        """(B, 1, K) non-negative step weights, repeated over each seed's experiments; None without inactivation."""
+        if not self.inact:
+            return None
+        w = torch.nn.functional.softplus(theta[:, self.n_theta :])
+        return w.unsqueeze(1).expand(self.S, self.E, w.shape[1]).reshape(self.B, 1, w.shape[1])
+
+    def activity(self, tau: torch.Tensor, wB: torch.Tensor) -> torch.Tensor:
+        u = tau * self.inact_u
+        c, s = self.inact_c, self.inact_s
+        h = (wB * (torch.sigmoid((u - c) / s) - torch.sigmoid(-c / s))).sum(dim=-1, keepdim=True)
+        return torch.exp(-h)
 
     # ------------------------------------------------------------------ model pieces
     def rates(self, theta: torch.Tensor):
@@ -244,14 +298,14 @@ class LdhPinn:
         W = torch.cat(w, dim=-1)
         return W / W.sum(dim=-1, keepdim=True)
 
-    def states(self, tau: torch.Tensor, kfB=None, krB=None):
+    def states(self, tau: torch.Tensor, kfB=None, krB=None, wB=None):
         out, dout = self.net(tau)
         u, du = out[..., :1], dout[..., :1]
         sig = torch.sigmoid(u)
         span = self.hi - self.lo
         NADH = self.lo + span * sig
         dNADH = span * sig * (1.0 - sig) * du
-        Et = self.Et
+        Et = self.Et if wB is None else self.Et * self.activity(tau, wB)
         if self.cfg.representation == "qss":
             NAD0 = self.Ntot - NADH
             Lac0 = self.C3 + NAD0
@@ -275,12 +329,13 @@ class LdhPinn:
         kf, kr = self.rates(self.theta)
         kfB = kf.unsqueeze(1).expand(self.S, self.E, 5).reshape(self.B, 1, 5)  # (B,1,5), b = s*E + e
         krB = kr.unsqueeze(1).expand(self.S, self.E, 5).reshape(self.B, 1, 5)
+        wB = self.activity_weights(self.theta)
         # data
-        S, _, _, _, _ = self.states(self.tau_obs, kfB, krB)
+        S, _, _, _, _ = self.states(self.tau_obs, kfB, krB, wB)
         a_pred = cfg.eps340 * (S["NADH"] + S["EN"] + S["ENP"])
         L_data = (((self.a_obs - a_pred) / cfg.sigma) ** 2 * self.mask).sum(dim=1) / self.n_obs.squeeze(1)  # (B,1)
         # physics at collocation points
-        S, _, dN, phi, dphi = self.states(self.tau_col, kfB, krB)
+        S, _, dN, phi, dphi = self.states(self.tau_col, kfB, krB, wB)
         T = self.Tb
         f, g = [], []
         for j, (a, b) in enumerate(STEPS):
@@ -316,9 +371,16 @@ class LdhPinn:
             return x.reshape(self.S, self.E).mean(dim=1)
 
         Ld, Ls, Lf, Li = per_seed(L_data), per_seed(L_slow), per_seed(L_fast), per_seed(L_ic)
-        Lp = ((self.theta - self.prior_c) ** 2).sum(dim=1) / (2 * cfg.prior_sd**2)
+        Lp = ((self.theta[:, : self.n_theta] - self.prior_c) ** 2).sum(dim=1) / (2 * cfg.prior_sd**2)
         total = Ld + w_phys * (Ls + Lf) + cfg.w_ic * Li + cfg.w_prior * Lp
-        return total, dict(data=Ld, slow=Ls, fast=Lf, ic=Li, prior=Lp)
+        parts = dict(data=Ld, slow=Ls, fast=Lf, ic=Li, prior=Lp)
+        if self.inact:  # total loss of activity at the end of the longest experiment, h(1)
+            c, s = self.inact_c, self.inact_s
+            w = torch.nn.functional.softplus(self.theta[:, self.n_theta :])
+            h_end = (w * (torch.sigmoid((1.0 - c) / s) - torch.sigmoid(-c / s))).sum(dim=1)
+            parts["inact"] = h_end**2
+            total = total + cfg.w_inact * parts["inact"]
+        return total, parts
 
     # ------------------------------------------------------------------ training
     def _use_graphs(self) -> bool:
@@ -407,10 +469,16 @@ class LdhPinn:
         th = self.theta.detach().double().cpu().numpy()
         kf = kf.detach().double().cpu().numpy()
         kr = kr.detach().double().cpu().numpy()
+        act = [None] * self.S
+        if self.inact:
+            w = torch.nn.functional.softplus(self.theta.detach()[:, self.n_theta :]).double().cpu().numpy()
+            c = self.inact_c.double().cpu().numpy().tolist()
+            act = [{"T": self.T, "c": c, "s": self.inact_s, "w": w[i].tolist()} for i in range(self.S)]
         out = []
         for i, sd in enumerate(cfg.seeds):
             Kp = None if cfg.irreversible_last else float(10 ** th[i, 9])
-            out.append(PinnResult(int(sd), th[i].copy(), kf[i].copy(), kr[i].copy(), Kp, hist[i][-1][2], hist[i]))
+            r = PinnResult(int(sd), th[i].copy(), kf[i].copy(), kr[i].copy(), Kp, hist[i][-1][2], hist[i], act[i])
+            out.append(r)
         return out
 
     def _log(self, hist, it, total, parts):
