@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .figures import DOUBLE, SINGLE, color, marker, new_figure, save, sig3, table_figure
+from .figures import DOUBLE, SINGLE, color, linestyle, marker, new_figure, save, sig3, table_figure
 
 
 # ------------------------------------------------------------------------------------------------ ① verdict
@@ -185,22 +185,22 @@ def _model_curves(p, every, out_dir: Path) -> dict:
     for name, _e, t, _y in every:
         fines[name] = np.linspace(0.0, float(t[-1]), 181)[1:]
 
-    def add(label, net, k):
+    def add(label, net, k, activity=None):
         model = MassAction.from_network(net)
         curves[label] = {}
         for name, e, _t, _y in every:
-            a = safe_curve(net, k, e.initial, e.Et, fines[name], coeff, model=model)
+            a = safe_curve(net, k, e.initial, e.Et, fines[name], coeff, model=model, activity=activity)
             if a is not None:
                 curves[label][name] = (fines[name], a)
 
     for f in sorted((out_dir / "samples").glob("sample_seed*.json")):
         s = json.loads(f.read_text(encoding="utf-8"))
         tag = "WR" if s["kept"] else "WR-excluded"
-        add(f"{tag} seed{s['seed']}", p.network, p.network.rate_vector(s["kf"], s["kr"]))
+        add(f"{tag} seed{s['seed']}", p.network, p.network.rate_vector(s["kf"], s["kr"]), s.get("activity"))
     ctrl = p.control_network()
     for f in sorted((out_dir / "control").glob("control_seed*.json")) if (out_dir / "control").exists() else []:
         s = json.loads(f.read_text(encoding="utf-8"))
-        add(f"nonWR seed{s['seed']}", ctrl, ctrl.rate_vector(s["kf"], s["kr"]))
+        add(f"nonWR seed{s['seed']}", ctrl, ctrl.rate_vector(s["kf"], s["kr"]), s.get("activity"))
     for f in sorted((out_dir / "baseline").glob("fit_start*.json")) if (out_dir / "baseline").exists() else []:
         s = json.loads(f.read_text(encoding="utf-8"))
         if "kf" in s:
@@ -301,6 +301,8 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
     ax.set(ylabel="log10 k", title="(c) identified rate constants (log10): not identifiable")
     ax.legend(frameon=False, ncol=2)
     figs.append(save(fig, out, "fig3c_rate_constants", ["model", "status", "constant", "log10_k"], rows))
+    if any(s.get("activity") for s in samples):
+        figs.append(activity_figure(out, samples))
     # comparison table (F-9 / F-10)
     cmp = out / "holdout_comparison.csv"
     if cmp.exists():
@@ -326,6 +328,31 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
             )
         )
     return figs
+
+
+def activity_figure(out: Path, samples: list) -> dict:
+    """(e) enzyme activity a(t) learned with the rate constants (option ``inactivation: shared``)."""
+    from .core.activity import activity_curve, horizon
+
+    T = max(horizon(s.get("activity")) or 0.0 for s in samples)
+    t = np.linspace(0.0, T, 181)
+    fig, ax = new_figure(SINGLE, 0.62 * SINGLE)
+    ax = ax[0, 0]
+    rows = []
+    for i, s in enumerate(samples):
+        a = activity_curve(s.get("activity"), t)
+        st = dict(color=color(i), lw=0.9, ls=linestyle(i)) if s["kept"] else dict(color="0.6", lw=0.6, ls=":")
+        ax.plot(t, a, label=f"seed {s['seed']}" + ("" if s["kept"] else " (excluded)"), **st)
+        tag = "kept" if s["kept"] else "excluded"
+        rows += [[f"seed{s['seed']}", tag, float(x), float(y)] for x, y in zip(t, a, strict=True)]
+    ax.set(
+        xlabel="time since enzyme added (s)",
+        ylabel="active enzyme fraction a(t)",
+        ylim=(0, 1.05),
+        title="(e) enzyme activity learned with the rate constants",
+    )
+    ax.legend(frameon=False, ncol=2)
+    return save(fig, out, "fig3e_activity", ["model", "status", "time_s", "activity"], rows)
 
 
 # ------------------------------------------------------------------------------------------------ ④ simulation

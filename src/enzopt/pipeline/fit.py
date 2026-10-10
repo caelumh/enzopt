@@ -39,6 +39,13 @@ def _experiments(ctx: RunContext, roles: tuple[str, ...]):
     return out
 
 
+def _inactivation(pc: dict) -> str:
+    v = str(pc.get("inactivation", "none"))
+    if v not in ("none", "shared"):
+        raise StageFailed(f"identification.pinn.inactivation '{v}'는 none 또는 shared")
+    return v
+
+
 def run_fit_stage(ctx: RunContext) -> None:
     p = ctx.project
     ident = ctx.settings["identification"]
@@ -79,6 +86,9 @@ def run_fit_stage(ctx: RunContext) -> None:
         w_phys_final=float(pc.get("w_phys_final", 1e4)),
         representation=str(pc.get("representation", "qss")),
         time_scale=str(pc.get("time_scale", "per_experiment")),
+        inactivation=_inactivation(pc),
+        inact_k=int(pc.get("inact_k", 12)),
+        w_inact=float(pc.get("w_inact", 1e-2)),
         sigma=sigma,
         eps340=float(next(iter(p.observable_weights().values()))),
         prior_sd=float(p.prior.get("sd_decades", 1.5)),
@@ -108,7 +118,7 @@ def run_fit_stage(ctx: RunContext) -> None:
             kk = net.rate_vector(r.kf, r.kr)
             vals = []
             for _name, e, t, y in train:
-                a = safe_curve(net, kk, e.initial, e.Et, t, coeff, model=model)
+                a = safe_curve(net, kk, e.initial, e.Et, t, coeff, model=model, activity=r.activity)
                 vals.append(rmse(a, y) if a is not None else np.inf)
             ode_tr = float(np.sqrt(np.mean(np.square(vals))))
             pin = float(sigma * np.sqrt(max(r.loss_parts["data"], 0.0)))
@@ -130,7 +140,7 @@ def run_fit_stage(ctx: RunContext) -> None:
         k = net.rate_vector(r.kf, r.kr)
         ode = {}
         for name, e, t, y in every:
-            a = safe_curve(net, k, e.initial, e.Et, t, coeff, model=model)
+            a = safe_curve(net, k, e.initial, e.Et, t, coeff, model=model, activity=r.activity)
             ode[name] = rmse(a, y) if a is not None else None
             if a is not None:
                 preds += [
@@ -165,6 +175,7 @@ def run_fit_stage(ctx: RunContext) -> None:
             "rmse_ode": ode,
             "kept": bool(kept),
             "excluded_reason": reason,
+            "activity": r.activity,
             "restart": restart_log[r.seed]["chosen_restart"],
             "n_restarts": n_restarts,
             "history": [[h[0], h[1], h[2]] for h in r.history],
@@ -181,6 +192,7 @@ def run_fit_stage(ctx: RunContext) -> None:
     summary = {
         "method": "pinn",
         "representation": cfg.representation,
+        "inactivation": cfg.inactivation,
         "device": ctx.manifest["device"],
         "seeds": seeds,
         "kept": [s["seed"] for s in kept],
@@ -212,12 +224,12 @@ def run_fit_stage(ctx: RunContext) -> None:
     write_json(out / "figures.json", figs)
 
 
-def predict_all(ctx: RunContext, k, network=None) -> dict:
-    """Observable predictions of one rate vector for every experiment (used by later stages)."""
+def predict_all(ctx: RunContext, k, network=None, activity: dict | None = None) -> dict:
+    """Observable predictions of one rate vector (and enzyme activity a(t)) for every experiment."""
     p = ctx.project
     net = network or p.network
     res = {}
     for name, e in p.experiments.items():
         t, y = load_series(ctx, name)
-        res[name] = (t, curve(net, k, e.initial, e.Et, t, p.observable_weights()), y)
+        res[name] = (t, curve(net, k, e.initial, e.Et, t, p.observable_weights(), activity=activity), y)
     return res

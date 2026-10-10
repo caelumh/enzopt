@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .activity import enzyme_loss
 from .massaction import MassAction, SimulationError, SolverSettings, haldane_kr, simulate
 from .network import Network, x0_vector
 
@@ -61,14 +62,16 @@ class AssayDesign:
         ens = set(self.network.enzyme_species)
         return np.array([Et * self.atol_enzyme_rel if s in ens else self.atol_other for s in self.network.species])
 
-    def trajectory(self, k, Et: float, rho: float, t_eval) -> np.ndarray:
+    def trajectory(self, k, Et: float, rho: float, t_eval, activity: dict | None = None) -> np.ndarray:
         st = SolverSettings(method="Radau", rtol=self.rtol)
-        return simulate(self.model, k, self.x0(Et, rho), np.asarray(t_eval, float), atol=self.atol(Et), settings=st)
+        loss = enzyme_loss(self.network.species, self.network.enzyme_species, activity)
+        x0 = self.x0(Et, rho)
+        return simulate(self.model, k, x0, np.asarray(t_eval, float), atol=self.atol(Et), settings=st, loss=loss)
 
-    def analyte_at(self, k, Et: float, rho: float, t_end: float | None = None) -> float:
+    def analyte_at(self, k, Et: float, rho: float, t_end: float | None = None, activity: dict | None = None) -> float:
         t_end = self.time_s if t_end is None else t_end
         try:
-            X = self.trajectory(k, Et, rho, [t_end])
+            X = self.trajectory(k, Et, rho, [t_end], activity)
         except SimulationError:
             return float("nan")
         return float(X[-1, self.network.index()[self.analyte]])
@@ -101,13 +104,21 @@ def param_samples(n: int, seed: int = 3, spread: float = 0.5, Kp: float = 23.0) 
 
 
 def min_Et(
-    design: AssayDesign, rho: float, samples: list[np.ndarray], lo: float = 1e-6, hi: float = 1e-2, iters: int = 18
+    design: AssayDesign,
+    rho: float,
+    samples: list[np.ndarray],
+    lo: float = 1e-6,
+    hi: float = 1e-2,
+    iters: int = 18,
+    activities: list[dict | None] | None = None,
 ) -> float:
-    """Smallest Et with analyte(time_s) ≤ (1 − conversion)·analyte0 for every sample (log bisection)."""
+    """Smallest Et with analyte(time_s) ≤ (1 − conversion)·analyte0 for every sample (log bisection).
+    ``activities``: enzyme activity a(t) per sample (inactivation), aligned with ``samples``."""
     target = design.target
+    acts = activities or [None] * len(samples)
 
     def ok(Et):
-        return all(design.analyte_at(k, Et, rho) <= target for k in samples)
+        return all(design.analyte_at(k, Et, rho, activity=a) <= target for k, a in zip(samples, acts, strict=True))
 
     if not ok(hi):
         return float("nan")
@@ -121,8 +132,9 @@ def min_Et(
 
 
 def _row(args):
-    design, rho, samples, lo, hi, iters = args
-    return rho, min_Et(design, rho, samples[:1], lo, hi, iters), min_Et(design, rho, samples, lo, hi, iters)
+    design, rho, samples, lo, hi, iters, acts = args
+    nominal = min_Et(design, rho, samples[:1], lo, hi, iters, acts[:1])
+    return rho, nominal, min_Et(design, rho, samples, lo, hi, iters, acts)
 
 
 def default_rho_grid(rho_min: float, quick: bool) -> list[float]:
@@ -177,17 +189,20 @@ def run_design(
     use_equilibrium_limit: bool = True,
     workers: int | None = None,
     progress=None,
+    activities: list[dict | None] | None = None,
 ) -> DesignResult:
     """U-curve over ``rhos`` (nominal = first sample, robust = all samples), optimum, and a check of both designs
-    on every sample. ``samples`` are rate vectors aligned with ``design.network.reactions()``."""
+    on every sample. ``samples`` are rate vectors aligned with ``design.network.reactions()``; ``activities`` the
+    enzyme activity a(t) of each sample (None = no inactivation)."""
     lo, hi = Et_bounds
+    acts = list(activities) if activities is not None else [None] * len(samples)
     rmin = rho_min_equilibrium(design.conversion, design.Kp) if use_equilibrium_limit else None
     eq_rows = []
     if use_equilibrium_limit:
         for r in [1.0, 1.5, 2.0, 3.0, rmin, 8.0]:
             f = equilibrium_conversion(r, design.Kp)
             eq_rows.append({"rho": r, "conversion_eq": f, "NADH_left_uM": (1 - f) * design.analyte0 * 1e3})
-    tasks = [(design, float(r), samples, lo, hi, iters) for r in rhos]
+    tasks = [(design, float(r), samples, lo, hi, iters, acts) for r in rhos]
     w = workers if workers is not None else n_workers(len(tasks))
     rows = []
     if w > 1 and len(tasks) > 1:
@@ -209,7 +224,7 @@ def run_design(
     check = []
     for label, Et in (("nominal", Et_nom), ("robust", Et_rob)):
         for i, k in enumerate(samples):
-            x = design.analyte_at(k, Et, rho_s) if np.isfinite(Et) else float("nan")
+            x = design.analyte_at(k, Et, rho_s, activity=acts[i]) if np.isfinite(Et) else float("nan")
             check.append(
                 {
                     "design": label,

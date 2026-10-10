@@ -25,8 +25,13 @@ def curve(
     coefficients: dict,
     model: MassAction | None = None,
     settings: SolverSettings | None = None,
+    activity: dict | None = None,
 ) -> np.ndarray:
-    """Observable at times ``t`` (simulation starts at t = 0 from ``initial`` with free enzyme Et)."""
+    """Observable at times ``t`` (simulation starts at t = 0 from ``initial`` with free enzyme Et).
+
+    ``activity``: enzyme activity a(t) of the sample (``core.activity``); None = no inactivation."""
+    from ..core.activity import enzyme_loss
+
     st = settings or SolverSettings()
     model = model or MassAction.from_network(network)
     t = np.asarray(t, float)
@@ -38,6 +43,7 @@ def curve(
         t_eval,
         atol=atol_vector(network.species, network.enzyme_species, Et, st),
         settings=st,
+        loss=enzyme_loss(network.species, network.enzyme_species, activity),
     )
     return observable(network, X, coefficients)
 

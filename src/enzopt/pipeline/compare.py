@@ -150,6 +150,7 @@ def run_comparisons(ctx: RunContext, train, every, prior, pinn_cfg, prog_base: f
                 rows.append(["classical", f"start{r['start']}", name, e.role, r["rmse_ode"][name]])
             write_json(d / f"fit_start{r['start']}.json", r)
         summary["classical"] = {
+            "inactivation": "none",  # the least-squares baseline never models enzyme inactivation
             "starts": starts,
             "seconds": time.time() - t0,
             "fits": [{k: v for k, v in r.items() if k != "theta"} for r in fits],
@@ -181,11 +182,12 @@ def run_comparisons(ctx: RunContext, train, every, prior, pinn_cfg, prog_base: f
                     "seed": r.seed,
                     "kf": r.kf.tolist(),
                     "kr": r.kr.tolist(),
+                    "activity": r.activity,
                     "loss_parts": r.loss_parts,
                     "rmse_ode": {},
                 }
                 for name, e, t, y in every:
-                    a = safe_curve(ctrl_net, k, e.initial, e.Et, t, coeff, model=model)
+                    a = safe_curve(ctrl_net, k, e.initial, e.Et, t, coeff, model=model, activity=r.activity)
                     rec["rmse_ode"][name] = rmse(a, y) if a is not None else None
                     rows.append(["nonWR", f"seed{r.seed}", name, e.role, rec["rmse_ode"][name]])
                 write_json(d / f"control_seed{r.seed}.json", rec)

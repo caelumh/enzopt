@@ -35,6 +35,14 @@ def run_design_stage(ctx: RunContext) -> None:
     dnet = p.design_network()
     Kp = float(des["Kp"])
     rates = [design_rates(dnet, s, des, Kp, p.haldane_step) for s in samples]
+    acts = [s.get("activity") for s in samples]
+    if any(acts):
+        from ..core.activity import horizon
+
+        T = min(h for h in (horizon(a) for a in acts) if h)
+        t_need = max(float(des["time_s"]), float(des.get("check_t_end_s", 600.0)))
+        if t_need > T:
+            ctx.warn(f"효소 활성 a(t)는 학습 실험 길이 {T:.0f} s까지만 근거가 있음: {t_need:.0f} s까지는 외삽")
     vd = verdict(dnet.reactions(), dnet.name)
     use_limit = vd.unique_equilibrium
     if not use_limit:
@@ -75,6 +83,7 @@ def run_design_stage(ctx: RunContext) -> None:
         Et_bounds=(lo, hi),
         use_equilibrium_limit=use_limit,
         progress=prog,
+        activities=acts,
     )
     summ = res.summary()
     train = p.by_role("train")
@@ -231,7 +240,7 @@ def design_check_curves(ctx: RunContext, design: AssayDesign, rates, samples, re
     curves = {}
     for label, Et in (("robust", res.Et_star), ("nominal", res.Et_nominal_at_star)):
         for s, k in zip(samples, rates, strict=True):
-            X = design.trajectory(k, Et, res.rho_star, t)
+            X = design.trajectory(k, Et, res.rho_star, t, s.get("activity"))
             curves[(label, f"seed{s['seed']}")] = (t, X[:, ia])
     info: dict = {
         "t_end": t_end,
@@ -241,7 +250,10 @@ def design_check_curves(ctx: RunContext, design: AssayDesign, rates, samples, re
     }
     # Hopsan: representative sample at the robust design
     hop = None
-    if ctx.settings["simulation"]["hopsan"].get("enabled", True) and ctx.manifest["flags"].get("hopsan_used"):
+    if any(s.get("activity") for s in samples):
+        info["hopsan"] = None
+        info["hopsan_note"] = "Hopsan 모델에는 효소 실활 a(t)가 없어 설계 조건 대조를 생략"
+    elif ctx.settings["simulation"]["hopsan"].get("enabled", True) and ctx.manifest["flags"].get("hopsan_used"):
         try:
             from ..core.simval import fastest_rate
             from ..hopsan.batch import full_mechanism_run

@@ -32,6 +32,9 @@ DEFAULTS: dict = {
             "w_prior": 1e-2,
             "restarts": 8,
             "time_scale": "per_experiment",
+            "inactivation": "none",  # "shared": learn one enzyme-activity curve a(t) for all experiments
+            "inact_k": 12,
+            "w_inact": 1e-2,
         },
         "init_jitter_decades": 1.0,
         "exclusion_rmse": "ode",  # SC5-3: training RMSE of the ODE re-solved with the sample ("pinn": network fit)

@@ -94,16 +94,30 @@ def simulate(
     atol: np.ndarray | float = 1e-11,
     settings: SolverSettings | None = None,
     t0: float = 0.0,
+    loss=None,
 ) -> np.ndarray:
-    """Return the state at ``t_eval`` as an array (len(t_eval) x n_species)."""
+    """Return the state at ``t_eval`` as an array (len(t_eval) x n_species).
+
+    ``loss = (mask, rate)`` (from ``core.activity.enzyme_loss``) removes every masked species (the enzyme forms) at the
+    first-order rate ``rate(t)``: enzyme inactivation with activity a(t)."""
     st = settings or SolverSettings()
     t_eval = np.asarray(t_eval, float)
     kw = dict(method=st.method, rtol=st.rtol, atol=atol, args=(np.asarray(k, float),))
+    rhs, jac = model.rhs, model.jac
+    if loss is not None:
+        mask, rate = loss
+
+        def rhs(t, x, k):
+            return model.rhs(t, x, k) - rate(t) * mask * x
+
+        def jac(t, x, k):
+            return model.jac(t, x, k) - np.diag(rate(t) * mask)
+
     if st.method in ("Radau", "BDF", "LSODA"):
-        kw["jac"] = model.jac
+        kw["jac"] = jac
     if np.isfinite(st.max_step):
         kw["max_step"] = st.max_step
-    sol = solve_ivp(model.rhs, (t0, float(t_eval[-1])), np.asarray(x0, float), t_eval=t_eval, **kw)
+    sol = solve_ivp(rhs, (t0, float(t_eval[-1])), np.asarray(x0, float), t_eval=t_eval, **kw)
     if not sol.success:
         raise SimulationError(sol.message)
     return sol.y.T

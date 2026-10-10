@@ -81,6 +81,7 @@ uv sync
 uv run enzopt doctor                                   # 환경 점검
 uv run enzopt run projects/example_ldh_synth --quick   # 짧은 모드 ≈ 30 s
 uv run enzopt run projects/example_ldh_synth           # 전체 모드 ≈ 3분 (이 문서의 그림)
+uv run enzopt run projects/example_ldh_inactivation    # 효소 실활 예제 ≈ 2분 (8절)
 uv run enzopt dashboard                                # http://localhost:8501
 ```
 
@@ -353,6 +354,29 @@ uv run enzopt dashboard                                # http://localhost:8501
 - **비약가역 대조의 큰 오차:** 약가역 구조가 이 데이터에 필요하다는 증거입니다.
 
 **CSV:** 표와 같은 값. 학습·설계 확인 세트까지 포함한 전체 표는 `3_fit/holdout_comparison.csv`(열 `model`, `id`, `experiment`, `role`, `rmse_A340`)에 있습니다.
+
+---
+
+### 그림 3e — 효소 활성 a(t) (`3_fit/fig3e_activity`, 실활 옵션을 켰을 때만)
+
+![그림 3e](guide/fig3e_activity.png)
+
+**무엇을 그렸나.** `identification.pinn.inactivation: shared`를 켜면 PINN이 속도 상수와 함께 효소 활성 곡선 a(t)를 학습합니다. a(t)는 효소를 넣은 뒤 남아 있는 활성 효소의 비율입니다. 표본마다 한 줄이고, 회색 점선은 제외된 표본입니다. 위 그림은 예제 `projects/example_ldh_inactivation`의 실행 결과입니다. 정답은 1/(1 + (t/300 s)³)입니다.
+
+**어떻게 읽나.**
+
+- 1에서 시작해 내려가기만 합니다. 모양(지연, 급락, 꼬리)은 데이터가 정합니다.
+- 표본들이 겹치면 a(t)는 데이터로 정해진 것입니다. 이 예제에서는 300 s에서 0.46~0.50입니다.
+- 끝 무렵에 거의 0이면, 그 뒤의 측정점은 반응에 대해 알려 주는 것이 없습니다.
+
+**이상 신호.**
+
+- 거의 평평하게 1 근처: 실활이 없다는 뜻입니다. 이 옵션이 필요 없습니다.
+- 표본마다 모양이 크게 다름: a(t)와 속도 상수가 서로 대신 설명하고 있다는 뜻입니다. 조건(농도)이 다른 실험을 학습에 더합니다.
+
+**확인 실험.** 실활은 반응망 밖의 일이므로 실험으로 확인합니다. 반응이 멈춘 뒤 효소를 더 넣었을 때 다시 진행하면 실활입니다. 같은 적합류의 끝값이 서로 다른 것도 같은 신호입니다.
+
+**CSV 열:** `model`, `status`, `time_s`, `activity`. 표본별 a(t)의 매개변수는 `3_fit/samples/sample_seedN.json`의 `activity`에 있습니다.
 
 ---
 
@@ -714,7 +738,11 @@ PINN 옵션 `inactivation: shared`는 a(t)를 모양을 정하지 않고 학습�
 
 - 고전 피팅으로도 같은 함수를 배울 수는 있습니다. 가장 좋은 고전 해는 PINN보다 정확했습니다. 그러나 시작점 하나에 11분이 들었고, 절반은 틀린 곡선에 빠졌습니다. 그 표본으로 정한 26 nM은 실제로 96.7%에서 멈춥니다.
 - 그래서 정확한 표현은 "PINN만 할 수 있다"가 아니라 **"측정하는 날 그 자리에서 답할 수 있는 것은 PINN이다"**입니다.
-- 한계도 있습니다. 합성 데이터이고, 모든 실험이 같은 a(t)를 공유한다고 가정했습니다. a(t)를 맞혀도 학습 범위 밖인 세트 D′ 예측은 가장 좋은 고전 해보다 나빴습니다(0.035 vs 0.009). 이 기능은 아직 `enzopt run`에 연결되지 않았습니다. 자세한 내용은 [`docs/inactivation/README.md`](inactivation/README.md)에 있습니다.
+- 한계도 있습니다. 합성 데이터이고, 모든 실험이 같은 a(t)를 공유한다고 가정했습니다. a(t)를 맞혀도 학습 범위 밖인 세트 D′ 예측은 가장 좋은 고전 해보다 나빴습니다(0.035 vs 0.009). 자세한 내용은 [`docs/inactivation/README.md`](inactivation/README.md)에 있습니다.
+- **켜는 법:** `project.yaml`에 `identification.pinn.inactivation: shared`를 적습니다. 예제는 `uv run enzopt run projects/example_ldh_inactivation`입니다.
+  - ③ 식별과 ⑤ 설계는 표본마다 a(t)를 넣어 풉니다. ④ CRNT 검증은 반응망 자체(활성 효소 일정)에 대해 합니다.
+  - 결과는 그림 3e로 나옵니다.
+  - 예제에서 표본 4개로 정한 강건 효소량(33.5 nM)은 실제 필요량(36.9 nM)보다 작았습니다. 그래서 예제는 표본 8개를 씁니다(57.6 nM → 실제 99.7%).
 
 ## 9. 문제 해결
 

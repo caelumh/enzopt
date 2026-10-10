@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 import numpy as np
 import torch
 
+from ..core.activity import activity_curve, activity_rate  # noqa: F401 (re-exported)
+
 SPECIES = ["E", "NADH", "EN", "Pyr", "ENP", "EQL", "Lac", "EQ", "NAD"]
 STEPS = [
     ({"E": 1, "NADH": 1}, {"EN": 1}),
@@ -110,28 +112,6 @@ class PinnResult:
     loss_parts: dict
     history: list = field(default_factory=list)
     activity: dict | None = None  # inactivation: {"T", "c", "s", "w"} for activity_curve()
-
-
-def activity_curve(act: dict | None, t) -> np.ndarray:
-    """a(t) of a PinnResult (1 everywhere without inactivation)."""
-    t = np.asarray(t, float)
-    if not act:
-        return np.ones_like(t)
-    u = t[..., None] / act["T"]
-    c, s, w = np.asarray(act["c"]), float(act["s"]), np.asarray(act["w"])
-    h = (w * (1.0 / (1.0 + np.exp(-(u - c) / s)) - 1.0 / (1.0 + np.exp(c / s)))).sum(axis=-1)
-    return np.exp(-h)
-
-
-def activity_rate(act: dict | None, t) -> np.ndarray:
-    """λ(t) = −d ln a/dt: the first-order loss rate of every enzyme form that gives a(t) (1/s)."""
-    t = np.asarray(t, float)
-    if not act:
-        return np.zeros_like(t)
-    u = t[..., None] / act["T"]
-    c, s, w = np.asarray(act["c"]), float(act["s"]), np.asarray(act["w"])
-    sg = 1.0 / (1.0 + np.exp(-(u - c) / s))
-    return (w * sg * (1.0 - sg) / s).sum(axis=-1) / act["T"]
 
 
 class BatchedMLP(torch.nn.Module):
@@ -473,7 +453,7 @@ class LdhPinn:
         if self.inact:
             w = torch.nn.functional.softplus(self.theta.detach()[:, self.n_theta :]).double().cpu().numpy()
             c = self.inact_c.double().cpu().numpy().tolist()
-            act = [{"T": self.T, "c": c, "s": self.inact_s, "w": w[i].tolist()} for i in range(self.S)]
+            act = [{"kind": "steps", "T": self.T, "c": c, "s": self.inact_s, "w": w[i].tolist()} for i in range(self.S)]
         out = []
         for i, sd in enumerate(cfg.seeds):
             Kp = None if cfg.irreversible_last else float(10 ** th[i, 9])
