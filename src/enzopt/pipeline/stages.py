@@ -28,6 +28,10 @@ def stage_verdict(ctx: RunContext) -> None:
     main = vds["main"]
     write_json(out / "verdict.json", {"networks": vds, "main": "main"})
     lines = [f"[판정] {main['headline']}", main["guarantee_line"], ""]
+    if p.mechanism is not None:
+        m = p.mechanism
+        lines += [f"반응식: 메커니즘 목록의 {m.mechanism}에서 만듦 (전체 반응 {m.overall}, Haldane {m.haldane_step})"]
+        lines += [f"  참고: {t}" for t in m.notes] + [""]
     titles = {"main": "식별 반응망", "control": "비약가역 대조 반응망", "design": "설계 반응망(막다른 복합체 포함)"}
     for k, v in vds.items():
         lines.append(f"== {titles.get(k, k)}: {v['name']} ==")

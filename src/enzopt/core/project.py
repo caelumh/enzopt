@@ -139,6 +139,7 @@ class Project:
     simulation: dict
     design: dict
     quick_overrides: dict = field(default_factory=dict)
+    mechanism: object = None  # core.mechanisms.Expanded when network.mechanism chose the steps
 
     # ------------------------------------------------------------------ helpers
     @property
@@ -219,6 +220,22 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
     net = raw.get("network")
     if not isinstance(net, dict):
         raise ProjectError("network 항목이 없음")
+    mech = None
+    if net.get("mechanism") is not None:  # chosen from the mechanism library: steps are generated
+        from .mechanisms import MechanismError, expand
+
+        if net.get("steps") or net.get("species") or net.get("enzyme_species"):
+            raise ProjectError("network: mechanism을 쓰면 species·enzyme_species·steps는 적지 않음(둘 중 하나만)")
+        try:
+            mech = expand(net["mechanism"])
+        except MechanismError as e:
+            raise ProjectError(f"network.mechanism: {e}") from None
+        net = {**net, "species": mech.species, "enzyme_species": mech.enzyme_species, "steps": mech.steps}
+        th = dict(net.get("thermodynamics") or {})
+        th.setdefault("overall", mech.overall)
+        if mech.haldane_step is not None:
+            th.setdefault("haldane_step", mech.haldane_step)
+        net["thermodynamics"] = th
     for key in ("species", "steps"):
         if not net.get(key):
             raise ProjectError(f"network.{key} 항목이 없음")
@@ -258,7 +275,8 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
     n = len(network.steps)
     if prior:
         if len(prior.get("kf_log10", [])) != n:
-            raise ProjectError(f"prior.kf_log10 개수가 단계 수({n})와 다름")
+            listed = "; ".join(f"{i}. {st}" for i, st in enumerate(network.steps, start=1))
+            raise ProjectError(f"prior.kf_log10 개수가 단계 수({n})와 다름 — 단계: {listed}")
         n_rev = sum(1 for st in network.steps if st.reversible)
         n_kr = n_rev - (1 if hs else 0)
         if len(prior.get("kr_log10", [])) != n_kr:
@@ -329,6 +347,7 @@ def load_project(path: str | Path, force_vendored_yaml: bool = False) -> Project
         simulation=sim,
         design=des,
         quick_overrides=quick,
+        mechanism=mech,
     )
 
 

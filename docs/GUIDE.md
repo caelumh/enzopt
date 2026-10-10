@@ -76,6 +76,42 @@ enzopt는 이 사실을 숨기지 않고 설계에 씁니다.
 
 **⑤ 설계 대상.** 예제는 NADH 정량(assay)입니다. 시료의 NADH(100 µM)를 피루브산 과량과 LDH로 300초 안에 99% 소모시키는 조건을 찾습니다. ρ = 피루브산₀/NADH₀입니다. 설계용 반응망에는 피루브산이 많을 때 생기는 막다른 복합체 EQ·Pyr(Ki = 5 mM, 가정값)를 더합니다. 그래서 피루브산을 무작정 늘리면 오히려 느려집니다.
 
+### 반응식 쓰기: 직접 적거나 목록에서 고르기
+
+반응식(메커니즘)은 사용자가 정합니다. enzopt는 이름을 기호로만 읽고, "어떤 분자가 화살표의 어느 쪽에 몇 개 있나"에서 미분방정식·반응 그래프·보존 법칙을 만듭니다. 두 가지 방법이 있습니다.
+
+**① 직접 적기** — `network.species`·`enzyme_species`·`steps`에 한 줄에 한 단계씩(붙기·바뀌기·떨어지기) 적습니다. 이름은 영문자나 `_`로 시작하고 영문자·숫자·`_`·`'`만 씁니다(`NAD⁺`·한글·하이픈은 안 됨, 숫자로 시작하면 계수로 읽힘).
+
+**② 목록에서 고르기** — `network.mechanism`에 유형과 분자 이름만 적으면 단계가 만들어지고 `overall`·`haldane_step`도 채워집니다.
+
+```yaml
+network:
+  mechanism:
+    type: ordered_bibi                 # 아래 표
+    substrates: [NADH, Pyr]            # 붙는 순서
+    products: [Lac, NAD]               # 떨어지는 순서
+    letters: {NADH: N, Pyr: P, Lac: L, NAD: Q}   # 효소 형태 이름 글자 → EN, ENP, EQL, EQ
+    add:                               # 곁가지(선택)
+      - dead_end: {form: EQ, ligand: Pyr}         # 막다른 복합체·저해제·기질 저해
+  thermodynamics: {Kp: 23.0}
+  prior: ...                           # 개수는 만들어진 단계에 맞게
+```
+
+| 유형 (`type`) | 메커니즘 | 등급 |
+|---|---|---|
+| `uni_irreversible` | 기질 1개, 비가역(교과서 Michaelis–Menten) | C |
+| `uni` · `uni_iso` | 기질 1개, 가역 (· 효소 위 변환 단계 포함) | A |
+| `uni_bi_ordered` | 기질 1개 → 생성물 2개, 순서형 | A |
+| `ordered_bibi` | 기질 2개, 순서형 (LDH) | A |
+| `theorell_chance` | 기질 2개, 가운데 복합체가 안 쌓임 | A |
+| `random_bibi` | 기질 2개, 무작위형 | B |
+| `ping_pong` | 기질 2개, 핑퐁형 | A |
+| `ordered_terter` | 기질 3개, 순서형 | A |
+
+곁가지는 `dead_end`(막다른 복합체·저해제), `step`(손으로 적은 한 줄 + `enzyme_forms`), `background`(효소 없는 배경 반응)입니다. `uv run enzopt mechanisms`가 목록을, `uv run enzopt mechanisms ordered_bibi --substrates NADH,Pyr --products Lac,NAD --letters NADH=N,Pyr=P,Lac=L,NAD=Q`가 만들어지는 반응식·판정·보존 법칙과 붙여 넣을 YAML을 보여 줍니다. LDH 글자로 `ordered_bibi`를 고르면 손으로 적은 다섯 단계와 똑같아 PINN도 그대로 돕니다. 다른 메커니즘은 ①판정·고전 피팅·④검증·⑤설계까지 쓸 수 있고 ③ PINN은 아직 LDH만 지원합니다(F-13).
+
+어느 쪽이든 맞는 메커니즘을 고르는 것은 사용자의 몫입니다. 틀렸는지는 결과에서 드러납니다(9절, `enzopt suggest`).
+
 ## 4. 실행하기
 
 ```

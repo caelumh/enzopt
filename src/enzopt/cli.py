@@ -1,4 +1,4 @@
-"""Command line: ``enzopt run | check | suggest | pack | doctor | synth | dashboard``."""
+"""Command line: ``enzopt run | check | suggest | mechanisms | pack | doctor | synth | dashboard``."""
 
 from __future__ import annotations
 
@@ -114,6 +114,81 @@ def cmd_suggest(a) -> int:
     return 0
 
 
+def cmd_mechanisms(a) -> int:
+    from .core.crnt import verdict
+    from .core.mechanisms import MECHANISMS, MechanismError, expand, generic_example
+    from .core.network import Network
+
+    def grade(x):
+        v = verdict(Network.from_strings("m", x.species, x.steps, x.enzyme_species).reactions(), "m")
+        return v, f"{v.grade} (약가역 {'예' if v.weakly_reversible else '아니오'}, 결핍 {v.deficiency})"
+
+    if not a.type:
+        print("고를 수 있는 메커니즘 (project.yaml의 network.mechanism.type). 이름은 예시(A·B 기질, P·Q 생성물):")
+        print()
+        for key, m in MECHANISMS.items():
+            x = generic_example(key)
+            print(f"{key:17s} {m.title} — 등급 {grade(x)[1]}")
+            for i, st in enumerate(x.steps, start=1):
+                print(f"    {i}. {st}")
+            if m.note:
+                print(f"    참고: {m.note}")
+        print()
+        print('곁가지(add): dead_end {form, ligand} · step "…" + enzyme_forms · background true')
+        print("자세히: enzopt mechanisms <type> --substrates A,B --products P,Q [--letters A=a] [--dead-end 형태:분자]")
+        return 0
+    block = {"type": a.type, "substrates": (a.substrates or "").split(","), "products": (a.products or "").split(",")}
+    if a.letters:
+        block["letters"] = dict(kv.split("=", 1) for kv in a.letters.split(","))
+    add = [{"dead_end": {"form": d.split(":")[0], "ligand": d.split(":")[1]}} for d in a.dead_end or []]
+    if a.background:
+        add.append({"background": True})
+    if add:
+        block["add"] = add
+    try:
+        x = expand(block)
+    except (MechanismError, ValueError, IndexError) as e:
+        print(f"오류: {e}")
+        return 2
+    v, g = grade(x)
+    print(f"{a.type}: {MECHANISMS[a.type].title}")
+    for i, st in enumerate(x.steps, start=1):
+        print(f"  {i}. {st}" + ("   ← Haldane 단계(k₋를 K'로)" if i == x.haldane_step else ""))
+    print(f"화학종 {len(x.species)}개: {', '.join(x.species)}")
+    print(f"효소 형태: {', '.join(x.enzyme_species)} (첫째가 빈 효소)")
+    print(f"판정: 등급 {g}")
+    for t in v.conservation_text:
+        print(f"  보존량 = {t}")
+    for t in x.notes:
+        print(f"참고: {t}")
+    n_rev = sum(1 for st in x.steps if "<=>" in st)
+    n_kr = n_rev - (1 if x.haldane_step else 0)
+    print()
+    print("project.yaml에 붙여 넣기(사전분포 _ 자리는 문헌 값으로 채울 것):")
+    print("network:")
+    print("  mechanism:")
+    print(f"    type: {a.type}")
+    print(f"    substrates: [{', '.join(block['substrates'])}]")
+    print(f"    products: [{', '.join(block['products'])}]")
+    if a.letters:
+        print("    letters: {" + ", ".join(f"{k}: {v}" for k, v in block["letters"].items()) + "}")
+    if add:
+        print("    add:")
+        for d in add:
+            if "dead_end" in d:
+                print(f"      - dead_end: {{form: {d['dead_end']['form']}, ligand: {d['dead_end']['ligand']}}}")
+            else:
+                print("      - background: true")
+    print("  thermodynamics:")
+    print(f"    Kp: _                      # 전체 반응 {x.overall}의 평형 상수 K'")
+    print("  prior:")
+    print(f"    kf_log10: [{', '.join(['_'] * len(x.steps))}]   # {len(x.steps)}개: 단계마다 정방향 log10 k")
+    print(f"    kr_log10: [{', '.join(['_'] * n_kr)}]   # {n_kr}개: 가역 단계의 역방향(Haldane 단계 제외)")
+    print("    Kp_log10: _")
+    print("    sd_decades: 1.5")
+    return 0
+
+
 def cmd_pack(a) -> int:
     from .pack import pack_run
 
@@ -170,6 +245,16 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--verify", type=int, default=1, help="고전 피팅으로 확인할 상위 후보 수(0 = 생략)")
     g.add_argument("--runs-root", help="결과 폴더 상위(기본: <저장소>/runs)")
     g.set_defaults(func=cmd_suggest)
+    mm = sub.add_parser("mechanisms", help="반응식 고르기: 메커니즘 목록, 고른 메커니즘의 반응식·판정·붙여 넣을 YAML")
+    mm.add_argument("type", nargs="?", help="메커니즘 이름(생략하면 목록)")
+    mm.add_argument("--substrates", help="기질 이름, 붙는 순서대로 쉼표로(예: NADH,Pyr)")
+    mm.add_argument("--products", help="생성물 이름, 떨어지는 순서대로(예: Lac,NAD)")
+    mm.add_argument("--letters", help="효소 형태 이름에 쓸 한 글자(예: NADH=N,Pyr=P,Lac=L,NAD=Q)")
+    mm.add_argument(
+        "--dead-end", action="append", metavar="형태:분자", help="막다른 복합체 곁가지(예: EQ:Pyr), 여러 번"
+    )
+    mm.add_argument("--background", action="store_true", help="효소 없는 배경 반응 곁가지")
+    mm.set_defaults(func=cmd_mechanisms)
     p = sub.add_parser("pack", help="실행 폴더를 제출용 zip 하나로 묶기")
     p.add_argument("run_dir")
     p.add_argument("-o", "--output", help="zip 경로(기본: <실행 폴더>.zip)")

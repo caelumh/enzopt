@@ -15,6 +15,7 @@
 - 실행: `uv run enzopt run projects/example_ldh_synth` (`--quick` 짧은 모드, `--resume <실행 폴더>`)
 - 점검: `uv run enzopt doctor`
 - 빠진 반응 단계 제안: `uv run enzopt suggest projects/<이름>`
+- 반응식 고르기(메커니즘 목록): `uv run enzopt mechanisms`
 - 대시보드: `uv run enzopt dashboard`
 - 테스트: `uv run pytest -m "not long" -q` (긴 테스트 포함: `uv run pytest -q`)
 - 린트·포맷: `uv run ruff check .` / `uv run ruff format --check .`
