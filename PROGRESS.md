@@ -1,6 +1,6 @@
 # 진행 상황
 
-> 상태: 진행 중 · 브랜치 feature/general-network(F-13, feature/real-data에서 갈라짐. 대회용 feature/real-data는 100.00(47/47) 그대로) · 현재 작업: M6-6 보완 인터뷰 답 반영(Q-03 (a)+(d), Q-02 (a)+(c)) · 직전 점수 91.82(68/77) · 최종 갱신: 2026-10-10
+> 상태: 대기 · 브랜치 feature/general-network(F-13, feature/real-data에서 갈라짐. 대회용 feature/real-data는 100.00(47/47) 그대로) · 현재 작업: M6-6 — (d)·Q-02 끝(b5d8336), (a) T3는 `evals/synthetic_general.yaml` 쓰기 허락 대기, 남은 3개 반응망은 QUESTIONS Q-04 답 대기 · 직전 점수 91.82(68/77) · 최종 갱신: 2026-10-10
 
 ## 사용자 필요 작업
 - [ ] 분광광도계 내보내기 파일(파일럿) 전달 — 필요 시점: M3 끝(늦어도 10/11 실험 직후, 10/12 재계산 전) — 원본 파일을 `projects/<이름>/data/raw/`에 두고 알려 주면 변환기를 맞춘다
