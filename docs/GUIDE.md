@@ -8,7 +8,7 @@
 - 결과를 받았으면 5절(그림 읽기)이 본론입니다. 그림마다 **무엇을 그렸나 → 어떻게 읽나 → 예제에서 읽은 값 → 정상과 이상 신호 → 이상할 때 할 일** 순서로 적었습니다.
 - 6절은 피펫 표, 7절은 결과 폴더의 파일, 8절은 실측 데이터로 시험한 결과, 9절은 문제 해결, 10절은 용어집입니다.
 
-5절의 그림은 합성 예제 `projects/example_ldh_synth`를 전체 모드로 돌린 실행 `runs/example_ldh_synth/2026-10-10_0821`에서 가져왔습니다(`docs/guide/`에 사본). GPU float32로 학습하므로 다시 돌리면 숫자가 조금씩 다를 수 있습니다. 1~3·6·8절의 보조 그림(그림 A~H)은 `scripts/guide_figures.py`가 같은 실행과 Holmes 실행 `runs/ldh_holmes1988/2026-10-09_2311`에서 그렸습니다. 8절의 그림 I는 `scripts/inactivation_demo.py`가, 그림 J는 `enzopt suggest`가 그렸습니다. 그림을 넣은 HTML 판은 [`GUIDE.html`](GUIDE.html)입니다(`uv run python scripts/build_guide_html.py`로 다시 만듦).
+5절의 그림은 합성 예제 `projects/example_ldh_synth`를 전체 모드로 돌린 실행 `runs/example_ldh_synth/2026-10-10_0821`에서 가져왔습니다(`docs/guide/`에 사본). GPU float32로 학습하므로 다시 돌리면 숫자가 조금씩 다를 수 있습니다. 1~3·6·8절의 보조 그림(그림 A~H)은 `scripts/guide_figures.py`가 같은 실행과 Holmes 실행 `runs/ldh_holmes1988/2026-10-09_2311`에서 그렸습니다. 8절의 그림 I는 `scripts/inactivation_demo.py`가, 그림 J는 `enzopt suggest`가 그렸습니다. 그림 A·D·K(흐름도)는 손으로 그린 SVG입니다. 그림을 넣은 HTML 판은 [`GUIDE.html`](GUIDE.html)입니다(`uv run python scripts/build_guide_html.py`로 다시 만듦).
 
 ---
 
@@ -55,6 +55,8 @@ enzopt는 이 사실을 숨기지 않고 설계에 씁니다.
 - 온도가 변하는 실험, 효소가 실활하는 실험은 모델 밖입니다(그림 2b로 온도를 확인합니다).
 
 ## 3. 다섯 단계
+
+![그림 K — enzopt의 실행 흐름. 가운데는 `enzopt run`의 다섯 단계, 오른쪽은 측정 직후 점검(`check`)·빠진 단계 제안(`suggest`)·결과 보기(`dashboard`·`pack`)입니다. 주황 꼬리표는 멈추거나 경고하는 조건이고, 파란 점선은 ①의 CRNT 보장이 ④·⑤에서 쓰이는 곳, 왼쪽 주황 점선은 피펫 표대로 확인 실험을 하고 결과를 넣어 다시 돌리는 고리입니다.](guide/flow.svg)
 
 | 단계 | 입력 | 계산 | 결과 파일 | 그림 |
 |---|---|---|---|---|

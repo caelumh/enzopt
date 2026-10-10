@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 980" font-family="Pretendard, 'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif" role="img" aria-label="enzopt 실행 흐름도">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+    <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0072B2"/>
+    </marker>
+    <marker id="ahp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#A0527F"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="980" fill="#ffffff"/>
+
+  <!-- ============ input ============ -->
+  <rect x="280" y="16" width="440" height="58" rx="29" fill="#f2f2f2" stroke="#888" stroke-width="1.4"/>
+  <text x="500" y="41" text-anchor="middle" font-size="15" font-weight="700" fill="#222">입력</text>
+  <text x="500" y="62" text-anchor="middle" font-size="12.5" fill="#333"><tspan font-family="Consolas, monospace">project.yaml</tspan> (반응식·실험·설정) + <tspan font-family="Consolas, monospace">data/*.csv</tspan> (진행 곡선)</text>
+
+  <!-- command labels on arrows -->
+  <path d="M340,74 V110" stroke="#555" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
+  <text x="348" y="97" font-size="12" fill="#555" font-family="Consolas, monospace">enzopt run</text>
+  <path d="M720,45 H810 V110" stroke="#555" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
+  <text x="818" y="97" font-size="12" fill="#555" font-family="Consolas, monospace">enzopt check</text>
+  <path d="M720,58 H985 V500 H974" stroke="#A0527F" stroke-width="1.6" fill="none" marker-end="url(#ahp)"/>
+  <text x="980" y="300" font-size="12" fill="#A0527F" font-family="Consolas, monospace" text-anchor="middle" transform="rotate(90 980 300)">enzopt suggest</text>
+
+  <!-- ============ main column: run ============ -->
+  <g font-size="12.5" fill="#222">
+    <!-- prep -->
+    <rect x="60" y="112" width="540" height="66" rx="8" fill="#f7f7f7" stroke="#999" stroke-width="1.3"/>
+    <text x="76" y="133" font-size="14.5" font-weight="700">실행 준비</text>
+    <text x="76" y="152">새 폴더 <tspan font-family="Consolas, monospace">runs/&lt;프로젝트&gt;/&lt;날짜_시각&gt;/</tspan> · manifest(설정·해시·장치)</text>
+    <text x="76" y="170" font-size="11.5" fill="#555">입력과 코드가 같은 단계는 이전 결과 재사용 · 중단되면 --resume으로 이어서</text>
+
+    <!-- 1 -->
+    <rect x="60" y="192" width="540" height="78" rx="8" fill="#fff" stroke="#0072B2" stroke-width="1.6"/>
+    <path d="M60,200 Q60,192 68,192 H592 Q600,192 600,200 V214 H60 z" fill="#d9e8f5"/>
+    <text x="76" y="209" font-size="14.5" font-weight="700">① 반응망 판정 (CRNT)</text>
+    <text x="76" y="234">식별용 · 비약가역 대조 · 설계용 반응망 → 약가역성 · 결핍 · 보존 법칙</text>
+    <text x="76" y="254">등급 A: 영속 + 적합류마다 평형 하나 · B: 영속만 · C: 보장 없음</text>
+    <rect x="426" y="194" width="168" height="18" rx="9" fill="#fff4e8" stroke="#D55E00" stroke-width="0.8"/>
+    <text x="510" y="207" text-anchor="middle" font-size="11" fill="#9a3c00">C면 경고 띠 붙이고 계속</text>
+
+    <!-- 2 -->
+    <rect x="60" y="292" width="540" height="64" rx="8" fill="#fff" stroke="#56B4E9" stroke-width="1.6"/>
+    <path d="M60,300 Q60,292 68,292 H592 Q600,292 600,300 V314 H60 z" fill="#e1f1fb"/>
+    <text x="76" y="309" font-size="14.5" font-weight="700">② 데이터 검사</text>
+    <text x="76" y="335">형식(시간 역행·빈 값·A340 &gt; 2) · 첫값 vs 예상 초기값 · 큐벳 온도</text>
+    <rect x="370" y="294" width="224" height="18" rx="9" fill="#fff4e8" stroke="#D55E00" stroke-width="0.8"/>
+    <text x="482" y="307" text-anchor="middle" font-size="11" fill="#9a3c00">오류 → 파일·줄 번호와 함께 멈춤</text>
+
+    <!-- 3 -->
+    <rect x="60" y="378" width="540" height="150" rx="8" fill="#fff" stroke="#E69F00" stroke-width="1.6"/>
+    <path d="M60,386 Q60,378 68,378 H592 Q600,378 600,386 V400 H60 z" fill="#fbecd0"/>
+    <text x="76" y="395" font-size="14.5" font-weight="700">③ 식별 (PINN, GPU)</text>
+    <text x="76" y="421">시드마다 신경망과 속도 상수를 함께 학습 (재시작 8, 준정상 효소 분포, Haldane)</text>
+    <text x="76" y="441" fill="#7a5200">[옵션 inactivation: shared] 효소 활성 곡선 a(t)도 함께 학습</text>
+    <text x="76" y="461">학습된 상수로 미분방정식을 다시 풀어 데이터와 비교 → 3σ 넘는 시드 제외</text>
+    <text x="76" y="481">비교 모델: 고전 피팅(최소제곱) · 비약가역 대조 → 홀드아웃 오차 표</text>
+    <text x="76" y="501" font-size="11.5" fill="#555">출력: 속도 상수 표본(시드마다 한 벌) · 그림 3a~3e</text>
+    <rect x="410" y="380" width="184" height="18" rx="9" fill="#fff4e8" stroke="#D55E00" stroke-width="0.8"/>
+    <text x="502" y="393" text-anchor="middle" font-size="11" fill="#9a3c00">남은 표본 &lt; 2 → ⑤에서 멈춤</text>
+
+    <!-- 4 -->
+    <rect x="60" y="550" width="540" height="110" rx="8" fill="#fff" stroke="#009E73" stroke-width="1.6"/>
+    <path d="M60,558 Q60,550 68,550 H592 Q600,550 600,558 V572 H60 z" fill="#d6f0e7"/>
+    <text x="76" y="567" font-size="14.5" font-weight="700">④ 해석 · 검증 (scipy · Hopsan)</text>
+    <text x="76" y="593">표본 × (같은 적합류 12 + 다른 류 1)을 3000 s까지 풀기</text>
+    <text x="76" y="613">자동 검증: 보존량 · 양의 농도 · 평형 도달 · 리아푸노프 함수</text>
+    <text x="76" y="633">Hopsan: 1단계 적합류 배치 + 대표 표본 대조 (<tspan font-family="Consolas, monospace">.hmf</tspan> 저장)</text>
+    <rect x="354" y="552" width="240" height="18" rx="9" fill="#fff4e8" stroke="#D55E00" stroke-width="0.8"/>
+    <text x="474" y="565" text-anchor="middle" font-size="11" fill="#9a3c00">실패 → Δt/10로 다시, "수치 오류 의심"</text>
+
+    <!-- 5 -->
+    <rect x="60" y="682" width="540" height="112" rx="8" fill="#fff" stroke="#D55E00" stroke-width="1.6"/>
+    <path d="M60,690 Q60,682 68,682 H592 Q600,682 600,690 V704 H60 z" fill="#f8dfd0"/>
+    <text x="76" y="699" font-size="14.5" font-weight="700">⑤ 강건 설계</text>
+    <rect x="430" y="684" width="164" height="18" rx="9" fill="#fff4e8" stroke="#D55E00" stroke-width="0.8"/>
+    <text x="512" y="697" text-anchor="middle" font-size="11" fill="#9a3c00">목표 불가능한 ρ는 빈칸</text>
+    <text x="76" y="725">평형 한계 ρ_min: K′만으로 (설계용 반응망이 등급 A일 때)</text>
+    <text x="76" y="745">ρ마다 모든 표본이 목표(300 s, 99%)를 넘는 최소 효소량 → U자 곡선</text>
+    <text x="76" y="765">바닥점 ρ*·Et* → 피펫 표 (L1·L2 평형 한계 · D1 강건 · D0 공칭 · Z 대조)</text>
+    <text x="76" y="785" font-size="11.5" fill="#555">실활 옵션이면 표본마다 a(t)를 넣어 풂</text>
+  </g>
+
+  <!-- stage arrows -->
+  <g stroke="#555" stroke-width="1.6" fill="none" marker-end="url(#ah)">
+    <path d="M330,178 V190"/>
+    <path d="M330,270 V290"/>
+    <path d="M330,356 V376"/>
+    <path d="M330,528 V548"/>
+    <path d="M330,660 V680"/>
+    <path d="M330,794 V814"/>
+  </g>
+
+  <!-- CRNT guarantee carried to 4 and 5 -->
+  <path d="M60,232 H44 V605 H58" stroke="#0072B2" stroke-width="1.3" stroke-dasharray="5 4" fill="none" marker-end="url(#ahb)"/>
+  <path d="M44,605 V725 H58" stroke="#0072B2" stroke-width="1.3" stroke-dasharray="5 4" fill="none" marker-end="url(#ahb)"/>
+  <text x="38" y="460" font-size="11" fill="#0b4f80" text-anchor="middle" transform="rotate(-90 38 460)">①의 보장 → ④ 검증 기준 · ⑤ 평형 한계</text>
+
+  <!-- output -->
+  <rect x="60" y="816" width="540" height="56" rx="28" fill="#fff4ec" stroke="#D55E00" stroke-width="1.4"/>
+  <text x="330" y="840" text-anchor="middle" font-size="14" font-weight="700" fill="#222">결과 폴더</text>
+  <text x="330" y="861" text-anchor="middle" font-size="12" fill="#333">그림 1a~5d · CSV · <tspan font-family="Consolas, monospace">pipette.csv</tspan> · Hopsan <tspan font-family="Consolas, monospace">.hmf</tspan> · manifest</text>
+
+  <!-- loop: confirmation experiments -->
+  <path d="M60,844 H20 V30 H278" stroke="#D55E00" stroke-width="1.4" stroke-dasharray="6 4" fill="none" marker-end="url(#ah)"/>
+  <text x="14" y="440" font-size="11.5" fill="#9a3c00" text-anchor="middle" transform="rotate(-90 14 440)">피펫 표대로 확인 실험 → design-check로 넣고 다시 run</text>
+
+  <!-- ============ right column ============ -->
+  <!-- check -->
+  <rect x="650" y="112" width="320" height="92" rx="8" fill="#f4f8fb" stroke="#56B4E9" stroke-width="1.4"/>
+  <text x="666" y="134" font-size="14.5" font-weight="700" fill="#222">측정 직후 점검</text>
+  <text x="666" y="156" font-size="12.5" fill="#222">①·②만 임시 폴더에서 (결과 안 남김)</text>
+  <text x="666" y="176" font-size="12.5" fill="#222">예상 평형 · 차이 · 끝 기울기 · 온도 표</text>
+  <text x="666" y="195" font-size="11.5" fill="#555">없는 파일은 이름을 대고 알려 줌</text>
+
+  <!-- options -->
+  <rect x="650" y="226" width="320" height="128" rx="8" fill="#fafafa" stroke="#aaa" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="666" y="248" font-size="14.5" font-weight="700" fill="#222">주요 설정 (project.yaml)</text>
+  <g font-size="12" fill="#333">
+    <text x="666" y="270">seeds · noise_sigma(σ, 제외·문턱 기준)</text>
+    <text x="666" y="289">pinn.inactivation: shared → 효소 실활</text>
+    <text x="666" y="308">baseline_fit · control → 비교 모델</text>
+    <text x="666" y="327">design: 목표 전환율·시간·막다른 복합체</text>
+    <text x="666" y="346"><tspan font-family="Consolas, monospace">--quick</tspan>: 시드·격자 줄인 짧은 모드</text>
+  </g>
+  <path d="M650,290 H620 V440 H602" stroke="#999" stroke-width="1.2" stroke-dasharray="3 3" fill="none" marker-end="url(#ah)"/>
+
+  <!-- suggest -->
+  <rect x="650" y="378" width="320" height="282" rx="8" fill="#fbf3f8" stroke="#A0527F" stroke-width="1.6"/>
+  <path d="M650,386 Q650,378 658,378 H962 Q970,378 970,386 V400 H650 z" fill="#f3dfea"/>
+  <text x="666" y="395" font-size="14.5" font-weight="700" fill="#222">빠진 반응 단계 제안</text>
+  <g font-size="12.5" fill="#222">
+    <text x="666" y="424"><tspan font-weight="700">1</tspan> PINN 보정 항 exp(g(농도))로</text>
+    <text x="682" y="442">다섯 단계가 모자란 곳 찾기</text>
+    <text x="666" y="468"><tspan font-weight="700">2</tspan> 후보 4종을 하나씩 반응식에 넣어</text>
+    <text x="682" y="486">PINN으로 맞추고 ODE 재해석으로 순위</text>
+    <text x="682" y="504" font-size="11.5" fill="#555">EN·Lac · EQ·Pyr · E·Pyr · E·Lac</text>
+    <text x="666" y="530"><tspan font-weight="700">3</tspan> 다섯 단계와 상위 후보를</text>
+    <text x="682" y="548">고전 피팅으로 확인 → 판정</text>
+  </g>
+  <rect x="666" y="560" width="288" height="56" rx="6" fill="#fff" stroke="#A0527F" stroke-width="0.8"/>
+  <text x="810" y="579" text-anchor="middle" font-size="11.5" fill="#222">다섯 단계로 설명됨 / 후보 제안(K_i) /</text>
+  <text x="810" y="597" text-anchor="middle" font-size="11.5" fill="#222">맞는 후보 없음</text>
+  <text x="810" y="611" text-anchor="middle" font-size="10.5" fill="#555">문턱: 전체 2σ · 세트별 3σ · 오차 절반</text>
+  <text x="666" y="640" font-size="11.5" fill="#7a2f5a">→ 반응식에 단계 추가, 또는 리간드 농도를</text>
+  <text x="680" y="654" font-size="11.5" fill="#7a2f5a">바꾼 실험 추가 후 다시 run</text>
+
+  <!-- dashboard / pack -->
+  <rect x="650" y="690" width="320" height="104" rx="8" fill="#f7f7f7" stroke="#999" stroke-width="1.2"/>
+  <text x="666" y="712" font-size="14.5" font-weight="700" fill="#222">결과 보기 · 제출</text>
+  <text x="666" y="736" font-size="12" fill="#222"><tspan font-family="Consolas, monospace">enzopt dashboard</tspan>: 단계별 요약·그림</text>
+  <text x="680" y="754" font-size="11.5" fill="#555">읽기 전용, 새 실행은 별도 프로세스</text>
+  <text x="666" y="778" font-size="12" fill="#222"><tspan font-family="Consolas, monospace">enzopt pack</tspan>: 입력·그림·CSV·Hopsan을 zip 하나로</text>
+  <path d="M600,844 H810 V796" stroke="#555" stroke-width="1.4" fill="none" marker-end="url(#ah)"/>
+
+  <!-- legend -->
+  <g font-size="11" fill="#444">
+    <rect x="60" y="900" width="910" height="64" rx="8" fill="#fcfcfc" stroke="#ddd"/>
+    <rect x="76" y="914" width="30" height="14" rx="7" fill="#fff4e8" stroke="#D55E00" stroke-width="0.8"/>
+    <text x="114" y="925">멈추거나 경고하는 조건</text>
+    <path d="M260,921 H300" stroke="#0072B2" stroke-width="1.3" stroke-dasharray="5 4"/>
+    <text x="308" y="925">CRNT 보장이 쓰이는 곳</text>
+    <path d="M460,921 H500" stroke="#D55E00" stroke-width="1.4" stroke-dasharray="6 4"/>
+    <text x="508" y="925">실험 → 다시 실행하는 고리</text>
+    <path d="M680,921 H720" stroke="#999" stroke-width="1.2" stroke-dasharray="3 3"/>
+    <text x="728" y="925">설정이 영향을 주는 단계</text>
+    <text x="76" y="952">단계마다 결과는 실행 폴더의 1_verdict · 2_data · 3_fit · 4_sim · 5_design 아래에 그림(PDF·PNG)과 그 값의 CSV로 남는다.</text>
+  </g>
+</svg>
