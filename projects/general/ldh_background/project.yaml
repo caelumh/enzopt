@@ -29,6 +29,7 @@ control:                      # 비약가역 대조: 첫 종속 단계를 한 �
 experiments:
   T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, NADH: 0.2, NAD: 0, Pyr: 0.2, Lac: 9.8, Et_nM: 27.3, role: train}
   T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, NADH: 0, NAD: 0.2, Pyr: 0, Lac: 10, Et_nM: 27.3, role: train}
+  T3: {file: data/setT3.csv, temp_file: data/setT3_temp.csv, NADH: 0.2, Pyr: 1, Lac: 9, Et_nM: 27.3, role: train}
   H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9, Et_nM: 27.3, role: holdout}
   H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, NADH: 0.2, NAD: 0, Pyr: 0.5, Lac: 9.5, Et_nM: 27.3, role: holdout}
 

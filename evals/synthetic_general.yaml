@@ -1,5 +1,6 @@
 # F-13 현실적 합성 데이터 설정 (EVAL.md 부록 C, 2026-10-10 보완 인터뷰)
-# M6-0b에서 한 번 만들고 고치지 않는다(EVAL.md "변경 금지"). 생성기: `uv run enzopt synth evals/synthetic_general.yaml projects/general`
+# M6-0b에서 만들고 고치지 않는다(EVAL.md "변경 금지"). 2026-10-10 보완 인터뷰 Q-03 (a)로 학습 세트 T3를 더해 한 번 다시 만들었다.
+# 생성기: `uv run enzopt synth evals/synthetic_general.yaml projects/general`
 # 항목은 사용자가 승인했고 수치는 Claude가 정했다. 단위: mM, s. 정답 kr의 종속 값은 열역학 제약(core.thermo)으로 맞춘 값이다.
 version: 2
 seed: 20261011            # 실험별 오차·잡음 난수의 시드(고정). 반응망마다 seed + 순번
@@ -16,10 +17,11 @@ common:
   holdout_criterion:               # 학습 재현 + 홀드아웃 AC-05 틀 (EVAL.md AC-24·25·31)
     train_sigma: 3.0               # 학습 재현: 모든 학습 세트·신호 RMSE ÷ σ ≤ 3인 표본이 절반 이상
     train_fraction: 0.5
-    rmse_sigma: 2.0                # 홀드아웃: RMSE ≤ max(2σ, 기준 모델 RMSE × 1.5), 세트·신호마다 표본 평균과 최악
+    rmse_sigma: 2.0                # 홀드아웃: RMSE ≤ max(2σ, 기준 모델 RMSE × 1.5, 고전 피팅 최악 × 1.5), 세트·신호마다 표본 평균과 최악
     oracle_factor: 1.5
     oracle: fitted_enzyme_scale    # 기준 모델 = 정답 메커니즘·상수 + 학습 세트로 맞춘 효소량 배율 하나
     oracle_scale_bounds: [0.8, 1.3]
+    classical_factor: 1.5          # Q-04(2026-10-10): 한계에 같은 실행의 고전 피팅(학습 재현을 통과한 시작점) 최악 × 1.5도 더함
 
 networks:
   uni_irreversible:
@@ -41,6 +43,7 @@ networks:
       T2: {S: 0.05, P: 0.15, role: train}
       H1: {S: 0.1, P: 0.1, role: holdout}
       H2: {S: 0.3, role: holdout}
+      T3: {S: 0.5, role: train}
 
   uni:
     note: "기질 1개, 가역"
@@ -61,6 +64,7 @@ networks:
       T2: {P: 0.2, role: train}
       H1: {S: 0.1, P: 0.1, role: holdout}
       H2: {S: 0.3, role: holdout}
+      T3: {S: 0.5, role: train}
 
   uni_iso:
     note: "기질 1개, 가역 + 효소 위 변환"
@@ -82,6 +86,7 @@ networks:
       T2: {P: 0.2, role: train}
       H1: {S: 0.1, P: 0.1, role: holdout}
       H2: {S: 0.3, role: holdout}
+      T3: {S: 0.5, role: train}
 
   uni_bi_ordered:
     note: "기질 1개 → 생성물 2개, 순서형"
@@ -104,6 +109,7 @@ networks:
       T2: {P: 0.2, Q: 5.2, role: train}
       H1: {A: 0.1, P: 0.1, Q: 5.1, role: holdout}
       H2: {A: 0.3, Q: 5, role: holdout}
+      T3: {A: 0.5, Q: 5, role: train}
 
   theorell_chance:
     note: "기질 2개, Theorell–Chance(가운데 복합체가 안 쌓임)"
@@ -125,6 +131,7 @@ networks:
       T2: {Q: 0.2, P: 10, role: train}
       H1: {A: 0.1, Q: 0.1, B: 0.1, P: 9.9, role: holdout}
       H2: {A: 0.2, B: 0.5, P: 9.5, role: holdout}
+      T3: {A: 0.2, B: 1, P: 9, role: train}
 
   random_bibi:
     note: "기질 2개, 무작위형(갈래 순환 둘 + 전체 반응 순환 하나), 결핍 2"
@@ -152,6 +159,7 @@ networks:
       T2: {Q: 0.2, P: 10, role: train}
       H1: {A: 0.1, Q: 0.1, B: 0.1, P: 9.9, role: holdout}
       H2: {A: 0.2, B: 0.5, P: 9.5, role: holdout}
+      T3: {A: 0.2, B: 1, P: 9, role: train}
 
   ping_pong:
     note: "기질 2개, 핑퐁형(변형 효소 F)"
@@ -174,6 +182,7 @@ networks:
       T2: {Q: 0.2, P: 10, role: train}
       H1: {A: 0.1, Q: 0.1, B: 0.1, P: 9.9, role: holdout}
       H2: {A: 0.2, B: 0.5, P: 9.5, role: holdout}
+      T3: {A: 0.2, B: 2, P: 8, role: train}
 
   ordered_terter:
     note: "기질 3개, 순서형"
@@ -199,6 +208,7 @@ networks:
       T2: {P: 0.2, R: 0.2, Q: 10.2, role: train}
       H1: {A: 0.1, B: 0.1, C: 0.1, P: 0.1, Q: 10.1, R: 0.1, role: holdout}
       H2: {A: 0.2, B: 0.2, C: 0.5, Q: 10, role: holdout}
+      T3: {A: 0.2, B: 0.2, C: 1, Q: 10, role: train}
 
   ldh_dead_end:
     note: "LDH + 막다른 복합체 EQ·Pyr(정식 단계, K_i 5 mM)"
@@ -223,6 +233,7 @@ networks:
       T2: {NADH: 0.2, Pyr: 10, role: train}
       H1: {NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9, role: holdout}
       H2: {NADH: 0.2, Pyr: 5, role: holdout}
+      T3: {NADH: 0.2, Pyr: 2, role: train}
 
   ldh_competing:
     note: "LDH 경쟁 기질: 피루브산과 2-옥소부티르산(Oxb → 2-하이드록시부티르산 Hbt), 전체 반응 둘"
@@ -251,6 +262,7 @@ networks:
       T2: {NAD: 0.3, Lac: 10, Hbt: 5, role: train}
       H1: {NADH: 0.3, Pyr: 0.1, Oxb: 0.4, Lac: 5, role: holdout}
       H2: {NADH: 0.2, NAD: 0.1, Pyr: 0.15, Lac: 5.05, Oxb: 0.15, Hbt: 0.05, role: holdout}
+      T3: {NADH: 0.3, Oxb: 0.4, Lac: 5, role: train}
 
   ldh_background:
     note: "LDH + 효소 없는 NADH 분해(한 방향), 전체 반응 둘, 등급 C"
@@ -275,3 +287,4 @@ networks:
       T2: {NADH: 0, NAD: 0.2, Pyr: 0, Lac: 10, role: train}
       H1: {NADH: 0.1, NAD: 0.1, Pyr: 0.1, Lac: 9.9, role: holdout}
       H2: {NADH: 0.2, NAD: 0, Pyr: 0.5, Lac: 9.5, role: holdout}
+      T3: {NADH: 0.2, Pyr: 1, Lac: 9, role: train}

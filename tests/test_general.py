@@ -277,7 +277,9 @@ def oracle_rmse(key: str) -> dict:
 
 
 def identification_report(key: str, rd) -> dict:
-    """Training reproduction and the holdout AC-05 frame (EVAL.md, F-13) of one run."""
+    """Training reproduction and the holdout AC-05 frame (EVAL.md, F-13) of one run. The holdout limit is
+    max(2σ, reference model × 1.5, classical fit × 1.5): the last term (Q-04, 2026-10-10) is the worst holdout RMSE
+    of the run's classical-fit starts (3_fit/baseline) that pass the training reproduction rule."""
     from enzopt.core.project import load_project
 
     crit = load_yaml(EVALS / "synthetic_general.yaml")["common"]["holdout_criterion"]
@@ -292,19 +294,31 @@ def identification_report(key: str, rd) -> dict:
         return {prim: s["rmse_ode"][exp]}
 
     train = [n for n, e in p.experiments.items() if e.role == "train"]
-    ok_train = []
-    for s in samples:
+
+    def reproduces(s) -> bool:
         vals = [v / sigma[sg] if v is not None else np.inf for n in train for sg, v in rm(s, n).items()]
-        ok_train.append(bool(vals) and max(vals) <= float(crit["train_sigma"]))
+        return bool(vals) and max(vals) <= float(crit["train_sigma"])
+
+    ok_train = [reproduces(s) for s in samples]
+    classical = [json.loads(f.read_text(encoding="utf-8")) for f in sorted((rd / "3_fit" / "baseline").glob("*.json"))]
+    classical = [c for c in classical if "rmse_ode" in c and reproduces(c)]
     oracle = oracle_rmse(key)
     kept = [s for s in samples if s["kept"]]
     hold = {}
     for (exp, sg), o in oracle.items():
-        limit = max(float(crit["rmse_sigma"]) * sigma[sg], float(crit["oracle_factor"]) * o)
+        cl = [rm(c, exp).get(sg) for c in classical]
+        cl_worst = max((v for v in cl if v is not None), default=0.0)
+        limit = max(
+            float(crit["rmse_sigma"]) * sigma[sg],
+            float(crit["oracle_factor"]) * o,
+            float(crit["classical_factor"]) * cl_worst,
+        )
         vals = [rm(s, exp)[sg] for s in kept]
         vals = [np.inf if v is None else v for v in vals]
         hold[f"{exp}/{sg}"] = {
             "oracle": o,
+            "classical_worst": cl_worst,
+            "n_classical": len(classical),
             "limit": limit,
             "mean": float(np.mean(vals)) if vals else np.inf,
             "worst": float(np.max(vals)) if vals else np.inf,

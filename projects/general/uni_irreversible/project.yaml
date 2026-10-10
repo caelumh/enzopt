@@ -21,6 +21,7 @@ network:
 experiments:
   T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, S: 0.2, Et_nM: 17.04, role: train}
   T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, S: 0.05, P: 0.15, Et_nM: 17.04, role: train}
+  T3: {file: data/setT3.csv, temp_file: data/setT3_temp.csv, S: 0.5, Et_nM: 17.04, role: train}
   H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, S: 0.1, P: 0.1, Et_nM: 17.04, role: holdout}
   H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, S: 0.3, Et_nM: 17.04, role: holdout}
 

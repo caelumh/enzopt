@@ -26,6 +26,7 @@ control:                      # 비약가역 대조: 첫 종속 단계를 한 �
 experiments:
   T1: {file: data/setT1.csv, temp_file: data/setT1_temp.csv, A: 0.2, B: 0.2, P: 9.8, Et_nM: 7.245, role: train}
   T2: {file: data/setT2.csv, temp_file: data/setT2_temp.csv, Q: 0.2, P: 10, Et_nM: 7.245, role: train}
+  T3: {file: data/setT3.csv, temp_file: data/setT3_temp.csv, A: 0.2, B: 1, P: 9, Et_nM: 7.245, role: train}
   H1: {file: data/setH1.csv, temp_file: data/setH1_temp.csv, A: 0.1, Q: 0.1, B: 0.1, P: 9.9, Et_nM: 7.245, role: holdout}
   H2: {file: data/setH2.csv, temp_file: data/setH2_temp.csv, A: 0.2, B: 0.5, P: 9.5, Et_nM: 7.245, role: holdout}
 
