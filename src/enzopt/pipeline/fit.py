@@ -93,8 +93,41 @@ def pinn_config(p, ident: dict, seeds: list[int], device: str, dtype: str, sigma
         observable=p.observable_weights(),
         overall=p.overall,
         prefer_dependent=[p.haldane_step] if p.haldane_step else None,
-        range_margin=float(pc.get("range_margin", 0.0)),
+        range_margin=float(pc.get("range_margin", 0.05)),
     )
+
+
+def best_restarts(p, all_results: list, seeds: list[int], train, extras: dict, sigma: float, rule: str = "ode"):
+    """Each sample = the best of its restarts by training-data fit (same measure as the SC5-3 exclusion).
+
+    ``all_results`` are the PINN results of internal seeds ``s + RESTART_STRIDE × restart``; ``train`` is
+    [(name, experiment, t, y)] and ``extras`` the extra signals per experiment. Returns (one result per seed with
+    ``seed`` set to the sample seed, the restart log per seed)."""
+    net = p.network
+    model = MassAction.from_network(net)
+    coeff = p.observable_weights()
+    sigmas = {"__primary__": sigma, **{sg["name"]: float(sg["sigma"]) for sg in p.signals}}
+    results, restart_log = [], {}
+    for s in seeds:
+        cands = []
+        for r in (x for x in all_results if x.seed % RESTART_STRIDE == s):
+            kk = net.rate_vector(r.kf, r.kr)
+            vals = [signal_rmse(net, kk, e, t, y, coeff, extras[n], model, r.activity) for n, e, t, y in train]
+            ode_tr = sigma * normalized(vals, sigmas)
+            pin = float(sigma * np.sqrt(max(r.loss_parts["data"], 0.0)))
+            cands.append((pin if rule == "pinn" else ode_tr, r.seed // RESTART_STRIDE, r, ode_tr, pin))
+        cands.sort(key=lambda c: (c[0], c[1]))
+        best = cands[0]
+        restart_log[s] = {
+            "chosen_restart": best[1],
+            "by": rule,
+            "restarts": [
+                {"restart": c[1], "ode_train_rmse": c[3], "pinn_rmse": c[4]} for c in sorted(cands, key=lambda c: c[1])
+            ],
+        }
+        best[2].seed = s
+        results.append(best[2])
+    return results, restart_log
 
 
 def run_fit_stage(ctx: RunContext) -> None:
@@ -142,28 +175,8 @@ def run_fit_stage(ctx: RunContext) -> None:
     coeff = p.observable_weights()
     rule = str(ident.get("exclusion_rmse", "ode"))
     k_sig = float(ident.get("exclusion_sigma", 3.0))
-    # each sample = the best of its restarts by training-data fit (same measure as the SC5-3 exclusion)
     ctx.progress(0.72, "재시작 중 학습 데이터에 가장 잘 맞는 해 고르기")
-    results, restart_log = [], {}
-    for s in seeds:
-        cands = []
-        for r in (x for x in all_results if x.seed % RESTART_STRIDE == s):
-            kk = net.rate_vector(r.kf, r.kr)
-            vals = [signal_rmse(net, kk, e, t, y, coeff, extras[n], model, r.activity) for n, e, t, y in train]
-            ode_tr = sigma * normalized(vals, sigmas)
-            pin = float(sigma * np.sqrt(max(r.loss_parts["data"], 0.0)))
-            cands.append((pin if rule == "pinn" else ode_tr, r.seed // RESTART_STRIDE, r, ode_tr, pin))
-        cands.sort(key=lambda c: (c[0], c[1]))
-        best = cands[0]
-        restart_log[s] = {
-            "chosen_restart": best[1],
-            "by": rule,
-            "restarts": [
-                {"restart": c[1], "ode_train_rmse": c[3], "pinn_rmse": c[4]} for c in sorted(cands, key=lambda c: c[1])
-            ],
-        }
-        best[2].seed = s
-        results.append(best[2])
+    results, restart_log = best_restarts(p, all_results, seeds, train, extras, sigma, rule)
     samples, preds = [], []
     for i, r in enumerate(results):
         ctx.progress(0.75 + 0.2 * i / max(1, len(results)), f"표본 {r.seed} 재해석")

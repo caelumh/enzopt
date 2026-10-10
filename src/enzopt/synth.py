@@ -284,7 +284,8 @@ def general_project_yaml(cfg: dict, key: str, res: dict) -> str:
             "",
         ]
     L += ["experiments:"]
-    for name, s in res["sets"].items():
+    order = {"train": 0, "holdout": 1}  # listed by role; generation (and noise draw) order stays the config order
+    for name, s in sorted(res["sets"].items(), key=lambda kv: order.get(kv[1]["spec"]["role"], 2)):
         spec = {k: float(v) for k, v in s["spec"].items() if k != "role"}
         item = {"file": f"data/set{name}.csv", "temp_file": f"data/set{name}_temp.csv", **spec}
         item["Et_nM"] = res["Et_nominal_nM"]

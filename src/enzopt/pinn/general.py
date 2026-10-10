@@ -84,10 +84,9 @@ class PinnConfig:
     observable: dict | None = None  # primary signal {species: coefficient}; None = ε340·(NADH + EN + ENP)
     overall: list | None = None  # overall reactions (strings): slow coordinates and K′ constraints
     prefer_dependent: list | None = None  # 1-based steps to make dependent first (old haldane_step)
-    # sigmoid range widened by this fraction on each side (initial point off the saturated edge). 0.05 fits the
-    # appendix C networks closer to the ODE optimum but changes which basin a single run reaches in float32 vs float64
-    # (AC-08), so it is off by default and a project option (identification.pinn.range_margin)
-    range_margin: float = 0.0
+    # sigmoid range widened by this fraction on each side, so the initial point is off the saturated edge (0.05
+    # fits the appendix C networks as close as the classical ODE fit; project option identification.pinn.range_margin)
+    range_margin: float = 0.05
 
 
 @dataclass
@@ -275,8 +274,8 @@ class GeneralPinn:
             ok = sp > 1e-9
             if not ok.any():
                 raise ValueError(f"실험 {e.name}: 반응이 진행될 수 없음(기질·생성물의 초기 농도 확인)")
-            # optional margin (range_margin): the initial point ξ = 0 usually sits on an edge of the feasible range (no
-            # product yet), where sigmoid(u) saturates and the network can hardly leave it fast enough
+            # margin (range_margin, default 5%): the initial point ξ = 0 usually sits on an edge of the feasible range
+            # (no product yet), where sigmoid(u) saturates and the network can hardly leave it fast enough
             mg = 0.0 if self.lin else float(cfg.range_margin)
             l = np.where(ok, l - mg * sp, l)
             sp = np.where(ok, sp * (1.0 + 2.0 * mg), 0.0)

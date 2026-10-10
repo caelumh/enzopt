@@ -62,24 +62,28 @@ def test_realistic_holdout(full_run):
 
 
 def _train(device, dtype):
+    """The samples the pipeline reports (full mode): seeds 4 × restarts from the project, each seed's best restart by
+    training fit (``fit.best_restarts``). Returns (training wall time, holdout RMSE mean, holdout RMSEs)."""
     from enzopt.core.massaction import MassAction
     from enzopt.core.project import load_project
-    from enzopt.pinn.ldh import PinnConfig, PinnExperiment, train_pinn
+    from enzopt.pinn.general import PinnExperiment, train_pinn
     from enzopt.pipeline.common import curve, rmse
+    from enzopt.pipeline.fit import RESTART_STRIDE, best_restarts, pinn_config
 
     p = load_project(EXAMPLE)
+    ident = p.settings(quick=False)["identification"]
+    sigma = float(ident["noise_sigma"])
+    seeds = list(range(int(ident["seeds"])))
+    n_restarts = int(ident["pinn"]["restarts"])
     data = {n: np.loadtxt(e.file, delimiter=",", skiprows=1) for n, e in p.experiments.items()}
-    exps = [
-        PinnExperiment(n, e.initial, e.Et, data[n][:, 0], data[n][:, 1])
-        for n, e in p.experiments.items()
-        if e.role == "train"
-    ]
-    pr = p.prior
-    prior = np.array(pr["kf_log10"] + pr["kr_log10"] + [pr["Kp_log10"]], float)
-    cfg = PinnConfig(seeds=[0, 1, 2, 3], device=device, dtype=dtype)
+    train = [(n, e, data[n][:, 0], data[n][:, 1]) for n, e in p.experiments.items() if e.role == "train"]
+    exps = [PinnExperiment(n, e.initial, e.Et, t, y) for n, e, t, y in train]
+    internal = [s + RESTART_STRIDE * j for s in seeds for j in range(n_restarts)]
+    cfg = pinn_config(p, ident, internal, device, dtype, sigma)
     t0 = time.time()
-    res = train_pinn(exps, prior, cfg)
+    res = train_pinn(exps, p.prior_vector(), cfg)
     wall = time.time() - t0
+    res, _log = best_restarts(p, res, seeds, train, {n: [] for n, *_ in train}, sigma)
     model = MassAction.from_network(p.network)
     hold = []
     for r in res:
@@ -92,6 +96,7 @@ def _train(device, dtype):
 
 
 def test_gpu_vs_cpu():
+    """AC-08 (2026-10-10 Q-03 (d)): precision compared on the samples the pipeline reports (best of 8 restarts)."""
     import torch
 
     assert torch.cuda.is_available(), "GPU가 없어 GPU/CPU 비교를 할 수 없음"
@@ -99,6 +104,7 @@ def test_gpu_vs_cpu():
     t32, r32, h32 = _train("cuda", "float32")
     t64, r64, h64 = _train("cpu", "float64")
     print(f"GPU float32 {t32:.1f} s, holdout mean {r32:.5f} | CPU float64 {t64:.1f} s, holdout mean {r64:.5f}")
+    print("holdout RMSE per sample and set:", np.round(h32, 5).tolist(), np.round(h64, 5).tolist())
     assert abs(r32 - r64) / r64 <= 0.10
     assert t32 < t64
 

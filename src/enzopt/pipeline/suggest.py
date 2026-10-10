@@ -11,7 +11,9 @@
 3. **Check and decide.** The five steps and the best candidates are fitted again by least squares on the ODE
    (multi-start, the stage-③ prior plus K_i centred on the PINN value). The five steps explain the data when their
    training RMSE is within 2σ; otherwise a candidate is suggested when it at least halves the training RMSE. The
-   held-out RMSE is reported next to it, and K_i comes from the least-squares fit (the PINN only fixes φ_X/K_i).
+   held-out rule is shown next to it (2026-10-10 Q-02): the same suggestion only stands on the held-out sets when the
+   candidate also lowers their RMSE against the five steps (a guard against a step that only fits the training sets).
+   K_i comes from the least-squares fit (the PINN only fixes φ_X/K_i).
 
 The candidate list is written for the LDH ordered bi-bi network: the dead-end complexes that an empty substrate site of
 E, EN (holds NADH) or EQ (holds NAD⁺) can form with pyruvate or lactate (the PINN itself is general since F-13).
@@ -267,7 +269,8 @@ def decide(rank: list[dict], ver: list[dict], train_names: list[str], sigma: flo
     every training set is within 3σ. A candidate is suggested when it at least halves the RMSE over the sets the five
     steps miss (all training sets if none is singled out) without raising the overall training RMSE. Without the check,
     the PINN ranking stands in (five steps within 3σ = the stage-③ rule; a candidate must halve the training RMSE).
-    K_i comes from least squares when available: the PINN alone only fixes φ_X/K_i."""
+    Shown side by side (Q-02): the suggestion also holds on the held-out sets when the candidate's held-out RMSE is
+    lower than the five steps'. K_i comes from least squares when available: the PINN alone only fixes φ_X/K_i."""
     base = next(r for r in rank if r["step"] is None)
     top = next((r for r in rank if r["step"]), None)
     v_base = next((v for v in ver if v.get("step") is None and "error" not in v), None)
@@ -292,10 +295,22 @@ def decide(rank: list[dict], ver: list[dict], train_names: list[str], sigma: flo
     else:
         better = bool(top and top["train_rmse_median"] < 0.5 * base["train_rmse_median"])
     suggest = (not base_ok) and better
+    ho_base = v_base.get("holdout_rmse") if v_base else base["holdout_rmse_median"]
+    ho_top = (v_top.get("holdout_rmse") if v_top else top["holdout_rmse_median"]) if top else None
+    ho_better = None if ho_base is None or ho_top is None else bool(ho_top < ho_base)
     if base_ok:
         note = f"다섯 단계로 데이터가 설명됨({base_txt}): 빠진 단계의 근거 없음"
     elif suggest:
         note = f"다섯 단계로는 설명되지 않음({base_txt}). {top['name']}을 넣으면 설명됨"
+        if ho_better is None:
+            note += " · 홀드아웃 기준: 홀드아웃 세트가 없어 판단 못 함"
+        elif ho_better:
+            note += f" · 홀드아웃 기준도 제안(홀드아웃 RMSE {ho_base / sigma:.1f}σ → {ho_top / sigma:.1f}σ)"
+        else:
+            note += (
+                f" · 홀드아웃 기준으로는 제안 안 함(홀드아웃 RMSE {ho_base / sigma:.1f}σ → {ho_top / sigma:.1f}σ,"
+                " 학습 세트에만 맞추는 단계일 수 있음)"
+            )
     else:
         note = f"다섯 단계로는 설명되지 않음({base_txt}). 후보 중 맞는 단계 없음(다른 단계·실활·측정 문제를 볼 것)"
     ki_ls = v_top.get("Ki_mM_fit") if v_top else None
@@ -308,6 +323,9 @@ def decide(rank: list[dict], ver: list[dict], train_names: list[str], sigma: flo
         "Ki_source": ("least squares" if ki_ls is not None else "PINN (φ_X/K_i only)") if suggest else None,
         "candidate_train_rmse": (v_top["train_rmse"] if v_top else top["train_rmse_median"]) if suggest else None,
         "candidate_holdout_rmse": (v_top["holdout_rmse"] if v_top else top["holdout_rmse_median"]) if suggest else None,
+        "base_holdout_rmse": ho_base,
+        "holdout_improves": ho_better if suggest else None,
+        "suggested_by_holdout": (top["step"] if suggest and ho_better else None),
         "note": note,
     }
 

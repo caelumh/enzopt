@@ -68,3 +68,29 @@ def test_suggest_does_not_invent_a_step(tmp_path):
     assert r.returncode == 0, r.stdout[-3000:]
     rep = json.loads(next((tmp_path / "runs").rglob("suggest.json")).read_text(encoding="utf-8"))
     assert rep["verdict"]["suggested_step"] is None
+
+
+def test_decide_reports_the_holdout_rule():
+    """Q-02 (2026-10-10): the training rule decides; the held-out rule (the candidate must also lower the held-out
+    RMSE of the five steps) is reported next to it."""
+    from enzopt.pipeline.suggest import decide
+
+    s = 0.003
+    step = "EN + Lac <=> ENL"
+    rank = [
+        {"name": "다섯 단계", "step": None, "train_rmse_median": 10 * s, "holdout_rmse_median": 8 * s},
+        {"name": "EN·Lac", "step": step, "train_rmse_median": s, "holdout_rmse_median": s, "Ki_mM_median": 4.0},
+    ]
+
+    def ver(ho_top):
+        return [
+            {"step": None, "train_rmse": 10 * s, "holdout_rmse": 8 * s, "rmse": {"A": 10 * s, "B": 10 * s}},
+            {"step": step, "train_rmse": s, "holdout_rmse": ho_top, "rmse": {"A": s, "B": s}, "Ki_mM_fit": 5.0},
+        ]
+
+    good = decide(rank, ver(s), ["A", "B"], s)
+    assert good["suggested_step"] == good["suggested_by_holdout"] == step and good["holdout_improves"]
+    bad = decide(rank, ver(9 * s), ["A", "B"], s)
+    assert bad["suggested_step"] == step  # the training rule is unchanged
+    assert bad["suggested_by_holdout"] is None and bad["holdout_improves"] is False
+    assert "홀드아웃 기준으로는 제안 안 함" in bad["note"]

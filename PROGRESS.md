@@ -1,6 +1,6 @@
 # 진행 상황
 
-> 상태: 대기 · 브랜치 feature/general-network(F-13, feature/real-data에서 갈라짐. 대회용 feature/real-data는 100.00(47/47) 그대로) · 점수 91.82(68/77, 긴 평가 1812 s, 빠른 293 s) · 남은 실패 AC-24·25·31은 QUESTIONS Q-03 답 대기(Q-02도 열림) · 다음: 10/10 파일럿 측정(사용자, feature/real-data) · 최종 갱신: 2026-10-10
+> 상태: 진행 중 · 브랜치 feature/general-network(F-13, feature/real-data에서 갈라짐. 대회용 feature/real-data는 100.00(47/47) 그대로) · 현재 작업: M6-6 보완 인터뷰 답 반영(Q-03 (a)+(d), Q-02 (a)+(c)) · 직전 점수 91.82(68/77) · 최종 갱신: 2026-10-10
 
 ## 사용자 필요 작업
 - [ ] 분광광도계 내보내기 파일(파일럿) 전달 — 필요 시점: M3 끝(늦어도 10/11 실험 직후, 10/12 재계산 전) — 원본 파일을 `projects/<이름>/data/raw/`에 두고 알려 주면 변환기를 맞춘다
@@ -70,6 +70,7 @@
 - [x] M6-3 고전 피팅·대조 모델 일반화 — AC-26 통과(11개 반응망, 대조는 지정 단계만 한 방향으로; 배경 단계처럼 원래 한 방향인 단계는 요약에서 뺌)
 - [x] M6-4 ⑤ 일반화 + 수율·선택도·도달 시간 목표 — AC-27~30 통과(`tests/test_general_design.py`, 22 s). 평형 한계는 K′로 수치 계산(LDH 대수식과 10⁻¹⁵), 기질 1·2·3개, 고정 배수 짝 기질, 결핍 > 0이면 이유를 남기고 정방향만, 설계 K′로 종속 k₋ 다시 계산, 평형 한계 시험 ρ 기본값 auto(ρ_min × 0.3·0.6). 생성 프로젝트에 설계 목표(경쟁 기질은 선택도)
 - [ ] (막힘: Q-03) M6-5 전체 반응 둘 이상 + 끝-끝 — AC-32 통과(12개 프로젝트 짧은 모드 ①~⑤). AC-31: 경쟁 기질·배경 반응 모두 학습 재현은 통과(1.1~1.4σ), 홀드아웃은 배경 반응 H2가 데이터로 안 정해지고(고전 0.009~0.094), 경쟁 기질은 PINN이 고전보다 조금 덜 맞아 H1·H2를 못 넘음
+- [ ] M6-6 보완 인터뷰 답 반영(진행 중): Q-03 (a) 부록 C 학습 세트 T3 + (d) 범위 여유 5% 기본·AC-08은 재시작 선택 표본으로, Q-02 (a)+(c) 홀드아웃 기준 병행 표시 — 끝: AC-24·25·31, AC-01~32 유지. (d)·Q-02 끝(AC-08 통과: 홀드아웃 평균 GPU float32 0.00630 · CPU float64 0.00632, 6.2 s 대 71 s; 빠른 시험 114 통과). (a)는 T3 설계를 고전 피팅으로 확인(8개 반응망 통과, PINN도 8개 통과)했으나 `evals/synthetic_general.yaml` 쓰기가 권한 확인에서 막혀 사용자 대기, 남은 3개(uni_bi_ordered·random_bibi·ldh_background)는 QUESTIONS Q-04
 - [ ] M6-0c 보완 인터뷰(F-14·F-15 수용 기준) — 대회 뒤
 
 ## 결정 기록
@@ -107,6 +108,9 @@
 - 2026-10-09 M5-2: Windows에서 엔진은 DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP(가능하면 CREATE_BREAKAWAY_FROM_JOB)로 띄운다. venv의 python.exe는 실제 파이썬을 한 번 더 띄우므로 Popen pid와 엔진 pid가 다를 수 있다(엔진이 manifest에 자기 pid를 쓴다).
 - 2026-10-09 보완 인터뷰: Q1 AC-05 문턱 = max(2σ, 정답 모델 RMSE × 1.5)(EVAL.md·synthetic.yaml 수정), Q2 SC5-3 = ODE 재해석 학습 RMSE > 3σ(`exclusion_rmse: ode`, `exclusion_sigma: 3`), Q3 준정상 PINN 채택 + 원래 표현 실패 기록(`docs/pinn_representation/`, `scripts/compare_pinn_representation.py`).
 - 2026-10-09 M5-1: GPU 판정은 `torch.cuda.is_available()`만으로 하지 않고 장치 수와 작은 할당 시험으로 한다(`CUDA_VISIBLE_DEVICES=""`에서 is_available()이 참인데 장치 조회가 실패했음).
+- 2026-10-10 M6-6 Q-03 (d): `identification.pinn.range_margin` 기본 0 → 0.05(`PinnConfig`·`DEFAULTS`). 재시작 선택을 `fit.best_restarts`로 떼어 ③과 AC-08 시험이 같은 함수를 씀. AC-08 시험은 예제 프로젝트 설정(시드 4 × 재시작 8, L-BFGS 300)으로 학습한 뒤 시드마다 학습 ODE RMSE 최저 해의 홀드아웃을 비교. LDH 홀드아웃 C 0.0095~0.0099 · D′ 0.0028~0.0035
+- 2026-10-10 M6-6 Q-02: `suggest.decide`가 `base_holdout_rmse`·`holdout_improves`·`suggested_by_holdout`을 더 내고, 결론 문장에 홀드아웃 기준(후보가 다섯 단계보다 홀드아웃 RMSE를 줄이는가)을 함께 적음. 제안 여부(학습 기준)는 그대로
+- 2026-10-10 M6-6 Q-03 (a): T3는 H2 뒤에 생성(같은 난수열이라 T1·T2·H1·H2 데이터는 비트까지 같음). 기본 설계는 홀드아웃 농도를 감싸는 값(기질 1개 S 0.5, 짝 기질 B 1, 셋째 기질 C 1, ldh_dead_end Pyr 2, 경쟁 기질은 Oxb만, 배경 반응 Pyr 1). 고전 피팅 8시작점이 한계를 넘으면 다른 설계 4가지를 시험해 넘지 않는 것을 고름(ping_pong B 2). 셋은 어느 설계로도 정답 모델이 한계를 넘지 못함 → Q-04. 생성기는 project.yaml 실험을 역할 순(학습 먼저)으로 씀
 
 ## 알려진 문제
 - (해결, 개선 사이클 2) AC-05 — 기준 모델 변경(Q-01) 뒤 PINN 재시작 선택으로 통과. 이전 기록: AC-05(정답 모델 대비 문턱, 보완 인터뷰 Q1): C 문턱 0.0081 · D' 문턱 0.0220. 현재 PINN(남은 시드 0·1·3)은 C 평균 0.0104·최악 0.0106, D' 평균 0.087·최악 0.127(시드 0·3이 같은 해로 수렴해 학습 범위 밖 Pyr 0.5에서 크게 빗나감)로 실패 — 개선 루프의 목표. 참고: 고전 피팅 시작점 하나는 학습 RMSE 0.003, D' 0.024에 닿았다(학습 손실이 더 낮은 해가 있다).

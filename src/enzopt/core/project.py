@@ -32,6 +32,7 @@ DEFAULTS: dict = {
             "depth": 3,
             "w_prior": 1e-2,
             "restarts": 8,
+            "range_margin": 0.05,  # sigmoid range widened 5% on each side (2026-10-10 Q-03 (d))
             "time_scale": "per_experiment",
             "inactivation": "none",  # "shared": learn one enzyme-activity curve a(t) for all experiments
             "inact_k": 12,
