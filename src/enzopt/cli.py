@@ -112,7 +112,7 @@ def cmd_check(a) -> int:
 def cmd_suggest(a) -> int:
     from .pipeline.suggest import run_suggest
 
-    kinds = [k.strip() for k in a.kinds.split(",") if k.strip()] if a.kinds else None
+    kinds = [k.strip() for k in a.kinds.split(",") if k.strip()] if a.kinds is not None else None
     out = run_suggest(
         Path(a.project),
         quick=a.quick,
@@ -121,6 +121,8 @@ def cmd_suggest(a) -> int:
         method=a.method,
         run_dir=a.run,
         kinds=kinds,
+        user=a.candidate,
+        all_train=a.all_train,
     )
     print(f"결과: {out}")
     return 0
@@ -273,7 +275,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="auto·ode: 구조에서 만든 후보 + 최소제곱(모든 반응망). pinn: LDH 순차 bi-bi 전용 PINN 방식(후보 4종)",
     )
     g.add_argument("--run", help="출발점으로 쓸 실행 폴더(기본: 반응망이 같은 가장 최근의 완료된 실행)")
-    g.add_argument("--kinds", help="후보 종류(쉼표로): dead_end, inactivation, background, order, reverse (기본: 모두)")
+    g.add_argument(
+        "--kinds",
+        help="후보 종류(쉼표로): dead_end, inactivation, background, order, reverse, remove(빼기 시험) "
+        "(기본: remove 빼고 모두, 빈 값이면 자동 후보 없이 --candidate만)",
+    )
+    g.add_argument(
+        "--candidate",
+        action="append",
+        help='직접 적은 가설(여러 번 가능): 단계를 ";"로, "N: 단계"는 N번 단계를 바꿈. 예 "ESS + PG <=> ESS_PG"',
+    )
+    g.add_argument(
+        "--all-train", action="store_true", help="홀드아웃까지 학습에 넣어 맞춤(모든 세트를 함께 설명하는지)"
+    )
     g.add_argument("--runs-root", help="결과 폴더 상위(기본: <저장소>/runs)")
     g.set_defaults(func=cmd_suggest)
     mm = sub.add_parser("mechanisms", help="반응식 고르기: 메커니즘 목록, 고른 메커니즘의 반응식·판정·붙여 넣을 YAML")

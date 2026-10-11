@@ -7,7 +7,13 @@ uv run enzopt suggest projects/<이름>                       # 기본(일반 �
 uv run enzopt suggest projects/<이름> --kinds dead_end,order # 후보 종류 고르기
 uv run enzopt suggest projects/<이름> --run runs/<이름>/<실행> # 출발점으로 쓸 실행(기본: 반응망이 같은 가장 최근 완료 실행)
 uv run enzopt suggest projects/<이름> --method pinn          # LDH 순차 bi-bi 전용 PINN 방식(아래 "PINN 방식")
+uv run enzopt suggest projects/<이름> --kinds remove         # 거꾸로: 효소 모습 하나와 그 단계를 빼 보기(가지치기)
+uv run enzopt suggest projects/<이름> --kinds "" --candidate "ESS + PG <=> ESS_PG" --candidate "EG -> ED"
+                                                            # 내가 의심하는 단계만 시험(여러 번 줄 수 있음)
+uv run enzopt suggest projects/<이름> --all-train             # 홀드아웃 세트도 맞추기에 넣기(외삽 대신 "다 맞출 수 있나")
 ```
+
+`--candidate`의 형식: 단계 여럿은 `;`로 잇는다. `"2: ES -> EA + MeOH; E + MeOH <=> E_MeOH"`처럼 앞에 `N:`을 붙이면 적어 둔 반응식의 단계 N을 그 단계로 바꾼다(나머지는 새 단계로 더함). 새 화학종이 효소 모습의 반대편에 혼자 있으면 효소 모습으로 보고(`ESS + PG <=> ESS_PG`의 ESS_PG), 그 밖의 새 화학종은 처음 0인 작은 분자로 본다(메탄올 MeOH). 어떤 단계도 떠나지 않는 효소 모습은 망가진 효소다(`EG -> ED`의 ED). 새 상수의 사전분포 중심은 단계 모양(결합·방출·실활·효소 없는 반응)을 따른다.
 
 결과: `runs/<이름>/<날짜_시각>_suggest/`(`suggest.json`, `candidates.csv`, 그림).
 
@@ -22,10 +28,12 @@ uv run enzopt suggest projects/<이름> --method pinn          # LDH 순차 bi-b
    | `background` | 전체 반응마다 효소 없이 일어나는 반응(K′가 있으면 가역) | Pyr + NADH ⇌ Lac + NAD |
    | `order` | 가역 결합 둘이 이어진 곳(W = X·Y, X = X0·Z)의 다른 결합 순서: X0 + Y ⇌ X0_Y, X0_Y + Z ⇌ W | E + Pyr ⇌ E_Pyr, E_Pyr + NADH ⇌ ENP |
    | `reverse` | 한 방향 단계를 가역으로 | (LDH는 모두 가역이라 없음) |
+   | `remove` | 효소 모습 하나와 그것을 거치는 단계를 뺌(남은 반응망이 여전히 준정상 그래프를 이룰 때만). 기본 목록에는 없고 `--kinds remove`로 부른다 | (세팔렉신: EAN·EN·EG·ESS·EAS) |
+   | `user` | `--candidate`로 준 단계 | |
 
    K′가 없는 전체 반응에 가역 순환을 만드는 후보는 뺀다(열역학적으로 정할 수 없음). 새 상수의 사전분포 중심: 결합 10³ /(mM·s)·K_i 5 mM, 실활 10⁻² /s, 효소 없는 반응 10⁻⁴ /s, 역반응 10² /s(생성물 하나)·10³ /(mM·s)(둘).
 2. **적어 둔 반응식과 후보마다 넣은 반응식을 최소제곱으로 맞춘다.** 전체 ODE, 모든 측정 신호를 σ 단위로, ③과 같은 사전분포 항. 출발점은 같은 반응식으로 끝난 가장 최근 실행의 고전 피팅(없으면 새로 다중 시작점 맞춤). 후보는 병렬로 맞춘다.
-3. **판정.** PINN 방식과 같은 문턱: 학습 RMSE가 2σ 안이고 세트마다 3σ 안이면 "설명됨". 아니면 학습 RMSE가 가장 낮은 후보가 놓친 세트의 RMSE를 절반 이하로 줄이고 전체 학습 RMSE를 늘리지 않을 때 제안한다. 옆에 ΔAIC(단계를 늘린 값을 치른 맞춤 점수)와 홀드아웃 기준(홀드아웃 RMSE를 절반 이하로 줄이는 후보)을 적는다.
+3. **판정.** PINN 방식과 같은 문턱: 학습 RMSE가 2σ 안이고 세트마다 3σ 안이면 "설명됨". 아니면 학습 RMSE가 가장 낮은 후보가 놓친 세트의 RMSE를 절반 이하로 줄이고 전체 학습 RMSE를 늘리지 않을 때 제안한다. 옆에 ΔAIC(단계를 늘린 값을 치른 맞춤 점수)와 홀드아웃 기준(홀드아웃 RMSE를 절반 이하로 줄이는 후보)을 적는다. `remove` 후보는 더하는 제안에서 빠지고 따로 판정한다: ΔAIC < 0(뺀 반응망이 매개변수를 덜 쓰고도 비슷하게 맞음)이고 홀드아웃이 나빠지지 않으면 "빼도 됨"(`verdict.prunable`). 맞추기가 실패한 후보는 로그와 `suggest.json`의 `failed`에 이유와 함께 남는다.
 
 ### 두 방식 비교
 

@@ -81,7 +81,7 @@ def test_reverse_and_order_candidates(tmp_path):
 
     p = load_project(write_project(tmp_path / "proj", kp=10))
     rev = [c for c in candidates(p) if c.kind == "reverse"]
-    assert [c.step for c in rev] == ["ES <=> E + P"] and rev[0].replace == 1
+    assert [c.step for c in rev] == ["ES <=> E + P"] and rev[0].replace == {1: "ES <=> E + P"}
     _net, lay, prior = setup(p, rev[0])
     assert 1 in lay.dependent and len(prior) == lay.n_theta  # k₋ of the reversed step from K′: no new parameter
     ldh = load_project(ROOT / "projects" / "example_ldh_missing_step")
@@ -136,3 +136,44 @@ def test_general_path_on_ldh_does_not_invent_a_step(tmp_path):
     out = run_suggest(neg, runs_root=tmp_path / "runs", log=lambda *_: None)
     v = json.loads((out / "suggest.json").read_text(encoding="utf-8"))["verdict"]
     assert v["base_explains_data"] and v["suggested_step"] is None and v["holdout_halving_steps"] == []
+
+
+CEPH = ROOT / "projects" / "aeh_cephalexin_lagerman2021"
+
+
+def test_user_hypotheses_and_removals(tmp_path):
+    """``--candidate`` text (step N replaced, new enzyme forms and small molecules, priors by step shape) and
+    ``--kinds remove`` (drop an enzyme form with its steps); a removal must still simulate every signal even when a
+    signal sums the removed form (it then counts as 0)."""
+    from enzopt.core.project import load_project
+    from enzopt.pipeline.suggest_general import (
+        K_INACT_LOG10,
+        KF_BIND_LOG10,
+        _z,
+        candidates,
+        load_all,
+        setup,
+        user_candidate,
+    )
+
+    p = load_project(CEPH)
+    c = user_candidate(p, "2: ES -> EA + MeOH; E + MeOH <=> E_MeOH")
+    assert c.replace == {1: "ES -> EA + MeOH"} and c.steps == ["E + MeOH <=> E_MeOH"] and c.new_enzyme == ["E_MeOH"]
+    assert c.prior_kf == [KF_BIND_LOG10] and c.step == "2: ES -> EA + MeOH ; E + MeOH <=> E_MeOH"
+    net, lay, prior = setup(p, c)
+    assert "E_MeOH" in net.enzyme_species and "MeOH" in net.species and "MeOH" not in net.enzyme_species
+    assert len(prior) == lay.n_theta
+    assert user_candidate(p, "EG -> ED").prior_kf == [K_INACT_LOG10]  # ED is left by no step: inactivation
+    with pytest.raises(ValueError):
+        user_candidate(p, "20: E -> ED")
+
+    rem = candidates(p, ("remove",))
+    assert [r.name for r in rem] == ["remove EAN", "remove EN", "remove EG", "remove ESS", "remove EAS"]
+    assert rem[3].remove == [9, 12] and rem[3].drop_species == ["ESS", "ED"]  # ESS goes, and with it its dead form
+    m0 = next(x for x, _ in load_all(p, tmp_path) if x[0] == "m0")
+    for r in rem:
+        net, lay, prior = setup(p, r)
+        assert not set(r.drop_species) & set(net.species)
+        kf, kr = lay.rates(prior)
+        z = _z(net, net.rate_vector(kf, kr), m0)
+        assert len(z) == len(m0[3]) and all(np.all(np.isfinite(a)) for a in z)

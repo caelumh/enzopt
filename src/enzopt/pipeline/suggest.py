@@ -340,6 +340,8 @@ def run_suggest(
     method: str = "auto",
     run_dir=None,
     kinds=None,
+    user=None,
+    all_train: bool = False,
 ) -> Path:
     """``enzopt suggest``: the general path for every network (``method`` "auto" or "ode": ``pipeline.suggest_general``,
     candidates from the structure, least squares), or the LDH path (``method="pinn"``, LDH ordered bi-bi only:
@@ -372,10 +374,12 @@ def run_suggest(
             p,
             out,
             quick,
-            tuple(kinds or suggest_general.KINDS),
+            tuple(suggest_general.KINDS if kinds is None else kinds),
             Path(run_dir) if run_dir else None,
             root,
             log,
+            user=user,
+            all_train=all_train,
         )
         return out
     ident = p.identification

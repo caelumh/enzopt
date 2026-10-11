@@ -46,17 +46,27 @@ SET_OK_SIGMA = 3.0
 
 @dataclass
 class Candidate:
+    """A change of the network: steps added, steps replaced, and/or steps (with species) removed."""
+
     name: str
     kind: str
-    steps: list  # the new steps (or the replacing step with ``replace``)
+    steps: list = field(default_factory=list)  # added steps
     new_enzyme: list = field(default_factory=list)  # new enzyme species (dead-end complex, dead form, new order form)
-    prior_kf: list = field(default_factory=list)  # log10 centre of each new step's k₊
-    prior_kr: list = field(default_factory=list)  # log10 centre of each new step's k₋ (None: one-way)
-    replace: int | None = None  # 0-based step that ``steps[0]`` replaces (kind "reverse")
+    prior_kf: list = field(default_factory=list)  # log10 centre of each added step's k₊
+    prior_kr: list = field(default_factory=list)  # log10 centre of each added step's k₋ (None: one-way)
+    replace: dict = field(default_factory=dict)  # {0-based step: the step that replaces it}
+    replace_kr: dict = field(default_factory=dict)  # {0-based step: log10 k₋ centre if a one-way step turns reversible}
+    remove: list = field(default_factory=list)  # 0-based steps removed
+    drop_species: list = field(default_factory=list)  # species removed with them
 
     @property
     def step(self) -> str:
-        return " ; ".join(self.steps)
+        parts = [f"{i + 1}: {s}" if self.kind == "user" else s for i, s in sorted(self.replace.items())]
+        parts += list(self.steps)
+        if self.remove:
+            what = self.drop_species[0] if self.drop_species else "steps"
+            parts.append(f"remove {what} (step {', '.join(str(i + 1) for i in self.remove)})")
+        return " ; ".join(parts)
 
 
 def dead_forms(net: Network) -> list[str]:
@@ -162,15 +172,89 @@ def candidates(p, kinds=KINDS) -> list[Candidate]:
                 continue
             kr = K_REVERSE_LOG10[1] if sum(st.rhs.values()) >= 2 else K_REVERSE_LOG10[0]
             step = f"{complex_str(st.lhs)} <=> {complex_str(st.rhs)}"
-            out.append(Candidate(f"reverse: {step}", "reverse", [step], [], [], [kr], replace=i))
+            out.append(Candidate(f"reverse: {step}", "reverse", replace={i: step}, replace_kr={i: kr}))
+    if "remove" in kinds:
+        # an enzyme form and every step it takes part in; species left in no step go too (not an observed one)
+        observed = {s for sg in p.all_signals() for s in sg["coefficients"]}
+        for x in active[1:]:
+            rm = [i for i, st in enumerate(net.steps) if x in st.lhs or x in st.rhs]
+            left = {s for i, st in enumerate(net.steps) if i not in rm for s in [*st.lhs, *st.rhs]}
+            orphans = [s for s in net.species if s not in left and s != x]
+            if any(s in observed for s in orphans):
+                continue
+            out.append(Candidate(f"remove {x}", "remove", remove=rm, drop_species=[x, *orphans]))
     ok = []
     for c in out:
         try:
-            setup(p, c)
+            net_c, _lay, _prior = setup(p, c)
+            if c.kind == "remove":
+                from ..core.qss import QssError, structure
+
+                try:
+                    structure(net_c, p.overall)  # the reduced network must still run (enzyme graph, slow variables)
+                except QssError:
+                    continue
         except (ValueError, KeyError):
             continue
         ok.append(c)
     return ok
+
+
+def user_candidate(p, text: str, k: int = 1) -> Candidate:
+    """A hypothesis written by the user: steps separated by ";", "N: step" replaces step N (1-based). New species on
+    the enzyme side of a step become enzyme forms; others are small molecules starting at 0 (e.g. methanol). Priors
+    by the step's shape: binding / release / inactivation / isomerisation / reaction without the enzyme."""
+    import re
+
+    replace, add = {}, []
+    for part in [x.strip() for x in text.split(";") if x.strip()]:
+        m = re.match(r"^(\d+)\s*:\s*(.+)$", part)
+        if m:
+            i = int(m.group(1)) - 1
+            if not 0 <= i < len(p.network.steps):
+                raise ValueError(f"후보 '{text}': 단계 {i + 1}이 반응망에 없음")
+            replace[i] = m.group(2).strip()
+        else:
+            add.append(part)
+    ens = set(p.network.enzyme_species)
+    known = set(p.network.species)
+    parsed = [Step.parse(s) for s in [*replace.values(), *add]]
+    new_enzyme: list[str] = []
+    changed = True
+    while changed:  # a new species alone on the far side of an enzyme form is an enzyme form too
+        changed = False
+        for st in parsed:
+            for a, b in ((st.lhs, st.rhs), (st.rhs, st.lhs)):
+                unknown = [s for s in b if s not in known and s not in ens]
+                if any(s in ens for s in a) and not any(s in ens for s in b) and len(unknown) == 1:
+                    ens.add(unknown[0])
+                    new_enzyme.append(unknown[0])
+                    changed = True
+    trial = Candidate(f"user {k}", "user", add, new_enzyme, [0.0] * len(add), [0.0] * len(add), replace=replace)
+    net, _origin = _build(p, trial)
+    dead = set(dead_forms(net))
+
+    def prior(st: Step) -> tuple[float, float | None]:
+        el = [s for s in st.lhs if s in ens]
+        er = [s for s in st.rhs if s in ens]
+        if not el and not er:
+            return K_BACKGROUND_LOG10, (K_BACKGROUND_LOG10 if st.reversible else None)
+        if er and er[0] in dead:
+            return K_INACT_LOG10, None
+        if len(st.lhs) == 2 and len(st.rhs) == 1:  # binding
+            return KF_BIND_LOG10, (KF_BIND_LOG10 + KI_LOG10 if st.reversible else None)
+        if len(st.lhs) == 1 and len(st.rhs) == 2:  # release
+            return KF_BIND_LOG10 + KI_LOG10, (KF_BIND_LOG10 if st.reversible else None)
+        return K_REVERSE_LOG10[0], (K_REVERSE_LOG10[0] if st.reversible else None)
+
+    pri = [prior(Step.parse(s)) for s in add]
+    kf, kr = [x[0] for x in pri], [x[1] for x in pri]
+    replace_kr = {}
+    for i, s in replace.items():
+        st = Step.parse(s)
+        if st.reversible and not p.network.steps[i].reversible:
+            replace_kr[i] = prior(st)[1]
+    return Candidate(f"user {k}", "user", add, new_enzyme, list(kf), list(kr), replace=replace, replace_kr=replace_kr)
 
 
 # ------------------------------------------------------------------------------------------------ fitting
@@ -196,7 +280,8 @@ def _z(net: Network, k, exp) -> list[np.ndarray]:
     out = []
     for _sig, t, y, sg, cf in series:
         rows = np.searchsorted(t_u, t)
-        a = sum(c * X[rows, idx[s]] for s, c in cf.items())
+        # a species the candidate removed (e.g. a dead-end complex in a signal's sum) counts as 0
+        a = sum(c * X[rows, idx[s]] for s, c in cf.items() if s in idx)
         out.append((a - y) / sg)
     return out
 
@@ -270,47 +355,65 @@ def _kp_full(p, Kp_used: list | None, lay_base) -> list[float]:
     return full
 
 
+def _build(p, cand: Candidate) -> tuple[Network, list]:
+    """The changed network and, per step, the index of the base step it comes from (None for an added step)."""
+    base = p.network
+    keep = [i for i in range(len(base.steps)) if i not in cand.remove]
+    steps = [cand.replace.get(i, str(base.steps[i])) for i in keep] + list(cand.steps)
+    species = [s for s in base.species if s not in cand.drop_species]
+    for st in (Step.parse(x) for x in steps):
+        for s in [*st.lhs, *st.rhs]:
+            if s not in species:
+                species.append(s)
+    enz = [s for s in base.enzyme_species if s not in cand.drop_species]
+    enz += [s for s in cand.new_enzyme if s not in enz]
+    net = Network.from_strings(f"{base.name}+{cand.kind}", species, steps, enz)
+    return net, keep + [None] * len(cand.steps)
+
+
 def touched(p, cand: Candidate | None) -> list[int]:
-    """0-based steps a candidate adds or replaces."""
+    """0-based steps (of the changed network) a candidate adds or replaces."""
     if cand is None:
         return []
-    if cand.replace is not None:
-        return [cand.replace]
-    n0 = len(p.network.steps)
-    return list(range(n0, n0 + len(cand.steps)))
+    _net, origin = _build(p, cand)
+    return [j for j, i in enumerate(origin) if i is None or i in cand.replace]
 
 
 def setup(p, cand: Candidate | None):
-    """(network, θ layout, prior centre θ) of the network as written (cand None) or with one candidate. Raises
-    ValueError when the candidate closes a reversible cycle through an overall reaction without K′."""
+    """(network, θ layout, prior centre θ) of the network as written (cand None) or changed by one candidate. Raises
+    ValueError when the change closes a reversible cycle through an overall reaction without K′."""
     n0 = len(p.network.steps)
-    prefer = [p.haldane_step] if p.haldane_step else None
     if cand is None:
-        net = p.network
-    elif cand.replace is not None:
-        steps = [str(s) for s in p.network.steps]
-        steps[cand.replace] = cand.steps[0]
-        net = Network.from_strings(f"{p.network.name}+reverse", p.network.species, steps, p.network.enzyme_species)
-        prefer = (prefer or []) + [cand.replace + 1]  # its k₋ follows from K′ when it closes a cycle
+        net, origin = p.network, list(range(n0))
     else:
-        net = p.network.with_extra_steps(
-            cand.steps, name=f"{p.network.name}+{cand.kind}", extra_species=cand.new_enzyme
-        )
-        if cand.kind in ("background", "order") and Step.parse(cand.steps[-1]).reversible:
-            prefer = (prefer or []) + [n0 + len(cand.steps)]  # the last new step's k₋ follows from its cycle
-    lay = layout(net, p.overall, prefer)
+        net, origin = _build(p, cand)
+    prefer = []
+    if p.haldane_step and (p.haldane_step - 1) in origin:
+        prefer.append(origin.index(p.haldane_step - 1) + 1)
+    if cand is not None:
+        # a new or newly reversible step: its k₋ follows from the cycle it closes
+        prefer += [j + 1 for j in touched(p, cand) if net.steps[j].reversible]
+    lay = layout(net, p.overall, prefer or None)
     for o in lay.overall_used:
         if not p.reactions[o].get("Kp") and o not in p.layout.overall_used:
             raise ValueError(f"전체 반응 '{p.reactions[o]['overall']}'의 K′ 없이 가역 순환이 생김")
     pv = p.prior_vector()
     base_lay = p.layout
-    kf = [float(x) for x in pv[:n0]]
-    kr_all = list(p.kr_prior_all())
-    if cand is not None and cand.replace is not None:
-        kr_all[cand.replace] = cand.prior_kr[0]
-    elif cand is not None:
-        kf += list(cand.prior_kf)
-        kr_all += [np.nan if v is None else v for v in cand.prior_kr]
+    kr_base = list(p.kr_prior_all())
+    kf, kr_all = [], []
+    added = 0
+    for i in origin:
+        if i is None:
+            kf.append(float(cand.prior_kf[added]))
+            v = cand.prior_kr[added]
+            kr_all.append(np.nan if v is None else float(v))
+            added += 1
+        else:
+            kf.append(float(pv[i]))
+            v = kr_base[i]
+            if cand is not None and i in cand.replace_kr:
+                v = cand.replace_kr[i] if cand.replace_kr[i] is not None else np.nan
+            kr_all.append(v)
     kr = [float(kr_all[i]) if np.isfinite(kr_all[i]) else 3.0 for i in lay.free_kr]
     kp = []
     for o in lay.overall_used:
@@ -322,14 +425,24 @@ def setup(p, cand: Candidate | None):
 
 
 def start_theta(p, lay, base: dict, cand: Candidate | None) -> np.ndarray:
-    """Warm start: the base fit's constants plus the candidate's prior centre."""
-    kf = list(base["kf"])
-    kr = list(base["kr"])
-    if cand is not None and cand.replace is not None:
-        kr[cand.replace] = 10.0 ** cand.prior_kr[0]
-    elif cand is not None:
-        kf += [10.0**v for v in cand.prior_kf]
-        kr += [0.0 if v is None else 10.0**v for v in cand.prior_kr]
+    """Warm start: the base fit's constants for the steps kept, the candidate's prior centre for the new ones."""
+    if cand is None:
+        return lay.theta(list(base["kf"]), list(base["kr"]), _kp_full(p, base.get("Kp_all"), p.layout))
+    _net, origin = _build(p, cand)
+    kf, kr = [], []
+    added = 0
+    for i in origin:
+        if i is None:
+            kf.append(10.0 ** cand.prior_kf[added])
+            v = cand.prior_kr[added]
+            kr.append(0.0 if v is None else 10.0**v)
+            added += 1
+        else:
+            kf.append(float(base["kf"][i]))
+            v = float(base["kr"][i])
+            if i in cand.replace_kr and cand.replace_kr[i] is not None and v <= 0:
+                v = 10.0 ** cand.replace_kr[i]
+            kr.append(v)
     return lay.theta(kf, kr, _kp_full(p, base.get("Kp_all"), p.layout))
 
 
@@ -373,7 +486,9 @@ def decide(base: dict, rows: list[dict], train: list[str], hold: list[str]) -> d
     per = {n: base["per"][n]["__all__"] for n in train}
     misses = [n for n in train if per[n] > SET_OK_SIGMA]
     base_ok = base["train"] <= BASE_OK_SIGMA and not misses
-    ok_rows = [r for r in rows if r.get("train") is not None and np.isfinite(r["train"])]
+    fitted = [r for r in rows if r.get("train") is not None and np.isfinite(r["train"])]
+    ok_rows = [r for r in fitted if r.get("kind") != "remove"]
+    removals = [r for r in fitted if r.get("kind") == "remove"]
     top = min(ok_rows, key=lambda r: r["train"]) if ok_rows else None
     better = False
     if top:
@@ -404,9 +519,24 @@ def decide(base: dict, rows: list[dict], train: list[str], hold: list[str]) -> d
                 f"홀드아웃 기준: RMSE {base['holdout']:.2f}σ를 절반 이하로 줄이는 후보 없음"
                 f"(가장 낮은 {best_ho['step']} {best_ho['holdout']:.2f}σ)"
             )
+    # removals: a step is not supported by the data when dropping it lowers AIC (the fit lost is worth less than the
+    # constants saved) and does not raise the held-out RMSE
+    prunable = [
+        r
+        for r in sorted(removals, key=lambda r: r["d_aic"])
+        if r["d_aic"] < 0
+        and (r.get("holdout") is None or base.get("holdout") is None or r["holdout"] <= base["holdout"])
+    ]
+    prune_note = None
+    if removals:
+        prune_note = "덜어낼 수 있는 부분(빼도 ΔAIC < 0, 홀드아웃이 나빠지지 않음): " + (
+            ", ".join(f"{r['step']} (ΔAIC {r['d_aic']:+.1f})" for r in prunable) if prunable else "없음"
+        )
     return {
         "base_explains_data": bool(base_ok),
         "sets_missed_by_base": misses,
+        "prunable": [r["step"] for r in prunable],
+        "prune_note": prune_note,
         "suggested_step": top["step"] if suggest else None,
         "suggested_holdout_improves": (
             bool(top["holdout"] < base["holdout"]) if suggest and top.get("holdout") is not None else None
@@ -476,7 +606,19 @@ def load_all(p, tmp: Path) -> list[tuple]:
     return out
 
 
-def run(p, out: Path, quick: bool, kinds=KINDS, run_dir: Path | None = None, root: Path | None = None, log=print):
+def run(
+    p,
+    out: Path,
+    quick: bool,
+    kinds=KINDS,
+    run_dir: Path | None = None,
+    root: Path | None = None,
+    log=print,
+    user: list | None = None,
+    all_train: bool = False,
+):
+    """``user``: hypotheses written as ``user_candidate`` text; ``all_train``: fit the held-out sets too (to see
+    whether a network can explain every set at once; no held-out check then)."""
     import tempfile
 
     from .. import plots
@@ -487,11 +629,14 @@ def run(p, out: Path, quick: bool, kinds=KINDS, run_dir: Path | None = None, roo
     wp = float(np.sqrt(float(ident["pinn"].get("w_prior", 1e-2)) / (2 * sd**2)))
     data = load_all(p, Path(tempfile.mkdtemp(prefix="enzopt_suggest_")))
     exps = [x for x, _ in data]
-    train = [x for x, r in data if r == "train"]
+    train = [x for x, r in data if r == "train" or (all_train and r == "holdout")]
     tr_names = [x[0] for x in train]
-    ho_names = [x[0] for x, r in data if r == "holdout"]
-    cands = candidates(p, kinds)
-    log(f"후보 {len(cands)}개: " + ", ".join(f"{k} {sum(c.kind == k for c in cands)}" for k in kinds))
+    ho_names = [] if all_train else [x[0] for x, r in data if r == "holdout"]
+    cands = candidates(p, kinds) if kinds else []
+    for k, text in enumerate(user or [], start=1):
+        cands.append(user_candidate(p, text, k))
+    counts = ", ".join(f"{k} {sum(c.kind == k for c in cands)}" for k in [*kinds, *(["user"] if user else [])])
+    log(f"후보 {len(cands)}개: {counts}" + (" · 홀드아웃까지 학습에 넣음(--all-train)" if all_train else ""))
 
     bf = ident.get("baseline_fit") or {}
     nfev_c = 15 if quick else 100
@@ -582,6 +727,7 @@ def run(p, out: Path, quick: bool, kinds=KINDS, run_dir: Path | None = None, roo
         if "train" in r:
             r["d_aic"] = aic(r) - aic(base_row)
     cand_rows = sorted([r for r in rows[1:] if "train" in r], key=lambda r: r["d_aic"])
+    failed = [r for r in rows[1:] if "train" not in r]
     verdict = decide(base_row, cand_rows, tr_names, ho_names)
 
     log(
@@ -591,15 +737,21 @@ def run(p, out: Path, quick: bool, kinds=KINDS, run_dir: Path | None = None, roo
     for r in cand_rows[:10]:
         ho = f", 홀드아웃 {r['holdout']:.2f}σ" if r.get("holdout") is not None else ""
         log(f"  {r['step']:32s} 학습 {r['train']:.2f}σ{ho}, ΔAIC {r['d_aic']:+.1f}")
+    for r in failed:
+        log(f"  {r['step']:32s} 맞추기 실패: {r['error']}")
     log(f"결론: {verdict['note']}")
     if verdict["holdout_note"]:
         log(verdict["holdout_note"])
+    if verdict["prune_note"]:
+        log(verdict["prune_note"])
 
     report = {
         "project": p.name,
         "method": "ode",
         "quick": quick,
         "kinds": list(kinds),
+        "user_candidates": list(user or []),
+        "all_train": all_train,
         "start": base["source"],
         "prior_centres_log10": {
             "dead_end_kf": KF_BIND_LOG10,
@@ -610,6 +762,7 @@ def run(p, out: Path, quick: bool, kinds=KINDS, run_dir: Path | None = None, roo
         "verdict": verdict,
         "as_written": {k: v for k, v in base_row.items() if k != "per"},
         "candidates": [{**{k: v for k, v in r.items() if k != "per"}} for r in cand_rows],
+        "failed": failed,
         "per_experiment": {
             r["step"] or "as written": {n: v["__all__"] for n, v in r["per"].items()} for r in [base_row, *cand_rows]
         },
