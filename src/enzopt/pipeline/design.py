@@ -14,6 +14,7 @@ from ..core.design import (
     equilibrium_conversion_of,
     rho_min_of,
     run_design,
+    run_peak_design,
     run_time_design,
 )
 from .common import design_rates, load_samples
@@ -98,6 +99,9 @@ def run_design_stage(ctx: RunContext) -> None:
     lo, hi = (float(x) for x in des.get("Et_bounds_mM", [1e-6, 1e-2]))
     if goal == "time":
         _time_design(ctx, p, des, design, rates, rhos, acts, out)
+        return
+    if goal == "peak":
+        _peak_design(ctx, p, des, design, rates, rhos, acts, out)
         return
 
     def prog(f, m):
@@ -409,4 +413,67 @@ def _time_design(ctx: RunContext, p, des: dict, design: AssayDesign, rates, rhos
     plots.write_rows(out / "pipette.csv", list(pip[0].keys()), [list(r.values()) for r in pip])
     summ["pipette"] = pip
     ctx.flag("design", {"rho_star": res.rho_star, "Et_nM": Et * 1e6, "robust_time_s": res.time_star})
+    write_json(out / "design_summary.json", summ)
+
+
+def _peak_design(ctx: RunContext, p, des: dict, design: AssayDesign, rates, rhos, acts, out) -> None:
+    """Goal ``peak``: a product made and then broken down again (kinetically controlled synthesis). With the enzyme
+    amount ``Et_nM`` (default: the first training experiment's), per ρ the stop time that maximises the worst
+    sample's yield of ``product``; ρ* gives the highest worst-sample yield (``core.design.run_peak_design``)."""
+    if not design.product:
+        raise StageFailed("design.target peak: design.product(만들려는 생성물)가 필요함")
+    train = p.by_role("train")
+    Et = float(des["Et_nM"]) * 1e-6 if des.get("Et_nM") is not None else (train[0].Et if train else None)
+    if Et is None:
+        raise StageFailed("design.target peak: design.Et_nM(효소량)이 필요함")
+    t_max = float(des.get("t_max_s", max(10 * float(des["time_s"]), 3600.0)))
+    ctx.progress(0.2, "수율 곡선(ρ마다 표본마다)")
+    res = run_peak_design(design, rates, rhos, Et, t_max, activities=acts)
+    summ = res.summary()
+    summ.update({"analyte0_mM": design.analyte0, "product": design.product, "samples": len(rates)})
+    plots.write_rows(
+        out / "peak_table.csv",
+        ["rho", "peak_nominal_s", "yield_nominal", "stop_robust_s", "yield_robust", "window_lo_s", "window_hi_s"],
+        [
+            [r["rho"], r["peak_nominal_s"], r["yield_nominal"], r["stop_robust_s"], r["yield_robust"]]
+            + [r["window_lo_s"], r["window_hi_s"]]
+            for r in res.rows
+        ],
+    )
+    s = res.star()
+    pp = des["pipette"]
+    V, Ve, a0 = float(pp["volume_uL"]), float(pp["enzyme_uL"]), design.analyte0
+    stocks = pp["stocks_mM"]
+    va = a0 * V / float(stocks[design.analyte])
+    vp = res.rho_star * a0 * V / float(stocks[design.partner]) if design.partner else 0.0
+    vf = sum(float(m) * a0 * V / float(stocks[s_]) for s_, m in design.fixed.items())
+    pip = [
+        {
+            "set": "D1",
+            "purpose": "최고 수율에서 멈춤(강건)",
+            "rho": res.rho_star,
+            "buffer_uL": V - va - vp - vf - Ve,
+            "Et_final_nM": Et * 1e6,
+            "record": (
+                f"{s['window_lo_s']:.0f}~{s['window_hi_s']:.0f} s 사이에 멈춤(가장 좋은 {s['stop_robust_s']:.0f} s)"
+            ),
+            "predicted": f"표본 최악 수율 {s['yield_robust'] * 100:.0f} %",
+        },
+        {
+            "set": "Z",
+            "purpose": "효소 없음(대조)",
+            "rho": res.rho_star,
+            "buffer_uL": V - va - vp - vf,
+            "Et_final_nM": 0.0,
+            "record": f"{s['stop_robust_s']:.0f} s",
+            "predicted": "변화 없음",
+        },
+    ]
+    plots.write_rows(out / "pipette.csv", list(pip[0].keys()), [list(r.values()) for r in pip])
+    summ["pipette"] = pip
+    summ["figures"] = [plots.peak_figure(out, res, design.product)]
+    ctx.flag(
+        "design",
+        {"rho_star": res.rho_star, "Et_nM": Et * 1e6, "robust_stop_s": s["stop_robust_s"], "yield": s["yield_robust"]},
+    )
     write_json(out / "design_summary.json", summ)

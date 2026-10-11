@@ -29,7 +29,7 @@ from .activity import enzyme_loss
 from .massaction import MassAction, SimulationError, SolverSettings, haldane_kr, simulate
 from .network import Network, Step, x0_vector
 
-GOALS = ("assay", "yield", "selectivity", "time")
+GOALS = ("assay", "yield", "selectivity", "time", "peak")
 
 # CADKIMM placeholder constants (design_optimize.py): used for the synthetic-sample regression only
 KF0 = np.array([1e4, 5e3, 300.0, 1000.0, 200.0, 1e3])
@@ -439,6 +439,112 @@ def _time_row(args):
     design, rho, samples, Et, t_max, acts = args
     ts = [design.time_to_target(k, Et, rho, t_max, a) for k, a in zip(samples, acts, strict=True)]
     return rho, ts[0], max(ts)
+
+
+PEAK_WINDOW = 0.95  # stop-time window: worst-sample yield at least this fraction of its best
+
+
+@dataclass
+class PeakDesignResult:
+    """Goal ``peak`` (a product that is made and then broken down again, e.g. kinetically controlled synthesis)."""
+
+    rhos: list[float]
+    rows: list[dict]  # per ρ: nominal peak, robust stop time, worst-sample yield, window, each sample's own peak
+    rho_star: float
+    Et: float
+    t_max: float
+    t: np.ndarray  # time grid at ρ*
+    yields: np.ndarray  # (samples × time) yield at ρ*
+
+    def star(self) -> dict:
+        return next(r for r in self.rows if r["rho"] == self.rho_star)
+
+    def summary(self) -> dict:
+        s = self.star()
+        return {
+            "goal": "peak",
+            "rho_star": self.rho_star,
+            "Et_mM": self.Et,
+            "Et_nM": self.Et * 1e6,
+            "t_max_s": self.t_max,
+            "robust_stop_s": s["stop_robust_s"],
+            "robust_yield": s["yield_robust"],
+            "stop_window_s": [s["window_lo_s"], s["window_hi_s"]],
+            "nominal_peak_s": s["peak_nominal_s"],
+            "nominal_peak_yield": s["yield_nominal"],
+            "sample_peak_s": s["sample_peak_s"],
+            "sample_peak_yield": s["sample_peak_yield"],
+            "window_fraction": PEAK_WINDOW,
+        }
+
+
+def _peak_curves(args):
+    design, rho, samples, Et, t_max, acts, n = args
+    t = np.linspace(0.0, t_max, n)
+    i = design.network.index()[design.product]
+    scale = design.analyte0 * design.product_per_analyte
+    Y = []
+    for k, a in zip(samples, acts, strict=True):
+        try:
+            X = design.trajectory(k, Et, rho, t, a)
+            Y.append(X[:, i] / scale)
+        except SimulationError:
+            Y.append(np.full(len(t), np.nan))
+    return rho, t, np.array(Y)
+
+
+def peak_row(rho: float, t: np.ndarray, Y: np.ndarray) -> dict:
+    """Nominal peak (sample 0), robust stop time (maximises the worst sample's yield) and its window."""
+    worst = np.nanmin(Y, axis=0)
+    j = int(np.nanargmax(worst))
+    ok = np.nonzero(worst >= PEAK_WINDOW * worst[j])[0]
+    lo, hi = j, j  # the contiguous window around the best stop time
+    while lo - 1 in ok:
+        lo -= 1
+    while hi + 1 in ok:
+        hi += 1
+    jn = int(np.nanargmax(Y[0]))
+    own = [int(np.nanargmax(y)) for y in Y]
+    return {
+        "rho": float(rho),
+        "peak_nominal_s": float(t[jn]),
+        "yield_nominal": float(Y[0, jn]),
+        "stop_robust_s": float(t[j]),
+        "yield_robust": float(worst[j]),
+        "window_lo_s": float(t[lo]),
+        "window_hi_s": float(t[hi]),
+        "sample_peak_s": [float(t[m]) for m in own],
+        "sample_peak_yield": [float(Y[s, m]) for s, m in enumerate(own)],
+        "yield_at_stop": [float(y[j]) for y in Y],
+    }
+
+
+def run_peak_design(
+    design: AssayDesign,
+    samples: list[np.ndarray],
+    rhos: list[float],
+    Et: float,
+    t_max: float,
+    n_points: int = 1201,
+    workers: int | None = None,
+    activities: list[dict | None] | None = None,
+) -> PeakDesignResult:
+    """Goal ``peak``: with the enzyme amount ``Et`` fixed, per ρ the stop time that maximises the worst sample's
+    yield of ``design.product``; ρ* has the highest worst-sample yield. Nominal = sample 0's own peak."""
+    if not design.product:
+        raise ValueError("design.target peak: design.product(만들려는 생성물)가 필요함")
+    acts = list(activities) if activities is not None else [None] * len(samples)
+    tasks = [(design, float(r), samples, Et, t_max, acts, n_points) for r in rhos]
+    w = workers if workers is not None else n_workers(len(tasks))
+    if w > 1 and len(tasks) > 1:
+        with ProcessPoolExecutor(max_workers=w) as ex:
+            curves = list(ex.map(_peak_curves, tasks))
+    else:
+        curves = [_peak_curves(t) for t in tasks]
+    rows = [peak_row(r, t, Y) for r, t, Y in curves]
+    j = int(np.argmax([r["yield_robust"] for r in rows]))
+    _r, t, Y = curves[j]
+    return PeakDesignResult([float(r) for r in rhos], rows, rows[j]["rho"], float(Et), float(t_max), t, Y)
 
 
 def run_time_design(

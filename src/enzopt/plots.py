@@ -172,14 +172,36 @@ def write_rows(path, header, rows):
 
 
 # ------------------------------------------------------------------------------------------------ ③ identification
-def _model_curves(p, every, out_dir: Path) -> dict:
-    """{label: {exp: (t, A)}} for WR samples, the non-WR control and the classical fit (from stage-③ files)."""
+def _names(p) -> dict:
+    """Display names of the comparison models. The CSV ids stay "WR …"/"nonWR …"/"PINN (WR)" (tests, dashboard); when
+    the network as written is not weakly reversible itself, figures call it "identified" and name the control by the
+    steps it makes one-way."""
+    from .core.crnt import verdict
+
+    wr = bool(verdict(p.network.reactions(), p.network.name).weakly_reversible)
+    steps = (p.control or {}).get("one_way_steps") or []
+    ctrl = "nonWR" if wr else (f"control: step {', '.join(str(s) for s in steps)} one-way" if steps else "control")
+    return {
+        "wr": wr,
+        "control": ctrl,
+        "legend": {
+            "WR": "WR" if wr else "identified",
+            "WR-excluded": "WR-excluded" if wr else "excluded",
+            "nonWR": ctrl,
+        },
+        "table": {"PINN (WR)": "PINN (WR)" if wr else "PINN", "nonWR": ctrl},
+    }
+
+
+def _model_curves(p, every, out_dir: Path, coeff: dict | None = None) -> dict:
+    """{label: {exp: (t, signal)}} for WR samples, the non-WR control and the classical fit (from stage-③ files);
+    ``coeff`` picks the signal (default: the primary observable)."""
     import json
 
     from .core.massaction import MassAction
     from .pipeline.common import safe_curve
 
-    coeff = p.observable_weights()
+    coeff = coeff or p.observable_weights()
     curves = {}
     fines = {}
     for name, _e, t, _y in every:
@@ -221,10 +243,22 @@ def _style(label: str, i: int):
 def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
     curves = _model_curves(p, every, out)
     data = {name: (t, y, e.role) for name, e, t, y in every}
+    nm = _names(p)
     figs = []
+    titles = (
+        (
+            "(a) training sets: data and identified WR models",
+            "(b) held-out sets: WR models, non-WR control, classical fit",
+        )
+        if nm["wr"]
+        else (
+            "(a) training sets: data and identified models",
+            f"(b) held-out sets: identified models, {nm['control']}, classical fit",
+        )
+    )
     for fig_name, role, title in (
-        ("fig3a_train_fit", "train", "(a) training sets: data and identified WR models"),
-        ("fig3b_holdout", "holdout", "(b) held-out sets: WR models, non-WR control, classical fit"),
+        ("fig3a_train_fit", "train", titles[0]),
+        ("fig3b_holdout", "holdout", titles[1]),
     ):
         names = [n for n, (_, _, r) in data.items() if r == role]
         if not names:
@@ -259,7 +293,7 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
             axes[k // ncol, k % ncol].axis("off")
         fig.legend(
             list(handles.values()),
-            list(handles.keys()),
+            [nm["legend"].get(k, k) for k in handles],
             loc="lower center",
             ncol=len(handles),
             frameon=False,
@@ -320,20 +354,77 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
         for m, ident, *_rest in rr:
             if (m, ident) not in models:
                 models.append((m, ident))
+        # with further signals the table shows RMSE ÷ σ over every signal (column 6), else the primary RMSE
+        col = 5 if p.signals and rr and len(rr[0]) > 5 else 4
         trows = []
         for m, ident in models:
-            vals = {n: v for mm, ii, n, role, v in rr if (mm, ii) == (m, ident)}
-            trows.append([m, ident] + [float(vals[n]) if vals.get(n) not in (None, "", "None") else "—" for n in hold])
+            vals = {r[2]: r[col] for r in rr if (r[0], r[1]) == (m, ident)}
+            trows.append(
+                [nm["table"].get(m, m), ident]
+                + [float(vals[n]) if vals.get(n) not in (None, "", "None") else "—" for n in hold]
+            )
+        title = (
+            "Held-out extrapolation RMSE / σ (all signals)"
+            if col == 5
+            else f"Held-out extrapolation RMSE ({p.observable['name']})"
+        )
         figs.append(
             table_figure(
                 out,
                 "fig3d_holdout_table",
                 ["model", "id"] + [f"RMSE {n}" for n in hold],
                 trows,
-                title=f"Held-out extrapolation RMSE ({p.observable['name']})",
+                title=title,
             )
         )
+    if p.signals:
+        figs.append(signals_figure(out, p, every, nm))
     return figs
+
+
+def signals_figure(out: Path, p, every, nm: dict) -> dict:
+    """(f) every signal of every training and held-out set: data and the comparison models (projects with further
+    signals; panels (a)(b) show the primary signal only)."""
+    run_dir = out.parent
+    sigs = [(p.observable["name"], p.observable_weights())] + [(s["name"], dict(s["coefficients"])) for s in p.signals]
+    names = [n for n, *_ in every]
+    nrow, ncol = len(names), len(sigs)
+    fig, axes = new_figure(DOUBLE, 0.2 * DOUBLE * nrow + 0.06 * DOUBLE, ncols=ncol, nrows=nrow)
+    rows, handles = [], {}
+    for c, (sig, coeff) in enumerate(sigs):
+        curves = _model_curves(p, every, out, coeff)
+        for r, (name, e, t, y) in enumerate(every):
+            ax = axes[r, c]
+            if c > 0:
+                d = np.loadtxt(run_dir / "2_data" / f"sig_{name}__{sig}.csv", delimiter=",", skiprows=1, ndmin=2)
+                t, y = d[:, 0], d[:, 1]
+            ax.plot(t, y, "o", ms=1.8, mfc="none", mew=0.5, color="0.1")
+            handles.setdefault("data", ax.lines[-1])
+            rows += [["data", name, sig, float(a), float(b)] for a, b in zip(t, y, strict=True)]
+            for i, (label, cv) in enumerate(curves.items()):
+                if name not in cv or label.startswith("WR-excluded"):
+                    continue
+                tt, aa = cv[name]
+                (ln,) = ax.plot(tt, aa, **_style(label, i))
+                handles.setdefault(label.split(" ")[0], ln)
+                rows += [[label, name, sig, float(a), float(b)] for a, b in zip(tt, aa, strict=True)]
+            ax.tick_params(labelsize=5)
+            if r == 0:
+                ax.set_title(sig, fontsize=6.5)
+            if c == 0:
+                ax.set_ylabel(f"{name}{'' if e.role == 'train' else ' (held out)'}", fontsize=6)
+            if r == nrow - 1:
+                ax.set_xlabel("time (s)", fontsize=6)
+    fig.legend(
+        list(handles.values()),
+        [nm["legend"].get(k, k) for k in handles],
+        loc="lower center",
+        ncol=len(handles),
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.02),
+    )
+    fig.suptitle("(f) every signal: data and models", fontsize=7.5)
+    return save(fig, out, "fig3f_signals", ["model", "experiment", "signal", "time_s", "value"], rows)
 
 
 def activity_figure(out: Path, samples: list) -> dict:
@@ -650,3 +741,33 @@ def suggest_figure(
         fontsize=7.5,
     )
     return save(fig, out, "fig_suggest", ["experiment", "time_s", "shortfall"], rows)
+
+
+def peak_figure(out: Path, res, product: str) -> dict:
+    """⑤ goal ``peak``: (a) yield of the product against time at ρ* for every sample, with the robust stop time and
+    its window; (b) worst-sample yield at the robust stop time for every ρ."""
+    fig, axes = new_figure(DOUBLE, 0.36 * DOUBLE, ncols=2)
+    ax, bx = axes[0, 0], axes[0, 1]
+    rows = []
+    s = res.star()
+    for i, y in enumerate(res.yields):
+        ax.plot(res.t, y * 100, color=color(i), lw=0.9, ls=linestyle(i), label=f"sample {i}")
+        rows += [[f"sample{i}", float(res.rho_star), float(a), float(b)] for a, b in zip(res.t, y, strict=True)]
+    ax.axvspan(s["window_lo_s"], s["window_hi_s"], color="0.85", lw=0, label="stop window")
+    ax.axvline(s["stop_robust_s"], color="0.2", ls="--", lw=0.8, label=f"robust stop {s['stop_robust_s']:.0f} s")
+    ax.set(
+        xlabel="time (s)",
+        ylabel=f"{product} yield (%)",
+        title=f"(a) yield at ρ* = {res.rho_star:g}, Et {res.Et * 1e6:.3g} nM",
+    )
+    ax.legend(frameon=False, fontsize=5.5)
+    rho = [r["rho"] for r in res.rows]
+    bx.plot(
+        rho, [r["yield_robust"] * 100 for r in res.rows], "o-", color=color(0), ms=3, label="worst sample, robust stop"
+    )
+    bx.plot(
+        rho, [r["yield_nominal"] * 100 for r in res.rows], "s:", color=color(1), ms=3, label="sample 0, its own peak"
+    )
+    bx.set(xlabel="ρ (partner / analyte)", ylabel="yield (%)", title="(b) best yield against ρ")
+    bx.legend(frameon=False, fontsize=5.5)
+    return save(fig, out, "fig5a_peak", ["sample", "rho", "time_s", "yield"], rows)

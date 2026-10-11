@@ -157,7 +157,15 @@ def run_comparisons(ctx: RunContext, train, every, prior, pinn_cfg, prog_base: f
     coeff = p.observable_weights()
     extras = {name: load_signals(ctx, name) for name, *_ in every}
     summary = {}
-    rows = []  # model, id, experiment, role, rmse
+    rows = []  # model, id, experiment, role, rmse of the primary signal, RMSE ÷ σ over all signals
+    sig_of = {p.observable["name"]: float(ident["noise_sigma"]), **{sg["name"]: float(sg["sigma"]) for sg in p.signals}}
+
+    def all_sigma(name: str, prim, by_signal: dict | None):
+        """Root mean square of RMSE ÷ σ over every signal of one experiment (the primary alone without signals)."""
+        vals = (by_signal or {}).get(name) or {p.observable["name"]: prim}
+        if any(v is None for v in vals.values()):
+            return None
+        return float(np.sqrt(np.mean([(v / sig_of[k]) ** 2 for k, v in vals.items()])))
 
     def per_signal(net, k, model, activity=None):
         res = {}
@@ -194,9 +202,12 @@ def run_comparisons(ctx: RunContext, train, every, prior, pinn_cfg, prog_base: f
             for name, e, t, y in every:
                 a = safe_curve(p.network, k, e.initial, e.Et, t, coeff, model=model)
                 r["rmse_ode"][name] = rmse(a, y) if a is not None else None
-                rows.append(["classical", f"start{r['start']}", name, e.role, r["rmse_ode"][name]])
             if p.signals:
                 r["rmse_ode_signals"] = per_signal(p.network, k, model)
+            for name, e, *_ in every:
+                prim = r["rmse_ode"][name]
+                aa = all_sigma(name, prim, r.get("rmse_ode_signals"))
+                rows.append(["classical", f"start{r['start']}", name, e.role, prim, aa])
             write_json(d / f"fit_start{r['start']}.json", r)
         summary["classical"] = {
             "inactivation": "none",  # the least-squares baseline never models enzyme inactivation
@@ -245,9 +256,12 @@ def run_comparisons(ctx: RunContext, train, every, prior, pinn_cfg, prog_base: f
                 for name, e, t, y in every:
                     a = safe_curve(ctrl_net, k, e.initial, e.Et, t, coeff, model=model, activity=r.activity)
                     rec["rmse_ode"][name] = rmse(a, y) if a is not None else None
-                    rows.append(["nonWR", f"seed{r.seed}", name, e.role, rec["rmse_ode"][name]])
                 if p.signals:
                     rec["rmse_ode_signals"] = per_signal(ctrl_net, k, model, r.activity)
+                for name, e, *_ in every:
+                    prim = rec["rmse_ode"][name]
+                    aa = all_sigma(name, prim, rec.get("rmse_ode_signals"))
+                    rows.append(["nonWR", f"seed{r.seed}", name, e.role, prim, aa])
                 write_json(d / f"control_seed{r.seed}.json", rec)
                 fits.append(rec)
             summary["control"] = {
@@ -261,9 +275,14 @@ def run_comparisons(ctx: RunContext, train, every, prior, pinn_cfg, prog_base: f
 
     for s in load_samples(ctx.run_dir, kept_only=True):
         for name, e, *_ in every:
-            rows.append(["PINN (WR)", f"seed{s['seed']}", name, e.role, s["rmse_ode"].get(name)])
+            prim = s["rmse_ode"].get(name)
+            rows.append(
+                ["PINN (WR)", f"seed{s['seed']}", name, e.role, prim, all_sigma(name, prim, s.get("rmse_ode_signals"))]
+            )
     from .. import plots
 
-    plots.write_rows(out / "holdout_comparison.csv", ["model", "id", "experiment", "role", "rmse_A340"], rows)
+    # model ids stay "PINN (WR)" / "nonWR" (read by tests and the dashboard); figures name them by the network (plots)
+    header = ["model", "id", "experiment", "role", "rmse_A340", "rmse_all_sigma"]
+    plots.write_rows(out / "holdout_comparison.csv", header, rows)
     summary["table"] = "holdout_comparison.csv"
     return summary
