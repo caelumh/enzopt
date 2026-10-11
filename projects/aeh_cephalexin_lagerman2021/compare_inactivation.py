@@ -120,7 +120,8 @@ def main() -> None:
     jobs = [(base_run, h, m) for h in HYP for m in ("train6", "all8")]
     with ProcessPoolExecutor(max_workers=len(jobs)) as ex:
         results = list(ex.map(job, jobs))
-    (HERE / "figures" / "inactivation_hypotheses.json").write_text(json.dumps(results, indent=1), encoding="utf-8")
+    out = HERE / "figures" / "inactivation_hypotheses.json"
+    out.write_text(json.dumps(results, indent=1), encoding="utf-8", newline="\n")
     for r in results:
         rm = r["rmse_mM"]
         tr = np.mean([rm[k] for k in TRAIN])
