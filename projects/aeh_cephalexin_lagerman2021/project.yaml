@@ -7,10 +7,11 @@ description: 실측 문헌 데이터 — Lagerman 2021 AEH 세팔렉신 합성, 
 network:
   name: aeh_acyl_enzyme
   # ES = E·PGME, EA = 아실 효소, EAN = EA·7-ADCA, EP = E·세팔렉신, EN = E·7-ADCA(막다른), EG = E·PG(생성물 저해),
-  # ESS = E·PGME·PGME, EAS = EA·PGME(기질 저해). 메탄올·물은 따로 두지 않음. 단계는 저자 모델(Lauterbach 2022 Scenario 5
-  # "Model 4")과 같고, 빠른 평형 가정 대신 질량 작용(kf, kr 모두 식별), 효소 실활 단계는 뺐다(README).
-  species: [E, PGME, ES, EA, PG, ADCA, EAN, EP, CEX, EN, EG, ESS, EAS]
-  enzyme_species: [E, ES, EA, EAN, EP, EN, EG, ESS, EAS]
+  # ESS = E·PGME·PGME, EAS = EA·PGME(기질 저해), ED = 실활한 효소. 메탄올·물은 따로 두지 않음. 단계는 저자 모델(Lauterbach 2022 Scenario 5
+  # "Model 4")과 같고, 빠른 평형 가정 대신 질량 작용(kf, kr 모두 식별). 실활은 저자의 E → ED 대신 기질이 둘
+  # 붙은 복합체가 망가지는 ESS → ED(가설 7개를 비교해 고름, README "실활 단계 고르기")
+  species: [E, PGME, ES, EA, PG, ADCA, EAN, EP, CEX, EN, EG, ESS, EAS, ED]
+  enzyme_species: [E, ES, EA, EAN, EP, EN, EG, ESS, EAS, ED]
   steps:
     - E + PGME <=> ES               # 1 PGME 결합
     - ES -> EA                      # 2 아실화(메탄올 나감)
@@ -24,6 +25,7 @@ network:
     - ES + PGME <=> ESS             # 10 기질 저해
     - EA + PGME <=> EAS             # 11 기질 저해(아실 효소)
     - EAS -> E + PG + PGME          # 12 PGME가 붙은 채 가수분해
+    - ESS -> ED                     # 13 기질이 둘 붙은 효소의 실활(PGME가 많을수록 빨리 망가짐)
   observable:
     name: PGME_mM
     coefficients: {PGME: 1, ES: 1, ESS: 2, EAS: 1}   # HPLC는 효소에 붙은 몫까지 잼(효소 0.2 µM라 거의 0)
@@ -37,7 +39,7 @@ network:
       - {overall: PGME <=> PG}
   prior:                            # 일반 자릿수(문헌 값이 아님, README "사전분포"), 표준편차 1.5 자릿수
     # kf: 결합 1/(mM·s), 해리·화학 단계 1/s
-    kf_log10: [3, 3, 2, 3, 3, 4, 2, 3, 3, 3, 3, 2]
+    kf_log10: [3, 3, 2, 3, 3, 4, 2, 3, 3, 3, 3, 2, -2]   # 13: 실활 10⁻² /s
     # kr(가역 단계 1, 4, 5, 6, 8, 9, 10, 11 순서): 해리 1/s, 단계 6·결합 1/(mM·s)
     kr_log10: [4, 4, 2, 3, 4, 4, 4, 4]
     sd_decades: 1.5
@@ -62,7 +64,7 @@ identification:
   seeds: 4
   noise_sigma: 0.5                  # mM. HPLC 한 번 측정(반복 없음). 물질 수지의 어긋남(1~2 mM)을 보고 정한 값(README)
   baseline_fit: {starts: 4, max_nfev: 200}
-  pinn: {inactivation: shared}      # 효소 활성 a(t)를 모든 실험이 함께 쓰는 곡선으로 식별(README "실활")
+  # 실활은 반응식의 단계 13(ESS → ED)이 맡는다. 실험마다 다른 활성 a(t)를 PINN이 그 단계로 계산(공유 a(t)는 끔)
 
 simulation:
   t_long_s: 3600

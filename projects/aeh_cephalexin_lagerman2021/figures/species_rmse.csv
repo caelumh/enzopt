@@ -1,257 +1,257 @@
 experiment,role,signal,model,rmse_mM
-m0,train,PGME_mM,PINN sample 0,0.496
-m0,train,PGME_mM,PINN sample 1,0.437
-m0,train,PGME_mM,PINN sample 2,0.390
-m0,train,PGME_mM,PINN sample 3,0.341
-m0,train,PGME_mM,classical 0,0.817
-m0,train,PGME_mM,classical 1,0.817
-m0,train,PGME_mM,classical 2,0.817
-m0,train,PGME_mM,classical 3,0.817
-m0,train,ADCA_mM,PINN sample 0,0.399
-m0,train,ADCA_mM,PINN sample 1,0.390
-m0,train,ADCA_mM,PINN sample 2,0.405
-m0,train,ADCA_mM,PINN sample 3,0.397
-m0,train,ADCA_mM,classical 0,0.401
-m0,train,ADCA_mM,classical 1,0.401
-m0,train,ADCA_mM,classical 2,0.401
-m0,train,ADCA_mM,classical 3,0.401
-m0,train,CEX_mM,PINN sample 0,0.819
-m0,train,CEX_mM,PINN sample 1,0.756
-m0,train,CEX_mM,PINN sample 2,0.812
-m0,train,CEX_mM,PINN sample 3,0.653
-m0,train,CEX_mM,classical 0,0.855
-m0,train,CEX_mM,classical 1,0.855
-m0,train,CEX_mM,classical 2,0.855
-m0,train,CEX_mM,classical 3,0.855
-m0,train,PG_mM,PINN sample 0,0.789
-m0,train,PG_mM,PINN sample 1,0.800
-m0,train,PG_mM,PINN sample 2,0.792
-m0,train,PG_mM,PINN sample 3,0.800
-m0,train,PG_mM,classical 0,0.863
-m0,train,PG_mM,classical 1,0.863
-m0,train,PG_mM,classical 2,0.863
-m0,train,PG_mM,classical 3,0.863
-m1,train,PGME_mM,PINN sample 0,0.503
-m1,train,PGME_mM,PINN sample 1,0.550
-m1,train,PGME_mM,PINN sample 2,0.542
-m1,train,PGME_mM,PINN sample 3,0.638
-m1,train,PGME_mM,classical 0,0.535
-m1,train,PGME_mM,classical 1,0.535
-m1,train,PGME_mM,classical 2,0.535
-m1,train,PGME_mM,classical 3,0.535
-m1,train,ADCA_mM,PINN sample 0,0.589
-m1,train,ADCA_mM,PINN sample 1,0.623
-m1,train,ADCA_mM,PINN sample 2,0.608
-m1,train,ADCA_mM,PINN sample 3,0.734
-m1,train,ADCA_mM,classical 0,0.683
-m1,train,ADCA_mM,classical 1,0.683
-m1,train,ADCA_mM,classical 2,0.683
-m1,train,ADCA_mM,classical 3,0.683
-m1,train,CEX_mM,PINN sample 0,0.939
-m1,train,CEX_mM,PINN sample 1,0.887
-m1,train,CEX_mM,PINN sample 2,0.963
-m1,train,CEX_mM,PINN sample 3,0.802
-m1,train,CEX_mM,classical 0,1.022
-m1,train,CEX_mM,classical 1,1.022
-m1,train,CEX_mM,classical 2,1.022
-m1,train,CEX_mM,classical 3,1.022
-m1,train,PG_mM,PINN sample 0,0.643
-m1,train,PG_mM,PINN sample 1,0.647
-m1,train,PG_mM,PINN sample 2,0.618
-m1,train,PG_mM,PINN sample 3,0.671
-m1,train,PG_mM,classical 0,0.538
-m1,train,PG_mM,classical 1,0.537
-m1,train,PG_mM,classical 2,0.537
-m1,train,PG_mM,classical 3,0.537
-m2,train,PGME_mM,PINN sample 0,1.033
-m2,train,PGME_mM,PINN sample 1,1.081
-m2,train,PGME_mM,PINN sample 2,1.049
-m2,train,PGME_mM,PINN sample 3,1.017
-m2,train,PGME_mM,classical 0,1.215
-m2,train,PGME_mM,classical 1,1.215
-m2,train,PGME_mM,classical 2,1.215
-m2,train,PGME_mM,classical 3,1.215
-m2,train,ADCA_mM,PINN sample 0,0.259
-m2,train,ADCA_mM,PINN sample 1,0.237
-m2,train,ADCA_mM,PINN sample 2,0.255
-m2,train,ADCA_mM,PINN sample 3,0.329
-m2,train,ADCA_mM,classical 0,0.273
-m2,train,ADCA_mM,classical 1,0.273
-m2,train,ADCA_mM,classical 2,0.273
-m2,train,ADCA_mM,classical 3,0.273
-m2,train,CEX_mM,PINN sample 0,0.929
-m2,train,CEX_mM,PINN sample 1,0.922
-m2,train,CEX_mM,PINN sample 2,0.937
-m2,train,CEX_mM,PINN sample 3,1.036
-m2,train,CEX_mM,classical 0,0.921
-m2,train,CEX_mM,classical 1,0.921
-m2,train,CEX_mM,classical 2,0.921
-m2,train,CEX_mM,classical 3,0.921
-m2,train,PG_mM,PINN sample 0,0.622
-m2,train,PG_mM,PINN sample 1,0.614
-m2,train,PG_mM,PINN sample 2,0.631
-m2,train,PG_mM,PINN sample 3,0.615
-m2,train,PG_mM,classical 0,0.536
-m2,train,PG_mM,classical 1,0.536
-m2,train,PG_mM,classical 2,0.536
-m2,train,PG_mM,classical 3,0.536
-m3,train,PGME_mM,PINN sample 0,0.336
-m3,train,PGME_mM,PINN sample 1,0.249
-m3,train,PGME_mM,PINN sample 2,0.375
-m3,train,PGME_mM,PINN sample 3,0.366
-m3,train,PGME_mM,classical 0,0.576
-m3,train,PGME_mM,classical 1,0.576
-m3,train,PGME_mM,classical 2,0.576
-m3,train,PGME_mM,classical 3,0.576
-m3,train,ADCA_mM,PINN sample 0,0.610
-m3,train,ADCA_mM,PINN sample 1,0.632
-m3,train,ADCA_mM,PINN sample 2,0.595
-m3,train,ADCA_mM,PINN sample 3,0.650
-m3,train,ADCA_mM,classical 0,0.767
-m3,train,ADCA_mM,classical 1,0.767
-m3,train,ADCA_mM,classical 2,0.767
-m3,train,ADCA_mM,classical 3,0.767
-m3,train,CEX_mM,PINN sample 0,0.650
-m3,train,CEX_mM,PINN sample 1,0.644
-m3,train,CEX_mM,PINN sample 2,0.738
-m3,train,CEX_mM,PINN sample 3,0.839
-m3,train,CEX_mM,classical 0,0.796
-m3,train,CEX_mM,classical 1,0.796
-m3,train,CEX_mM,classical 2,0.796
-m3,train,CEX_mM,classical 3,0.796
-m3,train,PG_mM,PINN sample 0,0.242
-m3,train,PG_mM,PINN sample 1,0.189
-m3,train,PG_mM,PINN sample 2,0.191
-m3,train,PG_mM,PINN sample 3,0.112
-m3,train,PG_mM,classical 0,0.385
-m3,train,PG_mM,classical 1,0.385
-m3,train,PG_mM,classical 2,0.385
-m3,train,PG_mM,classical 3,0.385
-m5,train,PGME_mM,PINN sample 0,0.391
-m5,train,PGME_mM,PINN sample 1,0.445
-m5,train,PGME_mM,PINN sample 2,0.438
-m5,train,PGME_mM,PINN sample 3,0.477
-m5,train,PGME_mM,classical 0,0.864
-m5,train,PGME_mM,classical 1,0.864
-m5,train,PGME_mM,classical 2,0.864
-m5,train,PGME_mM,classical 3,0.864
-m5,train,ADCA_mM,PINN sample 0,1.279
-m5,train,ADCA_mM,PINN sample 1,1.285
-m5,train,ADCA_mM,PINN sample 2,1.283
-m5,train,ADCA_mM,PINN sample 3,1.193
-m5,train,ADCA_mM,classical 0,1.430
-m5,train,ADCA_mM,classical 1,1.430
-m5,train,ADCA_mM,classical 2,1.430
-m5,train,ADCA_mM,classical 3,1.430
-m5,train,CEX_mM,PINN sample 0,0.849
-m5,train,CEX_mM,PINN sample 1,0.845
-m5,train,CEX_mM,PINN sample 2,0.855
-m5,train,CEX_mM,PINN sample 3,0.930
-m5,train,CEX_mM,classical 0,0.587
-m5,train,CEX_mM,classical 1,0.587
-m5,train,CEX_mM,classical 2,0.587
-m5,train,CEX_mM,classical 3,0.587
-m5,train,PG_mM,PINN sample 0,0.616
-m5,train,PG_mM,PINN sample 1,0.682
-m5,train,PG_mM,PINN sample 2,0.666
-m5,train,PG_mM,PINN sample 3,0.760
-m5,train,PG_mM,classical 0,1.002
-m5,train,PG_mM,classical 1,1.002
-m5,train,PG_mM,classical 2,1.002
-m5,train,PG_mM,classical 3,1.002
-m6,train,PGME_mM,PINN sample 0,0.816
-m6,train,PGME_mM,PINN sample 1,0.922
-m6,train,PGME_mM,PINN sample 2,0.865
-m6,train,PGME_mM,PINN sample 3,0.695
-m6,train,PGME_mM,classical 0,1.193
-m6,train,PGME_mM,classical 1,1.193
-m6,train,PGME_mM,classical 2,1.193
-m6,train,PGME_mM,classical 3,1.193
-m6,train,ADCA_mM,PINN sample 0,0.620
-m6,train,ADCA_mM,PINN sample 1,0.681
-m6,train,ADCA_mM,PINN sample 2,0.663
-m6,train,ADCA_mM,PINN sample 3,0.598
-m6,train,ADCA_mM,classical 0,0.889
-m6,train,ADCA_mM,classical 1,0.889
-m6,train,ADCA_mM,classical 2,0.889
-m6,train,ADCA_mM,classical 3,0.889
-m6,train,CEX_mM,PINN sample 0,1.142
-m6,train,CEX_mM,PINN sample 1,1.119
-m6,train,CEX_mM,PINN sample 2,1.150
-m6,train,CEX_mM,PINN sample 3,1.175
-m6,train,CEX_mM,classical 0,1.038
-m6,train,CEX_mM,classical 1,1.038
-m6,train,CEX_mM,classical 2,1.038
-m6,train,CEX_mM,classical 3,1.038
-m6,train,PG_mM,PINN sample 0,0.627
-m6,train,PG_mM,PINN sample 1,0.503
-m6,train,PG_mM,PINN sample 2,0.469
-m6,train,PG_mM,PINN sample 3,0.391
-m6,train,PG_mM,classical 0,0.490
-m6,train,PG_mM,classical 1,0.490
-m6,train,PG_mM,classical 2,0.490
-m6,train,PG_mM,classical 3,0.490
-m4,holdout,PGME_mM,PINN sample 0,0.491
-m4,holdout,PGME_mM,PINN sample 1,0.456
-m4,holdout,PGME_mM,PINN sample 2,0.496
-m4,holdout,PGME_mM,PINN sample 3,0.548
-m4,holdout,PGME_mM,classical 0,0.623
-m4,holdout,PGME_mM,classical 1,0.623
-m4,holdout,PGME_mM,classical 2,0.623
-m4,holdout,PGME_mM,classical 3,0.623
-m4,holdout,ADCA_mM,PINN sample 0,1.318
-m4,holdout,ADCA_mM,PINN sample 1,1.363
-m4,holdout,ADCA_mM,PINN sample 2,1.350
-m4,holdout,ADCA_mM,PINN sample 3,1.375
-m4,holdout,ADCA_mM,classical 0,1.479
-m4,holdout,ADCA_mM,classical 1,1.479
-m4,holdout,ADCA_mM,classical 2,1.479
-m4,holdout,ADCA_mM,classical 3,1.479
-m4,holdout,CEX_mM,PINN sample 0,0.638
-m4,holdout,CEX_mM,PINN sample 1,0.654
-m4,holdout,CEX_mM,PINN sample 2,0.680
-m4,holdout,CEX_mM,PINN sample 3,0.803
-m4,holdout,CEX_mM,classical 0,0.795
-m4,holdout,CEX_mM,classical 1,0.795
-m4,holdout,CEX_mM,classical 2,0.795
-m4,holdout,CEX_mM,classical 3,0.795
-m4,holdout,PG_mM,PINN sample 0,0.122
-m4,holdout,PG_mM,PINN sample 1,0.070
-m4,holdout,PG_mM,PINN sample 2,0.088
-m4,holdout,PG_mM,PINN sample 3,0.089
-m4,holdout,PG_mM,classical 0,0.191
-m4,holdout,PG_mM,classical 1,0.191
-m4,holdout,PG_mM,classical 2,0.191
-m4,holdout,PG_mM,classical 3,0.191
-m7,holdout,PGME_mM,PINN sample 0,20.392
-m7,holdout,PGME_mM,PINN sample 1,20.797
-m7,holdout,PGME_mM,PINN sample 2,19.792
-m7,holdout,PGME_mM,PINN sample 3,19.434
-m7,holdout,PGME_mM,classical 0,23.238
-m7,holdout,PGME_mM,classical 1,23.237
-m7,holdout,PGME_mM,classical 2,23.238
-m7,holdout,PGME_mM,classical 3,23.237
-m7,holdout,ADCA_mM,PINN sample 0,5.628
-m7,holdout,ADCA_mM,PINN sample 1,5.749
-m7,holdout,ADCA_mM,PINN sample 2,5.487
-m7,holdout,ADCA_mM,PINN sample 3,5.425
-m7,holdout,ADCA_mM,classical 0,7.019
-m7,holdout,ADCA_mM,classical 1,7.019
-m7,holdout,ADCA_mM,classical 2,7.019
-m7,holdout,ADCA_mM,classical 3,7.019
-m7,holdout,CEX_mM,PINN sample 0,6.077
-m7,holdout,CEX_mM,PINN sample 1,6.197
-m7,holdout,CEX_mM,PINN sample 2,5.934
-m7,holdout,CEX_mM,PINN sample 3,5.873
-m7,holdout,CEX_mM,classical 0,7.467
-m7,holdout,CEX_mM,classical 1,7.467
-m7,holdout,CEX_mM,classical 2,7.467
-m7,holdout,CEX_mM,classical 3,7.466
-m7,holdout,PG_mM,PINN sample 0,11.567
-m7,holdout,PG_mM,PINN sample 1,11.864
-m7,holdout,PG_mM,PINN sample 2,11.138
-m7,holdout,PG_mM,PINN sample 3,10.873
-m7,holdout,PG_mM,classical 0,13.153
-m7,holdout,PG_mM,classical 1,13.153
-m7,holdout,PG_mM,classical 2,13.153
-m7,holdout,PG_mM,classical 3,13.152
+m0,train,PGME_mM,PINN sample 0,0.282
+m0,train,PGME_mM,PINN sample 1,0.330
+m0,train,PGME_mM,PINN sample 2,0.322
+m0,train,PGME_mM,PINN sample 3,0.320
+m0,train,PGME_mM,classical 0,0.313
+m0,train,PGME_mM,classical 1,0.313
+m0,train,PGME_mM,classical 2,0.313
+m0,train,PGME_mM,classical 3,0.313
+m0,train,ADCA_mM,PINN sample 0,0.527
+m0,train,ADCA_mM,PINN sample 1,0.469
+m0,train,ADCA_mM,PINN sample 2,0.480
+m0,train,ADCA_mM,PINN sample 3,0.495
+m0,train,ADCA_mM,classical 0,0.317
+m0,train,ADCA_mM,classical 1,0.317
+m0,train,ADCA_mM,classical 2,0.317
+m0,train,ADCA_mM,classical 3,0.317
+m0,train,CEX_mM,PINN sample 0,0.748
+m0,train,CEX_mM,PINN sample 1,0.749
+m0,train,CEX_mM,PINN sample 2,0.752
+m0,train,CEX_mM,PINN sample 3,0.718
+m0,train,CEX_mM,classical 0,0.708
+m0,train,CEX_mM,classical 1,0.708
+m0,train,CEX_mM,classical 2,0.708
+m0,train,CEX_mM,classical 3,0.708
+m0,train,PG_mM,PINN sample 0,0.982
+m0,train,PG_mM,PINN sample 1,0.921
+m0,train,PG_mM,PINN sample 2,0.915
+m0,train,PG_mM,PINN sample 3,0.945
+m0,train,PG_mM,classical 0,0.695
+m0,train,PG_mM,classical 1,0.695
+m0,train,PG_mM,classical 2,0.695
+m0,train,PG_mM,classical 3,0.695
+m1,train,PGME_mM,PINN sample 0,0.531
+m1,train,PGME_mM,PINN sample 1,0.641
+m1,train,PGME_mM,PINN sample 2,0.598
+m1,train,PGME_mM,PINN sample 3,0.639
+m1,train,PGME_mM,classical 0,0.636
+m1,train,PGME_mM,classical 1,0.636
+m1,train,PGME_mM,classical 2,0.635
+m1,train,PGME_mM,classical 3,0.636
+m1,train,ADCA_mM,PINN sample 0,0.545
+m1,train,ADCA_mM,PINN sample 1,0.604
+m1,train,ADCA_mM,PINN sample 2,0.601
+m1,train,ADCA_mM,PINN sample 3,0.624
+m1,train,ADCA_mM,classical 0,0.720
+m1,train,ADCA_mM,classical 1,0.720
+m1,train,ADCA_mM,classical 2,0.720
+m1,train,ADCA_mM,classical 3,0.720
+m1,train,CEX_mM,PINN sample 0,0.849
+m1,train,CEX_mM,PINN sample 1,0.924
+m1,train,CEX_mM,PINN sample 2,0.931
+m1,train,CEX_mM,PINN sample 3,0.896
+m1,train,CEX_mM,classical 0,0.738
+m1,train,CEX_mM,classical 1,0.738
+m1,train,CEX_mM,classical 2,0.738
+m1,train,CEX_mM,classical 3,0.738
+m1,train,PG_mM,PINN sample 0,0.741
+m1,train,PG_mM,PINN sample 1,0.601
+m1,train,PG_mM,PINN sample 2,0.609
+m1,train,PG_mM,PINN sample 3,0.630
+m1,train,PG_mM,classical 0,0.696
+m1,train,PG_mM,classical 1,0.696
+m1,train,PG_mM,classical 2,0.696
+m1,train,PG_mM,classical 3,0.696
+m2,train,PGME_mM,PINN sample 0,1.289
+m2,train,PGME_mM,PINN sample 1,1.263
+m2,train,PGME_mM,PINN sample 2,1.308
+m2,train,PGME_mM,PINN sample 3,1.290
+m2,train,PGME_mM,classical 0,1.106
+m2,train,PGME_mM,classical 1,1.105
+m2,train,PGME_mM,classical 2,1.106
+m2,train,PGME_mM,classical 3,1.106
+m2,train,ADCA_mM,PINN sample 0,0.372
+m2,train,ADCA_mM,PINN sample 1,0.351
+m2,train,ADCA_mM,PINN sample 2,0.354
+m2,train,ADCA_mM,PINN sample 3,0.340
+m2,train,ADCA_mM,classical 0,0.331
+m2,train,ADCA_mM,classical 1,0.331
+m2,train,ADCA_mM,classical 2,0.331
+m2,train,ADCA_mM,classical 3,0.331
+m2,train,CEX_mM,PINN sample 0,1.026
+m2,train,CEX_mM,PINN sample 1,1.034
+m2,train,CEX_mM,PINN sample 2,1.023
+m2,train,CEX_mM,PINN sample 3,1.022
+m2,train,CEX_mM,classical 0,1.049
+m2,train,CEX_mM,classical 1,1.049
+m2,train,CEX_mM,classical 2,1.049
+m2,train,CEX_mM,classical 3,1.049
+m2,train,PG_mM,PINN sample 0,0.511
+m2,train,PG_mM,PINN sample 1,0.566
+m2,train,PG_mM,PINN sample 2,0.550
+m2,train,PG_mM,PINN sample 3,0.577
+m2,train,PG_mM,classical 0,0.616
+m2,train,PG_mM,classical 1,0.616
+m2,train,PG_mM,classical 2,0.616
+m2,train,PG_mM,classical 3,0.616
+m3,train,PGME_mM,PINN sample 0,0.180
+m3,train,PGME_mM,PINN sample 1,0.175
+m3,train,PGME_mM,PINN sample 2,0.164
+m3,train,PGME_mM,PINN sample 3,0.122
+m3,train,PGME_mM,classical 0,0.291
+m3,train,PGME_mM,classical 1,0.292
+m3,train,PGME_mM,classical 2,0.291
+m3,train,PGME_mM,classical 3,0.292
+m3,train,ADCA_mM,PINN sample 0,0.444
+m3,train,ADCA_mM,PINN sample 1,0.446
+m3,train,ADCA_mM,PINN sample 2,0.453
+m3,train,ADCA_mM,PINN sample 3,0.463
+m3,train,ADCA_mM,classical 0,0.588
+m3,train,ADCA_mM,classical 1,0.588
+m3,train,ADCA_mM,classical 2,0.588
+m3,train,ADCA_mM,classical 3,0.588
+m3,train,CEX_mM,PINN sample 0,0.738
+m3,train,CEX_mM,PINN sample 1,0.793
+m3,train,CEX_mM,PINN sample 2,0.777
+m3,train,CEX_mM,PINN sample 3,0.778
+m3,train,CEX_mM,classical 0,0.636
+m3,train,CEX_mM,classical 1,0.636
+m3,train,CEX_mM,classical 2,0.636
+m3,train,CEX_mM,classical 3,0.636
+m3,train,PG_mM,PINN sample 0,0.344
+m3,train,PG_mM,PINN sample 1,0.337
+m3,train,PG_mM,PINN sample 2,0.334
+m3,train,PG_mM,PINN sample 3,0.331
+m3,train,PG_mM,classical 0,0.452
+m3,train,PG_mM,classical 1,0.452
+m3,train,PG_mM,classical 2,0.452
+m3,train,PG_mM,classical 3,0.452
+m5,train,PGME_mM,PINN sample 0,0.550
+m5,train,PGME_mM,PINN sample 1,0.456
+m5,train,PGME_mM,PINN sample 2,0.462
+m5,train,PGME_mM,PINN sample 3,0.489
+m5,train,PGME_mM,classical 0,0.439
+m5,train,PGME_mM,classical 1,0.439
+m5,train,PGME_mM,classical 2,0.439
+m5,train,PGME_mM,classical 3,0.439
+m5,train,ADCA_mM,PINN sample 0,1.270
+m5,train,ADCA_mM,PINN sample 1,1.221
+m5,train,ADCA_mM,PINN sample 2,1.259
+m5,train,ADCA_mM,PINN sample 3,1.259
+m5,train,ADCA_mM,classical 0,1.208
+m5,train,ADCA_mM,classical 1,1.208
+m5,train,ADCA_mM,classical 2,1.208
+m5,train,ADCA_mM,classical 3,1.208
+m5,train,CEX_mM,PINN sample 0,0.954
+m5,train,CEX_mM,PINN sample 1,1.003
+m5,train,CEX_mM,PINN sample 2,0.955
+m5,train,CEX_mM,PINN sample 3,0.955
+m5,train,CEX_mM,classical 0,0.806
+m5,train,CEX_mM,classical 1,0.806
+m5,train,CEX_mM,classical 2,0.806
+m5,train,CEX_mM,classical 3,0.806
+m5,train,PG_mM,PINN sample 0,0.549
+m5,train,PG_mM,PINN sample 1,0.548
+m5,train,PG_mM,PINN sample 2,0.568
+m5,train,PG_mM,PINN sample 3,0.551
+m5,train,PG_mM,classical 0,0.623
+m5,train,PG_mM,classical 1,0.623
+m5,train,PG_mM,classical 2,0.623
+m5,train,PG_mM,classical 3,0.623
+m6,train,PGME_mM,PINN sample 0,0.605
+m6,train,PGME_mM,PINN sample 1,0.685
+m6,train,PGME_mM,PINN sample 2,0.717
+m6,train,PGME_mM,PINN sample 3,0.628
+m6,train,PGME_mM,classical 0,0.675
+m6,train,PGME_mM,classical 1,0.675
+m6,train,PGME_mM,classical 2,0.675
+m6,train,PGME_mM,classical 3,0.675
+m6,train,ADCA_mM,PINN sample 0,0.734
+m6,train,ADCA_mM,PINN sample 1,0.731
+m6,train,ADCA_mM,PINN sample 2,0.719
+m6,train,ADCA_mM,PINN sample 3,0.714
+m6,train,ADCA_mM,classical 0,0.550
+m6,train,ADCA_mM,classical 1,0.550
+m6,train,ADCA_mM,classical 2,0.550
+m6,train,ADCA_mM,classical 3,0.550
+m6,train,CEX_mM,PINN sample 0,1.352
+m6,train,CEX_mM,PINN sample 1,1.357
+m6,train,CEX_mM,PINN sample 2,1.271
+m6,train,CEX_mM,PINN sample 3,1.336
+m6,train,CEX_mM,classical 0,1.184
+m6,train,CEX_mM,classical 1,1.184
+m6,train,CEX_mM,classical 2,1.184
+m6,train,CEX_mM,classical 3,1.184
+m6,train,PG_mM,PINN sample 0,0.666
+m6,train,PG_mM,PINN sample 1,0.566
+m6,train,PG_mM,PINN sample 2,0.570
+m6,train,PG_mM,PINN sample 3,0.576
+m6,train,PG_mM,classical 0,0.534
+m6,train,PG_mM,classical 1,0.534
+m6,train,PG_mM,classical 2,0.534
+m6,train,PG_mM,classical 3,0.534
+m4,holdout,PGME_mM,PINN sample 0,0.322
+m4,holdout,PGME_mM,PINN sample 1,0.445
+m4,holdout,PGME_mM,PINN sample 2,0.399
+m4,holdout,PGME_mM,PINN sample 3,0.411
+m4,holdout,PGME_mM,classical 0,0.370
+m4,holdout,PGME_mM,classical 1,0.370
+m4,holdout,PGME_mM,classical 2,0.370
+m4,holdout,PGME_mM,classical 3,0.370
+m4,holdout,ADCA_mM,PINN sample 0,1.253
+m4,holdout,ADCA_mM,PINN sample 1,1.386
+m4,holdout,ADCA_mM,PINN sample 2,1.371
+m4,holdout,ADCA_mM,PINN sample 3,1.393
+m4,holdout,ADCA_mM,classical 0,1.222
+m4,holdout,ADCA_mM,classical 1,1.222
+m4,holdout,ADCA_mM,classical 2,1.222
+m4,holdout,ADCA_mM,classical 3,1.222
+m4,holdout,CEX_mM,PINN sample 0,0.665
+m4,holdout,CEX_mM,PINN sample 1,0.794
+m4,holdout,CEX_mM,PINN sample 2,0.763
+m4,holdout,CEX_mM,PINN sample 3,0.785
+m4,holdout,CEX_mM,classical 0,0.699
+m4,holdout,CEX_mM,classical 1,0.699
+m4,holdout,CEX_mM,classical 2,0.699
+m4,holdout,CEX_mM,classical 3,0.699
+m4,holdout,PG_mM,PINN sample 0,0.133
+m4,holdout,PG_mM,PINN sample 1,0.139
+m4,holdout,PG_mM,PINN sample 2,0.132
+m4,holdout,PG_mM,PINN sample 3,0.150
+m4,holdout,PG_mM,classical 0,0.341
+m4,holdout,PG_mM,classical 1,0.341
+m4,holdout,PG_mM,classical 2,0.341
+m4,holdout,PG_mM,classical 3,0.341
+m7,holdout,PGME_mM,PINN sample 0,11.678
+m7,holdout,PGME_mM,PINN sample 1,12.950
+m7,holdout,PGME_mM,PINN sample 2,13.552
+m7,holdout,PGME_mM,PINN sample 3,12.714
+m7,holdout,PGME_mM,classical 0,12.404
+m7,holdout,PGME_mM,classical 1,12.407
+m7,holdout,PGME_mM,classical 2,12.405
+m7,holdout,PGME_mM,classical 3,12.406
+m7,holdout,ADCA_mM,PINN sample 0,2.836
+m7,holdout,ADCA_mM,PINN sample 1,3.193
+m7,holdout,ADCA_mM,PINN sample 2,3.482
+m7,holdout,ADCA_mM,PINN sample 3,3.179
+m7,holdout,ADCA_mM,classical 0,3.262
+m7,holdout,ADCA_mM,classical 1,3.263
+m7,holdout,ADCA_mM,classical 2,3.262
+m7,holdout,ADCA_mM,classical 3,3.263
+m7,holdout,CEX_mM,PINN sample 0,3.292
+m7,holdout,CEX_mM,PINN sample 1,3.647
+m7,holdout,CEX_mM,PINN sample 2,3.937
+m7,holdout,CEX_mM,PINN sample 3,3.633
+m7,holdout,CEX_mM,classical 0,3.717
+m7,holdout,CEX_mM,classical 1,3.718
+m7,holdout,CEX_mM,classical 2,3.717
+m7,holdout,CEX_mM,classical 3,3.717
+m7,holdout,PG_mM,PINN sample 0,5.679
+m7,holdout,PG_mM,PINN sample 1,6.592
+m7,holdout,PG_mM,PINN sample 2,6.873
+m7,holdout,PG_mM,PINN sample 3,6.373
+m7,holdout,PG_mM,classical 0,6.002
+m7,holdout,PG_mM,classical 1,6.004
+m7,holdout,PG_mM,classical 2,6.003
+m7,holdout,PG_mM,classical 3,6.003

@@ -6,6 +6,10 @@ a linear system at given small-molecule concentrations: dφ/dt = L(x) φ, where 
 an edge X → Y with pseudo-first-order rate kf·Π(ligands) (and Y → X with kr·Π(ligands)). The quasi-steady distribution
 is the null vector of L with Σφ = 1 (King–Altman for a ring; any graph here).
 
+Inactivation steps: an enzyme form that no step leaves (``X -> ED``, ED appearing only on the right of one-way steps)
+is a dead form. Its steps are kept out of the quasi-steady graph (``inact_edges``); the dead form is listed last in
+``enzyme`` and the PINN carries the active fraction a(t) as one more slow variable, d ln a/dt = −Σ k·[ligands]·φ_X.
+
 Slow coordinates: the net small-molecule changes that leave the enzyme forms unchanged span a space of dimension d
 (1 for one overall reaction; more with competing substrates or enzyme-free background steps). The small molecules are
 x = x0 + V ξ + δ, with ξ the d reaction extents, V the overall reactions (then the background steps) and δ the
@@ -55,10 +59,17 @@ class QssStructure:
     W: np.ndarray  # (d × n_steps): dξ/dt = W r (projection of the small-molecule change onto V)
     labels: list[str]  # name of each slow coordinate
     Mcorr: np.ndarray  # (n_s × n_e): δ = Et · Mcorr (φ − e0)
+    inact_edges: list = None  # steps into the dead form (kept out of ``edges``)
+    n_dead: int = 0  # dead enzyme forms, listed last in ``enzyme`` (at most one)
 
     @property
     def d(self) -> int:
         return self.V.shape[1]
+
+    @property
+    def n_active(self) -> int:
+        """Enzyme forms in the quasi-steady graph (all but the dead form)."""
+        return len(self.enzyme) - self.n_dead
 
     def ranges(self, x0_small: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Per slow coordinate the extent range [lo, hi] that keeps the small molecules ≥ 0 with the other
@@ -90,6 +101,16 @@ def structure(network: Network, overall: list[str] | None = None) -> QssStructur
     ens = list(network.enzyme_species)
     if not ens:
         raise QssError("enzyme_species(효소 형태)가 없음 — 준정상 표현은 효소 형태가 필요함")
+    # dead forms: no step leaves them (only on the right of one-way steps) → listed last, outside the graph
+    leaves = set()
+    for st in network.steps:
+        leaves.update(s for s in st.lhs if s in ens)
+        if st.reversible:
+            leaves.update(s for s in st.rhs if s in ens)
+    dead = [s for s in ens[1:] if s not in leaves]
+    if len(dead) > 1:
+        raise QssError(f"효소가 빠져나오지 못하는 형태가 둘 이상({', '.join(dead)}): 실활 형태는 하나만")
+    ens = [s for s in ens if s not in dead] + dead
     species = list(network.species)
     idx = network.index()
     small = [s for s in species if s not in ens]
@@ -120,8 +141,14 @@ def structure(network: Network, overall: list[str] | None = None) -> QssStructur
     small_idx = [idx[s] for s in small]
     enzyme_idx = [idx[s] for s in ens]
     N_s, N_e = N[small_idx], N[enzyme_idx]
-    # every enzyme form must be reachable from the free enzyme and back (strongly connected graph)
-    reach = _strongly_connected_to(len(ens), edges)
+    n_act = len(ens) - len(dead)
+    inact = [e for e in edges if e.b >= n_act]
+    edges = [e for e in edges if e.b < n_act]
+    for e in inact:
+        if np.any(N_s[:, e.step]):
+            raise QssError(f"단계 {e.step + 1} '{network.steps[e.step]}': 실활 단계는 작은 분자를 바꾸지 않아야 함")
+    # every active enzyme form must be reachable from the free enzyme and back (strongly connected graph)
+    reach = _strongly_connected_to(n_act, edges)
     if not all(reach):
         bad = [ens[i] for i, ok in enumerate(reach) if not ok]
         raise QssError(f"효소 형태 {', '.join(bad)}: 자유 효소와 오가는 경로가 없음(준정상 분포가 정해지지 않음)")
@@ -180,6 +207,8 @@ def structure(network: Network, overall: list[str] | None = None) -> QssStructur
         W=W,
         labels=labels,
         Mcorr=Mcorr,
+        inact_edges=inact,
+        n_dead=len(dead),
     )
 
 
@@ -210,8 +239,9 @@ def _strongly_connected_to(n: int, edges: list[Edge]) -> list[bool]:
 
 
 def qss_fractions(st: QssStructure, x_small: np.ndarray, kf: np.ndarray, kr: np.ndarray) -> np.ndarray:
-    """Quasi-steady enzyme distribution φ (sums to 1) at one small-molecule state (numpy reference)."""
-    n = len(st.enzyme)
+    """Quasi-steady distribution φ of the active enzyme (sums to 1; 0 for a dead form) at one small-molecule state
+    (numpy reference)."""
+    n = st.n_active
     L = np.zeros((n, n))
     for e in st.edges:
         wf = kf[e.step] * np.prod([x_small[i] ** o for i, o in e.lf]) if e.lf else kf[e.step]
@@ -225,4 +255,4 @@ def qss_fractions(st: QssStructure, x_small: np.ndarray, kf: np.ndarray, kr: np.
     b = L[1:, 0]
     psi = np.linalg.solve(A, b) if n > 1 else np.zeros(0)
     phi = np.concatenate([[1.0], psi])
-    return phi / phi.sum()
+    return np.concatenate([phi / phi.sum(), np.zeros(st.n_dead)])

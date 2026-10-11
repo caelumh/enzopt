@@ -222,6 +222,12 @@ class GeneralPinn:
         self.lin = self.d > 1
         self.n_theta = lay.n_theta
         self.inact = cfg.inactivation == "shared"
+        # inactivation steps in the network (X -> ED): per (seed, experiment) the active fraction a(t) is one more
+        # network output, ln a = v(τ) − v(0), with the residual d ln a/dt = −Σ k·[ligands]·φ_X (core.qss)
+        self.mech = qs.n_dead > 0
+        self.ne_act = qs.n_active
+        if self.mech and (self.inact or cfg.representation != "qss"):
+            raise ValueError("실활 단계(X -> ED)가 있는 반응망은 inactivation: none, representation: qss로만 학습")
         self.dead = cfg.discrepancy == "dead_end"
         self.disc = cfg.discrepancy == "rate_factor"
         if (self.dead or self.disc) and self.d != 1:
@@ -246,7 +252,7 @@ class GeneralPinn:
             extra = [np.full(n_inact, -5.0), np.array([1.0]) if self.dead else np.zeros(0)]  # K_i starts at 10 mM
             theta0.append(np.concatenate([pc + jit, *extra]))
         self.theta = torch.nn.Parameter(torch.tensor(np.array(theta0), dtype=self.dt, device=self.dev))
-        out_dim = self.d if cfg.representation == "qss" else self.d + self.ne
+        out_dim = (self.d + int(self.mech)) if cfg.representation == "qss" else self.d + self.ne
         self.net = BatchedMLP(self.B, cfg.width, cfg.depth, out_dim, gens, self.dt, self.dev)
 
         def T_(a):
@@ -419,7 +425,7 @@ class GeneralPinn:
         vals = torch.broadcast_tensors(*vals)
         scale = torch.stack(vals, dim=0).amax(dim=0).clamp_min(1e-30)
         rate = {k: v / scale for k, v in zip(rate.keys(), vals, strict=True)}
-        n = self.ne
+        n = self.ne_act  # the dead form (inactivation) is outside the graph
         if n == 1:
             return torch.ones_like(scale)
         out_tot = [None] * n
@@ -479,6 +485,12 @@ class GeneralPinn:
         if self.cfg.representation == "qss":
             phi = self.qss_fractions(xs_app.clamp_min(0.0), kfB, krB)
             dphi = None
+            if self.mech:  # active fraction a(t) from the extra output; the dead form holds 1 − a
+                v0 = self.net(self.tau0[: tau.shape[0]])[0][..., d : d + 1]
+                lna = out[..., d : d + 1] - v0
+                a = torch.exp(lna)
+                self._mech = (dout[..., d : d + 1], phi, xs_app.clamp_min(0.0))
+                phi = torch.cat([a * phi, 1.0 - a], dim=-1)
         else:
             v, dv = out[..., d:], dout[..., d:]
             phi = torch.softmax(v, dim=-1)
@@ -535,6 +547,17 @@ class GeneralPinn:
             J = J / (1.0 + occ)
         res = ((dxi / T - J) / s_slow) ** 2 * self.maskd
         L_slow = (res.mean(dim=1, keepdim=True).sum(dim=-1, keepdim=True) / self.n_valid).reshape(self.B, 1)
+        if self.mech:  # d ln a/dτ = −T · Σ k·[ligands]·φ_X over the inactivation steps (φ of the active enzyme)
+            dlna, phi_act, xs_act = self._mech
+            self._mech = None  # no reference to this step's autograd graph may outlive the step (CUDA graphs)
+            lam = None
+            for e in self.qs.inact_edges:
+                w = kfB[..., e.step : e.step + 1] * phi_act[..., e.a : e.a + 1]
+                for i, o in e.lf:
+                    x = xs_act[..., i : i + 1]
+                    w = w * (x if o == 1 else x**o)
+                lam = _add(lam, w)
+            L_slow = L_slow + ((dlna + T * lam) ** 2).mean(dim=1)
         L_fast = torch.zeros_like(L_slow)
         if cfg.representation == "full":
             floor = self.Et * 1e-3
@@ -557,6 +580,7 @@ class GeneralPinn:
             _, _, _, _, sig0, _ = self.states(self.tau0, kfB, krB)
             L_ic = ((((sig0 - self.p0) / 0.01) ** 2) * self.maskd).sum(dim=-1) / self.n_valid.squeeze(-1)
             L_ic = L_ic.reshape(self.B, 1)
+        self._mech = None
 
         def per_seed(x):
             return x.reshape(self.S, self.E).mean(dim=1)
