@@ -177,3 +177,19 @@ def test_user_hypotheses_and_removals(tmp_path):
         kf, kr = lay.rates(prior)
         z = _z(net, net.rate_vector(kf, kr), m0)
         assert len(z) == len(m0[3]) and all(np.all(np.isfinite(a)) for a in z)
+
+
+def test_a_fit_past_its_time_budget_returns_its_best_point(tmp_path, monkeypatch):
+    """One very stiff candidate must not hold up the comparison: past FIT_BUDGET_S the fit stops with the best point
+    evaluated so far, marked timed_out."""
+    from enzopt.core.project import load_project
+    from enzopt.pipeline import suggest_general as sg
+
+    p = load_project(write_project(tmp_path / "proj", holdout=False))
+    exps = [x for x, _ in sg.load_all(p, tmp_path / "tmp")]
+    net, lay, prior = sg.setup(p, None)
+    monkeypatch.setattr(sg, "FIT_BUDGET_S", 0.0)
+    f = sg._fit((0, net, lay, prior, prior, 1e-2, exps, 50))
+    assert f["timed_out"] and len(f["theta"]) == lay.n_theta and np.isfinite(f["cost"])
+    r = sg._residuals(np.array(f["theta"]), net, lay, exps, prior, 1e-2)
+    assert 0.5 * float(r @ r) == pytest.approx(f["cost"])

@@ -42,6 +42,7 @@ K_BACKGROUND_LOG10 = -4.0  # 1/s (1/(mM·s) for two reactants): the reaction wit
 K_REVERSE_LOG10 = (2.0, 3.0)  # k₋ of a step made reversible: 1/s (one product), 1/(mM·s) (two products)
 BASE_OK_SIGMA = 2.0  # as pipeline.suggest: the network explains the training data within 2σ (every set within 3σ)
 SET_OK_SIGMA = 3.0
+FIT_BUDGET_S = 900.0  # wall clock per fit: a candidate whose ODE turns very stiff stops with its best point so far
 
 
 @dataclass
@@ -303,13 +304,37 @@ def _residuals(theta, net, lay, exps, prior, wp):
     return np.concatenate(res)
 
 
+class _OutOfTime(Exception):
+    pass
+
+
 def _fit(job) -> dict:
+    """One least-squares fit. Past ``FIT_BUDGET_S`` it stops and returns the best point evaluated so far, marked
+    ``timed_out`` (one stiff candidate must not hold up the whole comparison)."""
     key, net, lay, theta0, prior, wp, exps, max_nfev = job
     t0 = time.time()
+    best = {"cost": math.inf, "theta": None}
+
+    def fun(theta):
+        r = _residuals(theta, net, lay, exps, prior, wp)
+        cost = 0.5 * float(r @ r)
+        if cost < best["cost"]:
+            best.update(cost=cost, theta=np.array(theta, float))
+        if time.time() - t0 > FIT_BUDGET_S:
+            raise _OutOfTime
+        return r
+
     try:
-        sol = least_squares(
-            _residuals, theta0, args=(net, lay, exps, prior, wp), method="trf", max_nfev=max_nfev, diff_step=1e-4
-        )
+        sol = least_squares(fun, theta0, method="trf", max_nfev=max_nfev, diff_step=1e-4)
+    except _OutOfTime:
+        return {
+            "key": key,
+            "theta": best["theta"].tolist(),
+            "cost": best["cost"],
+            "nfev": None,
+            "seconds": time.time() - t0,
+            "timed_out": True,
+        }
     except Exception as e:  # noqa: BLE001 — a crashed fit is reported, not fatal
         return {"key": key, "error": f"{type(e).__name__}: {e}", "seconds": time.time() - t0}
     return {
@@ -710,6 +735,7 @@ def run(
                 "cost": f["cost"],
                 "nfev": f["nfev"],
                 "seconds": f["seconds"],
+                "timed_out": bool(f.get("timed_out")),
                 "k_new": {"kf": [float(kf[j]) for j in touched(p, c)], "kr": [float(kr[j]) for j in touched(p, c)]}
                 if c
                 else None,
@@ -736,7 +762,8 @@ def run(
     )
     for r in cand_rows[:10]:
         ho = f", 홀드아웃 {r['holdout']:.2f}σ" if r.get("holdout") is not None else ""
-        log(f"  {r['step']:32s} 학습 {r['train']:.2f}σ{ho}, ΔAIC {r['d_aic']:+.1f}")
+        cut = f" (시간 상한 {FIT_BUDGET_S:.0f} s에서 멈춘 값)" if r["timed_out"] else ""
+        log(f"  {r['step']:32s} 학습 {r['train']:.2f}σ{ho}, ΔAIC {r['d_aic']:+.1f}{cut}")
     for r in failed:
         log(f"  {r['step']:32s} 맞추기 실패: {r['error']}")
     log(f"결론: {verdict['note']}")
