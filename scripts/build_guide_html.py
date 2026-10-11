@@ -1,9 +1,10 @@
-"""docs/GUIDE.md → docs/GUIDE.html: one self-contained page (figures embedded), table of contents, figure zoom.
+"""Markdown page → one self-contained HTML page (figures embedded), table of contents, figure zoom.
 
-    uv run python scripts/build_guide_html.py              # embed docs/guide/* as data URIs
+    uv run python scripts/build_guide_html.py              # docs/GUIDE.md → docs/GUIDE.html, docs/guide/* embedded
     uv run python scripts/build_guide_html.py --link-images  # keep relative image paths (smaller file)
+    uv run python scripts/build_guide_html.py --page identification  # docs/identification/README.md → .html
 
-Handles the Markdown that GUIDE.md uses: headings, paragraphs, bold/italic/code/links, nested lists, tables,
+Handles the Markdown that the pages use: headings, paragraphs, bold/italic/code/links, nested lists, tables,
 block quotes, fenced code, rules and stand-alone images (rendered as figures; a long alt text becomes the caption).
 No third-party packages.
 """
@@ -14,12 +15,28 @@ import argparse
 import base64
 import datetime as dt
 import html
+import os
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "docs" / "GUIDE.md"
-OUT = ROOT / "docs" / "GUIDE.html"
+PAGES = {
+    "guide": {
+        "src": ROOT / "docs" / "GUIDE.md",
+        "out": ROOT / "docs" / "GUIDE.html",
+        "label": "안내서",
+        "eyebrow": "enzopt · 사용 안내",
+        "description": "enzopt의 다섯 단계 계산과 그림 읽는 법, 피펫 표, 실측 데이터 시험 결과를 담은 안내서",
+    },
+    "identification": {
+        "src": ROOT / "docs" / "identification" / "README.md",
+        "out": ROOT / "docs" / "IDENTIFICATION.html",
+        "label": "식별 레퍼런스",
+        "eyebrow": "enzopt · 레퍼런스",
+        "description": "반응식과 A340 진행 곡선에서 속도 상수 표본을 찾고 설계로 잇는 과정을 그림 9장으로 보여 주는 "
+        "레퍼런스",
+    },
+}
 
 LIST_RE = re.compile(r"^(\s*)([-*]|\d+\.)\s+(.*)$")
 HEAD_RE = re.compile(r"^(#{1,6})\s+(.*)$")
@@ -76,9 +93,11 @@ def split_row(line: str) -> list[str]:
 
 # ---------------------------------------------------------------- blocks
 class Builder:
-    def __init__(self, src: Path, embed: bool):
+    def __init__(self, src: Path, embed: bool, eyebrow: str = "enzopt · 사용 안내", out_dir: Path | None = None):
         self.src = src
         self.embed = embed
+        self.out_dir = out_dir or src.parent
+        self.eyebrow = eyebrow
         self.toc: list[tuple[int, str, str]] = []
         self.ids: set[str] = set()
         self.title = "enzopt 안내서"
@@ -99,7 +118,7 @@ class Builder:
             data = base64.b64encode(path.read_bytes()).decode("ascii")
             url = f"data:{MIME.get(path.suffix.lower(), 'application/octet-stream')};base64,{data}"
         else:
-            url = src
+            url = Path(os.path.relpath(path, self.out_dir)).as_posix()  # relative to the page, not the Markdown
         short = re.fullmatch(r"그림 \w+", alt.strip()) is not None
         cap = ""
         if not short:
@@ -197,7 +216,7 @@ class Builder:
                         lead = f'<p class="lead">{inline(lines[j].lstrip("> ").strip())}</p>'
                         i = j
                     out.append(
-                        f'<header class="hero"><p class="eyebrow">enzopt · 사용 안내</p>'
+                        f'<header class="hero"><p class="eyebrow">{html.escape(self.eyebrow)}</p>'
                         f"<h1>{inline(text)}</h1>{lead}</header>"
                     )
                     i += 1
@@ -399,28 +418,31 @@ JS = """
 """
 
 
-def render(src: Path = SRC, out: Path = OUT, embed: bool = True) -> Path:
-    b = Builder(src, embed)
+def render(page: str = "guide", embed: bool = True) -> Path:
+    cfg = PAGES[page]
+    src, out = cfg["src"], cfg["out"]
+    b = Builder(src, embed, cfg["eyebrow"], out.parent)
     body = b.build(src.read_text(encoding="utf-8"))
     toc = b.toc_html()
     today = dt.date.today().isoformat()
+    label, desc, src_rel = html.escape(cfg["label"]), html.escape(cfg["description"]), src.relative_to(ROOT).as_posix()
     page = f"""<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(b.title)}</title>
-<meta name="description" content="enzopt의 다섯 단계 계산과 그림 읽는 법, 피펫 표, 실측 데이터 시험 결과를 담은 안내서">
+<meta name="description" content="{desc}">
 <style>{CSS}</style>
 </head>
 <body>
-<div class="topbar"><a class="brand" href="#">enzopt<span>안내서</span></a><div class="spacer"></div>
+<div class="topbar"><a class="brand" href="#">enzopt<span>{label}</span></a><div class="spacer"></div>
 <button class="btn" id="theme" type="button">테마: 자동</button></div>
 <div class="layout">
 <aside class="toc" aria-label="목차"><p class="toc-title">목차</p>{toc}</aside>
 <main>
 {body.replace("</header>", f'</header><details class="toc-mobile"><summary>목차</summary>{toc}</details>', 1)}
-<footer>이 페이지는 <code>docs/GUIDE.md</code>에서 <code>scripts/build_guide_html.py</code>로 만들었습니다
+<footer>이 페이지는 <code>{src_rel}</code>에서 <code>scripts/build_guide_html.py</code>로 만들었습니다
  · 그림 {b.n_fig}개 · {today}</footer>
 </main>
 </div>
@@ -435,9 +457,10 @@ def render(src: Path = SRC, out: Path = OUT, embed: bool = True) -> Path:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--link-images", action="store_true", help="reference docs/guide/* instead of embedding them")
+    ap.add_argument("--page", choices=sorted(PAGES), default="guide", help="which Markdown page to build")
+    ap.add_argument("--link-images", action="store_true", help="reference the image files instead of embedding them")
     a = ap.parse_args()
-    out = render(embed=not a.link_images)
+    out = render(a.page, embed=not a.link_images)
     print(f"wrote {out} ({out.stat().st_size / 1e6:.2f} MB)")
 
 

@@ -6,6 +6,8 @@ enzopt의 ③ 식별 단계는 반응식과 A340 진행 곡선으로 속도 상�
 
 그림은 `scripts/identification_figures.py`가 실행 폴더 하나에서 그립니다(맨 끝 "다시 그리기" 참고). 그림 속 글자는 도구의 다른 그림처럼 영어입니다. 숫자는 이 문서를 쓸 때의 실행 `runs/example_ldh_synth/2026-10-11_1041` 기준입니다.
 
+그림을 넣은 HTML 판은 `docs/IDENTIFICATION.html`입니다. 파일 하나에 그림이 모두 들어 있어 브라우저로 바로 열 수 있습니다. 원본은 이 Markdown 파일이고, `scripts/build_guide_html.py --page identification`이 HTML로 바꿉니다.
+
 | 절 | 질문 | 그림 |
 |---|---|---|
 | 1 | 반응식은 무엇을 정하나 | 1 |
@@ -213,11 +215,13 @@ enzopt의 ③ 식별 단계는 반응식과 A340 진행 곡선으로 속도 상�
 ```
 uv run enzopt run projects/example_ldh_synth
 uv run python scripts/identification_figures.py --run runs/example_ldh_synth/<실행 폴더>
+uv run python scripts/build_guide_html.py --page identification
 ```
 
 - 그림 1~3, 5~8은 실행 폴더와 정답 파일에서 바로 그립니다.
 - 그림 4는 고전 피팅을 한 번 다시 돌립니다(약 1분).
 - 그림 9는 PINN을 한 번 더 학습합니다(GPU 약 10초, CPU 약 2분).
 - `--only inverse loop`처럼 일부만 그릴 수 있습니다.
+- 두 번째 명령이 그림을 넣은 HTML 판 `docs/IDENTIFICATION.html`을 다시 만듭니다.
 
 같은 GPU에서는 다시 실행해도 숫자가 같았습니다. 다른 장치나 정밀도(CPU float64)에서는 표본이 달라질 수 있고, 그러면 6~8절의 숫자도 달라집니다.
