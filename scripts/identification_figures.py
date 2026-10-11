@@ -563,6 +563,291 @@ def loop(ex: Example) -> dict:
     }
 
 
+# ---------------------------------------------------------------- background figures (the beginner chapters)
+MOL = {"NADH": color(0), "Pyr": color(1), "NAD⁺": color(2), "Lac": color(3)}
+
+
+def _ball(ax, x, y, name, r=0.32, fs=6.5):
+    from matplotlib.patches import Circle
+
+    ax.add_patch(Circle((x, y), r, fc=MOL[name], ec="white", lw=0.8, zorder=3))
+    ax.text(x, y, name, ha="center", va="center", fontsize=fs, color="white", fontweight="bold", zorder=4)
+
+
+def b_concentration(ex: Example) -> None:
+    from matplotlib.patches import FancyBboxPatch
+
+    plt = _mpl()
+    fig, ax = plt.subplots(figsize=(DOUBLE * 0.7, 1.9), layout="constrained")
+    ax.set_aspect("equal")
+    ax.axis("off")
+    rng = np.random.default_rng(3)
+    for j, (n, lab) in enumerate([(8, "0.05 mM"), (16, "0.1 mM"), (32, "0.2 mM")]):
+        x0 = j * 3.4
+        ax.add_patch(FancyBboxPatch((x0, 0), 2.4, 2.6, boxstyle="round,pad=0.02,rounding_size=0.25", fc="#eaf3fb",
+                                    ec=GREY, lw=0.9))  # fmt: skip
+        pts = rng.uniform([x0 + 0.25, 0.25], [x0 + 2.15, 2.3], size=(n, 2))
+        ax.scatter(pts[:, 0], pts[:, 1], s=9, color=color(0), zorder=3)
+        ax.text(x0 + 1.2, -0.35, lab, ha="center", va="top", fontsize=7.5)
+    ax.text(3.4 * 1.5 - 0.5, 3.05, "same cup, more NADH molecules → higher concentration", ha="center", fontsize=7)
+    ax.set_xlim(-0.3, 3.4 * 3 - 0.7)
+    ax.set_ylim(-0.9, 3.3)
+    _save(fig, "basics1_concentration")
+
+
+def b_enzyme(ex: Example) -> None:
+    from matplotlib.patches import Circle, FancyBboxPatch
+
+    plt = _mpl()
+    fig, axs = plt.subplots(1, 6, figsize=(DOUBLE, 1.75), layout="constrained")
+    seats = [(-0.55, 0.62), (0.55, 0.62)]  # left seat: NADH/NAD⁺, right seat: Pyr/Lac
+    panels = [
+        ("1  E: empty", [None, None], [], "E"),
+        ("2  NADH sits", ["NADH", None], [("NADH", True)], "EN"),
+        ("3  Pyr sits", ["NADH", "Pyr"], [("Pyr", True)], "ENP"),
+        ("4  reaction", ["NAD⁺", "Lac"], [], "EQL"),
+        ("5  Lac leaves", ["NAD⁺", None], [("Lac", False)], "EQ"),
+        ("6  NAD⁺ leaves → 1", [None, None], [("NAD⁺", False)], "E"),
+    ]
+    for ax, (title, seated, moving, form) in zip(axs, panels, strict=True):
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.add_patch(FancyBboxPatch((-1.15, -0.9), 2.3, 1.45, boxstyle="round,pad=0.02,rounding_size=0.45",
+                                    fc="#d9d9d9", ec=GREY, lw=0.8))  # fmt: skip
+        for (sx, sy), m in zip(seats, seated, strict=True):
+            ax.add_patch(Circle((sx, sy), 0.36, fc="white", ec=GREY, lw=0.6, zorder=2))
+            if m:
+                _ball(ax, sx, sy, m, r=0.33, fs=4.2)
+        ax.text(0, -0.35, f"enzyme\n({form})", ha="center", va="center", fontsize=5.8, color=GREY)
+        for m, comes in moving:
+            sx = -0.55 if m in ("NADH", "NAD⁺") else 0.55
+            far = (sx * 1.6, 2.1)
+            if comes:
+                ax.annotate("", xy=(sx, 1.05), xytext=(far[0], 1.75),
+                            arrowprops={"arrowstyle": "-|>", "color": MOL[m], "lw": 0.9})  # fmt: skip
+                _ball(ax, far[0], 2.05, m, r=0.3, fs=4.0)
+            else:
+                ax.annotate("", xy=(far[0], 1.75), xytext=(sx, 1.05),
+                            arrowprops={"arrowstyle": "-|>", "color": MOL[m], "lw": 0.9})  # fmt: skip
+                _ball(ax, far[0], 2.05, m, r=0.3, fs=4.0)
+        ax.set_title(title, fontsize=6.5, loc="left")
+        ax.set_xlim(-1.4, 1.4)
+        ax.set_ylim(-1.0, 2.5)
+    _save(fig, "basics2_enzyme")
+
+
+def b_equilibrium(ex: Example) -> None:
+    kf, kr = 0.02, 0.01
+    t = np.linspace(0, 300, 400)
+    a_eq = kr / (kf + kr)
+    A = a_eq + (1 - a_eq) * np.exp(-(kf + kr) * t)
+    B = 1 - A
+    fig, ax = new_figure(DOUBLE * 0.8, 2.1, ncols=2)
+    a = ax[0, 0]
+    a.plot(t, A, color=color(0), lw=1.5, label="left side (A)")
+    a.plot(t, B, color=color(2), lw=1.5, label="right side (B)")
+    a.axvspan(200, 300, color="0.93", lw=0)
+    a.text(250, 0.5, "no more change\n= equilibrium", ha="center", va="center", fontsize=6.5, color=GREY)
+    a.set_xlabel("time (s)")
+    a.set_ylabel("amount")
+    a.set_title("(a) A ⇌ B: amounts", loc="left")
+    a.legend(frameon=False, loc="center right", bbox_to_anchor=(1.0, 0.72))
+    a = ax[0, 1]
+    a.plot(t, kf * A, color=color(0), lw=1.5, label="forward speed A → B")
+    a.plot(t, kr * B, color=color(2), lw=1.5, label="backward speed B → A")
+    a.fill_between(t, kr * B, kf * A, color="0.85", lw=0, label="net change")
+    a.axvspan(200, 300, color="0.93", lw=0)
+    a.text(250, 0.013, "forward = backward", ha="center", fontsize=6.5, color=GREY)
+    a.set_xlabel("time (s)")
+    a.set_ylabel("speed (amount per s)")
+    a.set_title("(b) the two speeds meet", loc="left")
+    a.legend(frameon=False, loc="upper right")
+    _save(fig, "basics3_equilibrium")
+
+
+def b_light(ex: Example) -> None:
+    from matplotlib.patches import Circle, Rectangle
+
+    fig, ax = new_figure(DOUBLE, 2.2, ncols=2, gridspec_kw={"width_ratios": [1.5, 1.0]})
+    a = ax[0, 0]
+    a.set_aspect("equal")
+    a.axis("off")
+    rng = np.random.default_rng(5)
+    for row, (n, A340, lab) in enumerate([(5, 0.3, "little NADH"), (24, 1.24, "much NADH")]):
+        y = 2.4 - row * 2.2
+        a.add_patch(Circle((0.5, y), 0.42, fc="#b8a2e3", ec=GREY, lw=0.7))
+        a.text(0.5, y - 0.7, "lamp\n340 nm", ha="center", va="top", fontsize=6)
+        a.add_patch(Rectangle((0.95, y - 0.22), 2.0, 0.44, fc="#b8a2e3", alpha=0.9, lw=0))
+        a.add_patch(Rectangle((2.95, y - 0.8), 1.6, 1.6, fc="#eaf3fb", ec=GREY, lw=0.9))
+        pts = rng.uniform([3.1, y - 0.65], [4.4, y + 0.65], size=(n, 2))
+        a.scatter(pts[:, 0], pts[:, 1], s=8, color=color(0), zorder=3)
+        a.text(3.75, y - 0.95, f"cuvette: {lab}", ha="center", va="top", fontsize=6)
+        left = 10 ** (-A340)
+        a.add_patch(Rectangle((4.55, y - 0.22), 2.0, 0.44, fc="#b8a2e3", alpha=0.9 * left, lw=0))
+        a.add_patch(Rectangle((6.55, y - 0.45), 0.7, 0.9, fc=GREY, lw=0))
+        a.text(6.9, y - 0.7, "detector", ha="center", va="top", fontsize=6)
+        a.text(7.45, y, f"{left:.0%} of the light\ngets through\nA340 = {A340:g}", ha="left", va="center", fontsize=6.3)
+    a.set_xlim(0, 9.6)
+    a.set_ylim(-0.8, 3.4)
+    a.set_title("(a) NADH soaks up 340 nm light", loc="left")
+    a = ax[0, 1]
+    x = np.linspace(0, 0.25, 50)
+    a.plot(x, 6.22 * x, color=color(0), lw=1.5)
+    for c in (0.1, 0.2):
+        a.plot([c, c, 0], [0, 6.22 * c, 6.22 * c], color=GREY, lw=0.6, ls=":")
+        a.text(c + 0.004, 6.22 * c - 0.12, f"{c:g} mM → {6.22 * c:.2f}", fontsize=6)
+    a.set_xlim(0, 0.25)
+    a.set_ylim(0, 1.6)
+    a.set_xlabel("NADH (mM)")
+    a.set_ylabel("A340")
+    a.set_title("(b) A340 = 6.22 × NADH", loc="left")
+    _save(fig, "basics4_light")
+
+
+def b_graph(ex: Example) -> None:
+    t, y = ex.series("A")
+    fig, ax = new_figure(DOUBLE * 0.72, 2.6)
+    a = ax[0, 0]
+    a.plot(t, y, "o", ms=2.4, mfc="none", mew=0.6, color=color(0), label="one reading every 10 s")
+    kw = {"fontsize": 6.5, "arrowprops": {"arrowstyle": "-|>", "lw": 0.6, "color": GREY}}
+    a.annotate("start: NADH 0.2 mM\n→ A340 ≈ 1.24", xy=(t[0], y[0]), xytext=(110, 1.215), **kw)
+    a.annotate("going down:\nNADH is being used up", xy=(t[12], y[12]), xytext=(260, 1.10), **kw)
+    a.annotate("flat: forward = backward\n(equilibrium)", xy=(t[75], y[75]), xytext=(500, 1.02), **kw)
+    a.set_xlabel("time (s)  →  later")
+    a.set_ylabel("A340  →  more NADH")
+    a.set_title("set A, read from left to right", loc="left")
+    a.legend(frameon=False, loc="upper right")
+    a2 = a.twinx()
+    lo, hi = a.get_ylim()
+    a2.set_ylim(lo / 6.22, hi / 6.22)
+    a2.set_ylabel("NADH (mM) = A340 / 6.22", color=GREY)
+    _save(fig, "basics5_graph")
+
+
+def b_noise(ex: Example) -> dict:
+    t, y = ex.series("A")
+    good = np.asarray(ex.truth["sets"]["A"]["clean_A340"], float)
+    kf = np.array(ex.truth["kf"], float)
+    kf[4] *= 0.6
+    from enzopt.core.massaction import haldane_kr
+
+    kr = haldane_kr(kf, np.array(ex.truth["kr"], float), 23.0, 5)
+    bad = ex.curve(ex.net.rate_vector(kf, kr), "A", t)
+    fig, ax = new_figure(DOUBLE, 2.2, ncols=2, sharey=True)
+    out = {}
+    cases = [(good, color(2), "(a) a curve that fits"), (bad, color(5), "(b) one that does not")]
+    for j, (lab, c, title) in enumerate(cases):
+        a = ax[0, j]
+        r = float(np.sqrt(np.mean((lab - y) ** 2)))
+        out[title] = r / ex.sigma
+        for ti, yi, ci in zip(t, y, lab, strict=True):
+            a.plot([ti, ti], [yi, ci], color="#c0392b", lw=0.6)
+        a.plot(t, y, "o", ms=2.2, mfc="white", mew=0.6, color=color(0), zorder=3, label="measured")
+        a.plot(t, lab, color=c, lw=1.3, label="curve")
+        a.set_title(title, loc="left")
+        a.set_xlabel("time (s)")
+        a.text(0.97, 0.55, f"red lines: misses\nRMSE = {r:.4f}\n= {r / ex.sigma:.1f} × σ", transform=a.transAxes,
+               ha="right", fontsize=6.5)  # fmt: skip
+        a.legend(frameon=False, loc="upper right")
+    ax[0, 0].set_ylabel("A340")
+    _save(fig, "basics6_noise")
+    return out
+
+
+def b_same_curve(ex: Example) -> None:
+    m = ex.samples[0]
+    labels = [_k(i, "₊") for i in range(1, 6)] + [_k(i, "₋") for i in range(1, 6)]
+    tv = np.log10(np.r_[ex.truth["kf"], ex.truth["kr"]])
+    sv = np.log10(np.r_[m["kf"], m["kr"]])
+    fig, ax = new_figure(DOUBLE, 2.25, ncols=2, gridspec_kw={"width_ratios": [1.35, 1.0]})
+    a = ax[0, 0]
+    x = np.arange(len(labels))
+    a.bar(x - 0.2, tv, 0.4, color="black", label="truth")
+    a.bar(x + 0.2, sv, 0.4, color=color(0), label=f"PINN sample {m['seed']}")
+    a.set_xticks(x)
+    a.set_xticklabels(labels)
+    a.set_ylabel("digits: log10(value)")
+    a.set_title("(a) two sets of rate constants (1 step up = 10 times bigger)", loc="left")
+    a.legend(frameon=False, loc="upper right")
+    a = ax[0, 1]
+    t, y = ex.series("A")
+    tt = np.linspace(0, float(t.max()), 400)
+    a.plot(t, y, "o", ms=2.0, mfc="none", mew=0.5, color=GREY, label="set A measured")
+    a.plot(tt, ex.curve(ex.k_truth, "A", tt), **TRUTH_STYLE, label="truth knobs")
+    a.plot(tt, ex.curve(ex.rates(m), "A", tt), color=color(0), lw=1.0, label="sample knobs")
+    a.set_xlabel("time (s)")
+    a.set_ylabel("A340")
+    a.set_title("(b) …give nearly the same curve", loc="left")
+    a.legend(frameon=False, loc="upper right")
+    _save(fig, "basics7_same_curve")
+
+
+def b_bottleneck(ex: Example) -> None:
+    from enzopt.core.massaction import haldane_kr
+
+    t = np.linspace(0.0, 900.0, 2000)
+    kf0, kr0 = np.array(ex.truth["kf"], float), np.array(ex.truth["kr"], float)
+    ref = half_time(t, ex.curve(ex.k_truth, "A", t))
+    mult = np.geomspace(0.01, 100, 17)
+    fig, ax = new_figure(DOUBLE * 0.62, 2.4)
+    a = ax[0, 0]
+    steps = [(0, "step 1: NADH sits (already fast)", color(0)), (4, "step 5: NAD⁺ leaves (slow)", color(2))]
+    for step, lab, c in steps:
+        h = []
+        for f in mult:
+            kf = kf0.copy()
+            kf[step] *= f
+            kr = haldane_kr(kf, kr0.copy(), 23.0, 5)
+            h.append(half_time(t, ex.curve(ex.net.rate_vector(kf, kr), "A", t)) / ref)
+        a.plot(mult, h, "o-", ms=2.5, color=c, label=lab)
+    a.axvline(1, color=GREY, lw=0.6, ls=":")
+    a.text(1.1, 3.3, "true speed", fontsize=6, color=GREY)
+    a.set_xscale("log")
+    a.set_xlabel("this step made … times faster")
+    a.set_ylabel("half-reaction time (× true)")
+    a.set_title("set A: which step sets the pace?", loc="left")
+    a.legend(frameon=False, loc="lower left")
+    _save(fig, "basics8_bottleneck")
+
+
+def b_valleys(ex: Example) -> None:
+    x = np.linspace(-3.2, 4.2, 800)
+
+    def f(v):
+        return (
+            1.3 - 0.75 * np.exp(-((v + 1.9) ** 2) / 0.35) - 1.05 * np.exp(-((v - 0.9) ** 2) / 0.45)
+            - 0.6 * np.exp(-((v - 3.0) ** 2) / 0.3) + 0.03 * v**2
+        )  # fmt: skip
+
+    def descend(v):
+        for _ in range(4000):
+            g = (f(v + 1e-4) - f(v - 1e-4)) / 2e-4
+            v -= 0.02 * g
+        return v
+
+    starts = np.array([-3.0, -2.4, -1.2, -0.4, 0.3, 1.6, 2.4, 3.9])
+    ends = [descend(s) for s in starts]
+    best = min(ends, key=f)
+    fig, ax = new_figure(DOUBLE * 0.72, 2.4)
+    a = ax[0, 0]
+    a.plot(x, f(x), color=GREY, lw=1.4)
+    arrow = {"arrowstyle": "-|>", "lw": 0.6, "color": color(0), "connectionstyle": "arc3,rad=-0.25"}
+    for s, e in zip(starts, ends, strict=True):
+        a.annotate("", xy=(e, f(e) + 0.03), xytext=(s, f(s) + 0.03), arrowprops=arrow)
+        a.plot([s], [f(s) + 0.03], "o", ms=3.5, color=color(0))
+    a.plot([best], [f(best)], "*", ms=10, color=color(1), zorder=4)
+    a.text(best, f(best) - 0.12, "lowest valley: keep this one", ha="center", va="top", fontsize=6.5)
+    for e in sorted(set(round(v, 2) for v in ends)):
+        if abs(e - best) > 0.1:
+            a.text(e, f(e) - 0.1, "stuck here", ha="center", va="top", fontsize=6, color=GREY)
+    a.set_xlabel("knob setting")
+    a.set_ylabel("miss (RMSE)")
+    a.set_title("8 starts walk downhill; each stops in the nearest valley", loc="left")
+    a.set_yticks([])
+    a.set_ylim(f(best) - 0.3, None)
+    _save(fig, "basics9_valleys")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--run", type=Path, required=True, help="a full run of projects/example_ldh_synth")
@@ -573,6 +858,9 @@ def main() -> None:
     figs = {
         "mechanism": mechanism, "forward": forward, "data": data, "inverse": inverse, "pinn": pinn,
         "identifiability": identifiability, "predictions": predictions, "design": design, "loop": loop,
+        "b_concentration": b_concentration, "b_enzyme": b_enzyme, "b_equilibrium": b_equilibrium, "b_light": b_light,
+        "b_graph": b_graph, "b_noise": b_noise, "b_same_curve": b_same_curve, "b_bottleneck": b_bottleneck,
+        "b_valleys": b_valleys,
     }  # fmt: skip
     notes = {}
     for name, fn in figs.items():

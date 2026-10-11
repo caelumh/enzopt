@@ -31,10 +31,10 @@ PAGES = {
     "identification": {
         "src": ROOT / "docs" / "identification" / "README.md",
         "out": ROOT / "docs" / "IDENTIFICATION.html",
-        "label": "식별 레퍼런스",
-        "eyebrow": "enzopt · 레퍼런스",
-        "description": "반응식과 A340 진행 곡선에서 속도 상수 표본을 찾고 설계로 잇는 과정을 그림 9장으로 보여 주는 "
-        "레퍼런스",
+        "label": "속도 상수 찾기",
+        "eyebrow": "enzopt · 처음부터 읽는 안내",
+        "description": "효소 반응의 속도 상수를 빛으로 잰 곡선과 반응식에서 찾고 실험 조건을 정하는 과정을 "
+        "배경지식부터 그림 18장으로 설명하는 안내",
     },
 }
 
