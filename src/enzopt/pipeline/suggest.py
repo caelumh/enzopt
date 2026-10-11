@@ -331,8 +331,18 @@ def decide(rank: list[dict], ver: list[dict], train_names: list[str], sigma: flo
 
 
 # ------------------------------------------------------------------------------------------------ command
-def run_suggest(project_dir, quick: bool = False, verify_top: int = 1, runs_root=None, log=print) -> Path:
-    """``enzopt suggest``: train the discrepancy PINN, match candidates, verify the best ones; write a folder."""
+def run_suggest(
+    project_dir,
+    quick: bool = False,
+    verify_top: int = 1,
+    runs_root=None,
+    log=print,
+    method: str = "auto",
+    run_dir=None,
+    kinds=None,
+) -> Path:
+    """``enzopt suggest``: the LDH path (discrepancy PINN, candidate list, verification) or, for any other network or
+    ``method="ode"``, the general path (``pipeline.suggest_general``: candidates from the structure, least squares)."""
     import tempfile
     from dataclasses import replace
 
@@ -343,8 +353,29 @@ def run_suggest(project_dir, quick: bool = False, verify_top: int = 1, runs_root
     from .fit import _prior
 
     p = load_project(project_dir)
-    if not matches_network(p.network):
-        raise SystemExit("빠진 단계 제안의 후보 목록(막다른 복합체 4종)은 LDH 순차 bi-bi 반응망용")
+    if method not in ("auto", "pinn", "ode"):
+        raise SystemExit(f"--method {method}: auto, pinn, ode 중 하나")
+    ldh = matches_network(p.network)
+    if method == "pinn" and not ldh:
+        raise SystemExit("PINN 방식(막다른 복합체 4종)은 LDH 순차 bi-bi 반응망용 — 다른 반응망은 --method ode")
+    root = Path(runs_root) if runs_root else Path(__file__).resolve().parents[3] / "runs"
+    out = root / p.name / (time.strftime("%Y-%m-%d_%H%M") + "_suggest")
+    out.mkdir(parents=True, exist_ok=True)
+    log(f"결과 폴더: {out}")
+    if method == "ode" or not ldh:
+        from . import suggest_general
+
+        log("방식: 반응망 구조에서 후보 단계를 만들어 최소제곱으로 비교(일반 반응망)")
+        suggest_general.run(
+            p,
+            out,
+            quick,
+            tuple(kinds or suggest_general.KINDS),
+            Path(run_dir) if run_dir else None,
+            root,
+            log,
+        )
+        return out
     ident = p.identification
     obs = p.observable["name"]
     tmp = Path(tempfile.mkdtemp(prefix="enzopt_suggest_"))
@@ -354,10 +385,6 @@ def run_suggest(project_dir, quick: bool = False, verify_top: int = 1, runs_root
             s, _ = load_experiment(e, converted_dir=tmp, value_column=obs)
             every.append((name, e, s.t, s.y))
     train = [x for x in every if x[1].role == "train"]
-    root = Path(runs_root) if runs_root else Path(__file__).resolve().parents[3] / "runs"
-    out = root / p.name / (time.strftime("%Y-%m-%d_%H%M") + "_suggest")
-    out.mkdir(parents=True, exist_ok=True)
-    log(f"결과 폴더: {out}")
 
     seeds = 2 if quick else int(ident.get("seeds", 4))
     restarts = 2 if quick else 4

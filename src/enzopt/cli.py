@@ -112,7 +112,16 @@ def cmd_check(a) -> int:
 def cmd_suggest(a) -> int:
     from .pipeline.suggest import run_suggest
 
-    out = run_suggest(Path(a.project), quick=a.quick, verify_top=a.verify, runs_root=a.runs_root)
+    kinds = [k.strip() for k in a.kinds.split(",") if k.strip()] if a.kinds else None
+    out = run_suggest(
+        Path(a.project),
+        quick=a.quick,
+        verify_top=a.verify,
+        runs_root=a.runs_root,
+        method=a.method,
+        run_dir=a.run,
+        kinds=kinds,
+    )
     print(f"결과: {out}")
     return 0
 
@@ -248,10 +257,24 @@ def build_parser() -> argparse.ArgumentParser:
     c = sub.add_parser("check", help="측정 직후 점검: ①판정·②데이터 검사만(임시 폴더, 결과를 남기지 않음)")
     c.add_argument("project", help="프로젝트 폴더")
     c.set_defaults(func=cmd_check)
-    g = sub.add_parser("suggest", help="빠진 반응 단계 제안: PINN 보정 항 → 후보 단계 대조 → 고전 피팅 검증")
+    g = sub.add_parser(
+        "suggest",
+        help="빠진 반응 단계 제안: LDH는 PINN 보정 항 → 후보 대조 → 고전 피팅, "
+        "그 밖의 반응망은 구조에서 만든 후보를 최소제곱으로 비교",
+    )
     g.add_argument("project", help="프로젝트 폴더")
-    g.add_argument("--quick", action="store_true", help="짧은 모드(시드 2 × 재시작 2, 검증 축소)")
-    g.add_argument("--verify", type=int, default=1, help="고전 피팅으로 확인할 상위 후보 수(0 = 생략)")
+    g.add_argument(
+        "--quick", action="store_true", help="짧은 모드(시드 2 × 재시작 2, 검증 축소 / 일반: 맞추기 횟수 축소)"
+    )
+    g.add_argument("--verify", type=int, default=1, help="LDH: 고전 피팅으로 확인할 상위 후보 수(0 = 생략)")
+    g.add_argument(
+        "--method",
+        choices=["auto", "pinn", "ode"],
+        default="auto",
+        help="auto: LDH 순차 bi-bi는 PINN, 나머지는 ode(구조에서 만든 후보 + 최소제곱)",
+    )
+    g.add_argument("--run", help="ode: 출발점으로 쓸 실행 폴더(기본: 반응망이 같은 가장 최근의 완료된 실행)")
+    g.add_argument("--kinds", help="ode: 후보 종류(쉼표로): dead_end, inactivation, background (기본: 모두)")
     g.add_argument("--runs-root", help="결과 폴더 상위(기본: <저장소>/runs)")
     g.set_defaults(func=cmd_suggest)
     mm = sub.add_parser("mechanisms", help="반응식 고르기: 메커니즘 목록, 고른 메커니즘의 반응식·판정·붙여 넣을 YAML")
