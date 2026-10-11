@@ -70,20 +70,17 @@ simulation:
   t_long_s: 3600
   hopsan: {enabled: false}
 
-design:                             # 세팔렉신 수율 설계(참고용): 10분 안에 PGME 20 mM에서 세팔렉신 수율 40 % 이상
-  target: yield
+design:                             # 세팔렉신을 가장 많이 얻는 멈출 시각(참고용, 목표 peak): 효소 200 nM, PGME 20 mM
+  target: peak                      # 만들어진 세팔렉신이 다시 분해되므로 "언제 멈추나"가 설계의 답
   analyte: PGME
   partner: ADCA                     # ρ = 7-ADCA ÷ PGME
   product: CEX
-  side_product: PG
   free_enzyme: E
   analyte0_mM: 20
-  yield: 0.4
+  Et_nM: 200                        # 실험 효소량
   time_s: 600
-  # 효소가 너무 많으면 세팔렉신이 다시 가수분해되어 수율이 떨어진다(효소량에 단조가 아님). 설계의 이분법은
-  # "상한에서 성공"을 가정하므로 상한을 실험 효소량(0.2 µM)으로 둔다(1 µM로 두면 모든 ρ에서 실패, README)
-  Et_bounds_mM: [1.0e-5, 2.0e-4]
-  rho_grid: [1, 1.5, 2, 3]
+  t_max_s: 3600
+  rho_grid: [1, 1.5, 2, 3]          # 실험한 7-ADCA ÷ PGME 범위(0.5~3) 안
   check_t_end_s: 1800
   pipette:
     volume_uL: 1000
