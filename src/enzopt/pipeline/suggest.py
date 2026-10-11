@@ -341,8 +341,10 @@ def run_suggest(
     run_dir=None,
     kinds=None,
 ) -> Path:
-    """``enzopt suggest``: the LDH path (discrepancy PINN, candidate list, verification) or, for any other network or
-    ``method="ode"``, the general path (``pipeline.suggest_general``: candidates from the structure, least squares)."""
+    """``enzopt suggest``: the general path for every network (``method`` "auto" or "ode": ``pipeline.suggest_general``,
+    candidates from the structure, least squares), or the LDH path (``method="pinn"``, LDH ordered bi-bi only:
+    discrepancy PINN, the four dead-end candidates, verification). The general path found the same answers as the LDH
+    path on its three test cases (hidden E·NADH·Lac, its negative control, Holmes 1988; ``docs/suggest``)."""
     import tempfile
     from dataclasses import replace
 
@@ -362,10 +364,10 @@ def run_suggest(
     out = root / p.name / (time.strftime("%Y-%m-%d_%H%M") + "_suggest")
     out.mkdir(parents=True, exist_ok=True)
     log(f"결과 폴더: {out}")
-    if method == "ode" or not ldh:
+    if method in ("auto", "ode"):
         from . import suggest_general
 
-        log("방식: 반응망 구조에서 후보 단계를 만들어 최소제곱으로 비교(일반 반응망)")
+        log("방식: 반응망 구조에서 후보 단계를 만들어 최소제곱으로 비교(일반 방식)")
         suggest_general.run(
             p,
             out,

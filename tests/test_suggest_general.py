@@ -4,6 +4,7 @@ import json
 
 import numpy as np
 import pytest
+from conftest import ROOT
 
 from enzopt.core.massaction import MassAction, simulate
 from enzopt.core.network import Network, x0_vector
@@ -15,7 +16,7 @@ ET = 1e-3  # mM
 SIGMA = 0.002
 
 
-def write_project(root, holdout=True):
+def write_project(root, holdout=True, kp=None):
     """A Michaelis–Menten project whose data come from the network with the product-inhibition step."""
     truth = Network.from_strings("truth", ["E", "S", "ES", "P", "E_P"], TRUTH_STEPS, ["E", "ES", "E_P"])
     model = MassAction.from_network(truth)
@@ -45,8 +46,8 @@ def write_project(root, holdout=True):
         "  observable: {name: S_mM, coefficients: {S: 1, ES: 1}}\n"
         "  thermodynamics:\n"
         "    reactions:\n"
-        "      - {overall: S <=> P}\n"
-        "  prior: {kf_log10: [2, 1], kr_log10: [2], sd_decades: 1.5}\n"
+        + (f"      - {{overall: S <=> P, Kp: {kp:g}}}\n" if kp else "      - {overall: S <=> P}\n")
+        + "  prior: {kf_log10: [2, 1], kr_log10: [2], sd_decades: 1.5}\n"
         "experiments:\n" + "\n".join(lines) + "\n"
         f"identification: {{noise_sigma: {SIGMA}, baseline_fit: {{starts: 2, max_nfev: 60}}}}\n"
         "simulation: {hopsan: {enabled: false}}\n"
@@ -68,6 +69,24 @@ def test_candidates_from_the_structure(tmp_path):
     assert steps["dead_end"] == ["E + P <=> E_P", "ES + S <=> ES_S", "ES + P <=> ES_P"]
     assert steps["inactivation"] == ["E -> ED", "ES -> ED"]
     assert steps["background"] == ["S -> P"]
+    # S <=> P has no K′: making ES -> E + P reversible would close a cycle without it, so no "reverse" candidate
+    assert "reverse" not in steps and "order" not in steps
+
+
+def test_reverse_and_order_candidates(tmp_path):
+    """With K′ a one-way step may become reversible (its k₋ then follows from K′); two reversible bindings in a row
+    give the other binding order (LDH: pyruvate before NADH, lactate before NAD⁺)."""
+    from enzopt.core.project import load_project
+    from enzopt.pipeline.suggest_general import candidates, setup
+
+    p = load_project(write_project(tmp_path / "proj", kp=10))
+    rev = [c for c in candidates(p) if c.kind == "reverse"]
+    assert [c.step for c in rev] == ["ES <=> E + P"] and rev[0].replace == 1
+    _net, lay, prior = setup(p, rev[0])
+    assert 1 in lay.dependent and len(prior) == lay.n_theta  # k₋ of the reversed step from K′: no new parameter
+    ldh = load_project(ROOT / "projects" / "example_ldh_missing_step")
+    order = sorted(c.step for c in candidates(ldh, ("order",)))
+    assert order == ["E + Lac <=> E_Lac ; E_Lac + NAD <=> EQL", "E + Pyr <=> E_Pyr ; E_Pyr + NADH <=> ENP"]
 
 
 def test_general_suggest_finds_the_missing_step(tmp_path):
@@ -83,5 +102,37 @@ def test_general_suggest_finds_the_missing_step(tmp_path):
     assert v["suggested_holdout_improves"] is True and v["best_holdout_step"] == "E + P <=> E_P"
     top = rep["candidates"][0]
     assert top["step"] == "E + P <=> E_P" and top["train"] < 1.5
-    assert top["k_new"]["kr"] / top["k_new"]["kf"] == pytest.approx(0.05, rel=0.3)  # K_i
+    assert top["k_new"]["kr"][0] / top["k_new"]["kf"][0] == pytest.approx(0.05, rel=0.3)  # K_i
     assert (out / "candidates.csv").exists() and (out / "candidates.png").exists()
+
+
+MISSING = ROOT / "projects" / "example_ldh_missing_step"
+
+
+@pytest.mark.long
+def test_general_path_on_ldh_finds_the_hidden_step(tmp_path):
+    """The default (general) path on the LDH example with a hidden E·NADH·Lac complex (K_i 5 mM): the same answer as
+    the PINN path (EN + Lac, training 23σ → 1.0σ, held out 2.5σ → 0.9σ)."""
+    from enzopt.pipeline.suggest import run_suggest
+
+    out = run_suggest(MISSING, runs_root=tmp_path / "runs", log=lambda *_: None)
+    rep = json.loads((out / "suggest.json").read_text(encoding="utf-8"))
+    v = rep["verdict"]
+    assert v["suggested_step"] == "EN + Lac <=> EN_Lac" and v["suggested_holdout_improves"]
+    top = rep["candidates"][0]
+    assert top["train"] < 1.3 and top["holdout"] < 1.3
+    assert 2.5 < top["k_new"]["kr"][0] / top["k_new"]["kf"][0] < 10.0  # K_i, truth 5 mM
+
+
+@pytest.mark.long
+def test_general_path_on_ldh_does_not_invent_a_step(tmp_path):
+    import subprocess
+    import sys
+
+    from enzopt.pipeline.suggest import run_suggest
+
+    neg = tmp_path / "neg"
+    subprocess.run([sys.executable, str(MISSING / "make_data.py"), "--without-step", str(neg)], check=True, cwd=ROOT)
+    out = run_suggest(neg, runs_root=tmp_path / "runs", log=lambda *_: None)
+    v = json.loads((out / "suggest.json").read_text(encoding="utf-8"))["verdict"]
+    assert v["base_explains_data"] and v["suggested_step"] is None and v["holdout_halving_steps"] == []

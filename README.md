@@ -39,7 +39,7 @@ uv run enzopt pack runs/example_ldh_synth/<실행 폴더>   # 제출용 zip 하�
 | `enzopt run ... --device cpu --precision float64` | PINN 장치·정밀도 지정(기본은 project.yaml) |
 | `enzopt check <프로젝트>` | 측정 직후 점검: 판정·데이터 검사만 임시 폴더에서. 실험별 점 수·처음/끝값·K'로 푼 예상 평형과의 차이·끝 기울기·온도 |
 | `enzopt mechanisms [유형 --substrates … --products …]` | 반응식 고르기: 메커니즘 9종(기질 1~3개, 순서형·무작위형·핑퐁형 등)과 판정 등급. 유형과 분자 이름을 주면 만들어지는 반응식·보존 법칙·`project.yaml` 조각 |
-| `enzopt suggest <프로젝트> [--quick] [--method auto\|pinn\|ode] [--run 실행] [--kinds …]` | 빠진 반응 단계 제안. LDH 순차 bi-bi: PINN 보정 항으로 어긋나는 곳을 찾고 후보(막다른 복합체 4종)를 PINN으로 맞춰 순위를 매긴 뒤 고전 피팅으로 확인(`--verify N`). 그 밖의 반응망(또는 `--method ode`): 반응망 구조에서 후보(막다른 결합·실활·효소 없는 반응)를 만들어 전체 ODE 최소제곱으로 비교, ΔAIC·홀드아웃 RMSE와 함께. 결과는 `runs/<프로젝트>/<날짜_시각>_suggest/`, 근거는 `docs/suggest/`·안내서 9절 |
+| `enzopt suggest <프로젝트> [--quick] [--kinds …] [--run 실행] [--method pinn]` | 빠진 반응 단계 제안(모든 반응망): 반응망 구조에서 후보(막다른 결합·실활·효소 없는 반응·다른 결합 순서·역반응)를 만들어 전체 ODE 최소제곱으로 비교하고, 학습 기준 판정과 ΔAIC·홀드아웃 RMSE를 함께 냄. `--method pinn`은 LDH 순차 bi-bi 전용 PINN 방식(후보 4종, `--verify N`). 결과는 `runs/<프로젝트>/<날짜_시각>_suggest/`, 근거는 `docs/suggest/`·안내서 9절 |
 | `enzopt pack <실행 폴더> [-o x.zip]` | 입력 데이터·설정 사본·그림·CSV·Hopsan `.hmf`·검증 보고를 zip 하나로 |
 | `enzopt doctor [--hopsan]` | 환경 점검 |
 | `enzopt synth evals/synthetic.yaml <프로젝트>` | 현실적 합성 데이터로 `data/` 작성(예제 생성용) |

@@ -49,7 +49,7 @@ def test_candidates_are_dead_end_complexes():
 
 def test_suggest_finds_the_hidden_step(tmp_path):
     """Data made with EN + Lac <=> ENL (K_i 5 mM): the five steps fail and that candidate is suggested."""
-    r = run_cli("suggest", MISSING, "--quick", "--verify", "0", "--runs-root", tmp_path / "runs")
+    r = run_cli("suggest", MISSING, "--method", "pinn", "--quick", "--verify", "0", "--runs-root", tmp_path / "runs")
     assert r.returncode == 0, r.stdout[-3000:]
     out = next((tmp_path / "runs").rglob("suggest.json"))
     rep = json.loads(out.read_text(encoding="utf-8"))
@@ -64,7 +64,7 @@ def test_suggest_does_not_invent_a_step(tmp_path):
     """The same conditions made with the five steps only: nothing is suggested."""
     neg = tmp_path / "neg"
     subprocess.run([sys.executable, str(MISSING / "make_data.py"), "--without-step", str(neg)], check=True, cwd=ROOT)
-    r = run_cli("suggest", neg, "--quick", "--verify", "0", "--runs-root", tmp_path / "runs")
+    r = run_cli("suggest", neg, "--method", "pinn", "--quick", "--verify", "0", "--runs-root", tmp_path / "runs")
     assert r.returncode == 0, r.stdout[-3000:]
     rep = json.loads(next((tmp_path / "runs").rglob("suggest.json")).read_text(encoding="utf-8"))
     assert rep["verdict"]["suggested_step"] is None

@@ -4,8 +4,10 @@
 (and LDH with ``--method ode``) comes here:
 
 1. **Candidates** from the structure, no list to write: a dead-end complex X + Y ⇌ X_Y for every active enzyme form X
-   and small molecule Y that X does not bind yet; an inactivation step X → ED (one dead form, ``core.qss``); and each
-   overall reaction without the enzyme (one-way, or reversible under its K′).
+   and small molecule Y that X does not bind yet; an inactivation step X → ED (one dead form, ``core.qss``); each
+   overall reaction without the enzyme (one-way, or reversible under its K′); the other binding order of two
+   reversible bindings in a row (W = X·Y, X = X0·Z → X0 + Y ⇌ X0_Y, X0_Y + Z ⇌ W: random order); and every one-way step
+   made reversible. A candidate that closes a reversible cycle through an overall reaction without K′ is left out.
 2. **Fit** the network as written and the network plus each candidate by least squares on the full ODE: every signal
    in units of its σ, the stage-③ prior, the new constants around generic centres. Warm start: the classical fit of
    the latest completed run of the project with the same network (``--run`` to choose), else a fresh multi-start fit.
@@ -32,11 +34,12 @@ from ..core.massaction import MassAction, SimulationError, atol_vector, simulate
 from ..core.network import Network, Step, complex_str, x0_vector
 from ..core.thermo import layout
 
-KINDS = ("dead_end", "inactivation", "background")
+KINDS = ("dead_end", "inactivation", "background", "order", "reverse")
 KF_BIND_LOG10 = 3.0  # 1/(mM·s): binding of a candidate dead-end complex (as KF_DEAD_END of the LDH path)
 KI_LOG10 = math.log10(5.0)  # mM: dissociation constant at the prior centre (as the LDH path's default K_i)
 K_INACT_LOG10 = -2.0  # 1/s: inactivation of an enzyme form
 K_BACKGROUND_LOG10 = -4.0  # 1/s (1/(mM·s) for two reactants): the reaction without the enzyme
+K_REVERSE_LOG10 = (2.0, 3.0)  # k₋ of a step made reversible: 1/s (one product), 1/(mM·s) (two products)
 BASE_OK_SIGMA = 2.0  # as pipeline.suggest: the network explains the training data within 2σ (every set within 3σ)
 SET_OK_SIGMA = 3.0
 
@@ -45,10 +48,15 @@ SET_OK_SIGMA = 3.0
 class Candidate:
     name: str
     kind: str
-    step: str
-    new_enzyme: list = field(default_factory=list)  # new enzyme species (dead-end complex, dead form)
-    prior_kf: float = 0.0  # log10 centre of the new step's k₊
-    prior_kr: float | None = None  # log10 centre of its k₋ (reversible steps)
+    steps: list  # the new steps (or the replacing step with ``replace``)
+    new_enzyme: list = field(default_factory=list)  # new enzyme species (dead-end complex, dead form, new order form)
+    prior_kf: list = field(default_factory=list)  # log10 centre of each new step's k₊
+    prior_kr: list = field(default_factory=list)  # log10 centre of each new step's k₋ (None: one-way)
+    replace: int | None = None  # 0-based step that ``steps[0]`` replaces (kind "reverse")
+
+    @property
+    def step(self) -> str:
+        return " ; ".join(self.steps)
 
 
 def dead_forms(net: Network) -> list[str]:
@@ -62,47 +70,68 @@ def dead_forms(net: Network) -> list[str]:
     return [s for s in ens[1:] if s not in leaves]
 
 
-def _fresh(name: str, taken: set) -> str:
+def _fresh(name: str, taken) -> str:
+    """``name``, or with a number appended if the network already has that species (each candidate is its own
+    network, so candidates may reuse a name)."""
     out, k = name, 2
     while out in taken:
         out, k = f"{name}{k}", k + 1
-    taken.add(out)
+    return out
+
+
+def _bindings(net: Network) -> list[tuple]:
+    """(complex W, enzyme form X, small molecule Y, step index, reversible) for every step X + Y ⇌ W or W ⇌ X + Y."""
+    ens = set(net.enzyme_species)
+    out = []
+    for i, st in enumerate(net.steps):
+        for a, b in ((st.lhs, st.rhs), (st.rhs, st.lhs)):
+            es = [s for s in a if s in ens]
+            sm = [s for s in a if s not in ens]
+            if (
+                len(es) == 1
+                and len(sm) == 1
+                and a[es[0]] == 1
+                and a[sm[0]] == 1
+                and len(b) == 1
+                and next(iter(b)) in ens
+                and next(iter(b.values())) == 1
+            ):
+                out.append((next(iter(b)), es[0], sm[0], i, st.reversible))
     return out
 
 
 def candidates(p, kinds=KINDS) -> list[Candidate]:
-    """Candidate steps for the project's network (see the module docstring)."""
+    """Candidate steps for the project's network (module docstring). Candidates whose network the tool cannot set
+    up (a new reversible cycle through an overall reaction without K′) are left out."""
     net = p.network
     ens = list(net.enzyme_species)
     dead = dead_forms(net)
     active = [x for x in ens if x not in dead]
     small = [s for s in net.species if s not in ens]
-    taken = set(net.species)
+    taken = frozenset(net.species)
+    bindings = _bindings(net)
+    binds = set()  # (X, Y): X already takes up Y (on the binding side of a step)
+    for st in net.steps:
+        for side in [st.lhs] + ([st.rhs] if st.reversible else []):
+            es = [s for s in side if s in ens]
+            sm = [s for s in side if s not in ens]
+            if len(es) == 1 and len(sm) == 1 and side[es[0]] == 1 and side[sm[0]] == 1:
+                binds.add((es[0], sm[0]))
     out: list[Candidate] = []
     if "dead_end" in kinds:
-        binds = set()
-        for st in net.steps:
-            for side in [st.lhs] + ([st.rhs] if st.reversible else []):
-                es = [s for s in side if s in ens]
-                sm = [s for s in side if s not in ens]
-                if len(es) == 1 and len(sm) == 1 and side[es[0]] == 1 and side[sm[0]] == 1:
-                    binds.add((es[0], sm[0]))
         for x in active:
             for y in small:
                 if (x, y) in binds:
                     continue
                 c = _fresh(f"{x}_{y}", taken)
-                out.append(
-                    Candidate(
-                        f"{x}·{y}", "dead_end", f"{x} + {y} <=> {c}", [c], KF_BIND_LOG10, KF_BIND_LOG10 + KI_LOG10
-                    )
-                )
+                kf, kr = KF_BIND_LOG10, KF_BIND_LOG10 + KI_LOG10
+                out.append(Candidate(f"{x}·{y}", "dead_end", [f"{x} + {y} <=> {c}"], [c], [kf], [kr]))
     if "inactivation" in kinds:
         d = dead[0] if dead else _fresh("ED", taken)
         has = {next(iter(st.lhs)) for st in net.steps if list(st.rhs) == [d] and len(st.lhs) == 1}
         for x in active:
             if x not in has:
-                out.append(Candidate(f"{x} → {d}", "inactivation", f"{x} -> {d}", [d], K_INACT_LOG10, None))
+                out.append(Candidate(f"{x} → {d}", "inactivation", [f"{x} -> {d}"], [d], [K_INACT_LOG10], [None]))
     if "background" in kinds:
         free = {
             (tuple(sorted(st.lhs.items())), tuple(sorted(st.rhs.items())))
@@ -116,8 +145,32 @@ def candidates(p, kinds=KINDS) -> list[Candidate]:
             kp = r.get("Kp")
             step = f"{complex_str(st.lhs)} {'<=>' if kp else '->'} {complex_str(st.rhs)}"
             kr = K_BACKGROUND_LOG10 - math.log10(kp) if kp else None
-            out.append(Candidate(f"no enzyme: {step}", "background", step, [], K_BACKGROUND_LOG10, kr))
-    return out
+            out.append(Candidate(f"no enzyme: {step}", "background", [step], [], [K_BACKGROUND_LOG10], [kr]))
+    if "order" in kinds:
+        # W = X·Y and X = X0·Z, both reversible: the other order X0 + Y ⇌ X0_Y, X0_Y + Z ⇌ W (random order)
+        for w, x, y, _i, rev1 in bindings:
+            for x_, x0, z, _j, rev2 in bindings:
+                if x_ != x or z == y or not (rev1 and rev2) or x0 in dead or (x0, y) in binds:
+                    continue
+                v = _fresh(f"{x0}_{y}", taken)
+                kf, kr = KF_BIND_LOG10, KF_BIND_LOG10 + KI_LOG10
+                steps = [f"{x0} + {y} <=> {v}", f"{v} + {z} <=> {w}"]
+                out.append(Candidate(f"order: {y} before {z} ({w})", "order", steps, [v], [kf, kf], [kr, kr]))
+    if "reverse" in kinds:
+        for i, st in enumerate(net.steps):
+            if st.reversible or any(s in dead for s in st.rhs):
+                continue
+            kr = K_REVERSE_LOG10[1] if sum(st.rhs.values()) >= 2 else K_REVERSE_LOG10[0]
+            step = f"{complex_str(st.lhs)} <=> {complex_str(st.rhs)}"
+            out.append(Candidate(f"reverse: {step}", "reverse", [step], [], [], [kr], replace=i))
+    ok = []
+    for c in out:
+        try:
+            setup(p, c)
+        except (ValueError, KeyError):
+            continue
+        ok.append(c)
+    return ok
 
 
 # ------------------------------------------------------------------------------------------------ fitting
@@ -217,23 +270,47 @@ def _kp_full(p, Kp_used: list | None, lay_base) -> list[float]:
     return full
 
 
+def touched(p, cand: Candidate | None) -> list[int]:
+    """0-based steps a candidate adds or replaces."""
+    if cand is None:
+        return []
+    if cand.replace is not None:
+        return [cand.replace]
+    n0 = len(p.network.steps)
+    return list(range(n0, n0 + len(cand.steps)))
+
+
 def setup(p, cand: Candidate | None):
-    """(network, θ layout, prior centre θ) of the network as written (cand None) or plus one candidate step."""
+    """(network, θ layout, prior centre θ) of the network as written (cand None) or with one candidate. Raises
+    ValueError when the candidate closes a reversible cycle through an overall reaction without K′."""
     n0 = len(p.network.steps)
     prefer = [p.haldane_step] if p.haldane_step else None
     if cand is None:
         net = p.network
+    elif cand.replace is not None:
+        steps = [str(s) for s in p.network.steps]
+        steps[cand.replace] = cand.steps[0]
+        net = Network.from_strings(f"{p.network.name}+reverse", p.network.species, steps, p.network.enzyme_species)
+        prefer = (prefer or []) + [cand.replace + 1]  # its k₋ follows from K′ when it closes a cycle
     else:
         net = p.network.with_extra_steps(
-            [cand.step], name=f"{p.network.name}+{cand.kind}", extra_species=cand.new_enzyme
+            cand.steps, name=f"{p.network.name}+{cand.kind}", extra_species=cand.new_enzyme
         )
-        if cand.kind == "background" and Step.parse(cand.step).reversible:
-            prefer = [n0 + 1]  # the new step's k₋ follows from K′
+        if cand.kind in ("background", "order") and Step.parse(cand.steps[-1]).reversible:
+            prefer = (prefer or []) + [n0 + len(cand.steps)]  # the last new step's k₋ follows from its cycle
     lay = layout(net, p.overall, prefer)
+    for o in lay.overall_used:
+        if not p.reactions[o].get("Kp") and o not in p.layout.overall_used:
+            raise ValueError(f"전체 반응 '{p.reactions[o]['overall']}'의 K′ 없이 가역 순환이 생김")
     pv = p.prior_vector()
     base_lay = p.layout
-    kf = [float(x) for x in pv[:n0]] + ([cand.prior_kf] if cand else [])
-    kr_all = list(p.kr_prior_all()) + ([cand.prior_kr if cand.prior_kr is not None else np.nan] if cand else [])
+    kf = [float(x) for x in pv[:n0]]
+    kr_all = list(p.kr_prior_all())
+    if cand is not None and cand.replace is not None:
+        kr_all[cand.replace] = cand.prior_kr[0]
+    elif cand is not None:
+        kf += list(cand.prior_kf)
+        kr_all += [np.nan if v is None else v for v in cand.prior_kr]
     kr = [float(kr_all[i]) if np.isfinite(kr_all[i]) else 3.0 for i in lay.free_kr]
     kp = []
     for o in lay.overall_used:
@@ -246,13 +323,13 @@ def setup(p, cand: Candidate | None):
 
 def start_theta(p, lay, base: dict, cand: Candidate | None) -> np.ndarray:
     """Warm start: the base fit's constants plus the candidate's prior centre."""
-    kf = list(base["kf"]) + ([10.0**cand.prior_kf] if cand else [])
+    kf = list(base["kf"])
     kr = list(base["kr"])
-    if cand:
-        if cand.prior_kr is not None:
-            kr.append(10.0**cand.prior_kr)
-        else:
-            kr.append(0.0)
+    if cand is not None and cand.replace is not None:
+        kr[cand.replace] = 10.0 ** cand.prior_kr[0]
+    elif cand is not None:
+        kf += [10.0**v for v in cand.prior_kf]
+        kr += [0.0 if v is None else 10.0**v for v in cand.prior_kr]
     return lay.theta(kf, kr, _kp_full(p, base.get("Kp_all"), p.layout))
 
 
@@ -311,12 +388,22 @@ def decide(base: dict, rows: list[dict], train: list[str], hold: list[str]) -> d
         note = f"적어 둔 반응식으로는 설명되지 않음({txt}). {top['step']}을 넣으면 학습 RMSE {top['train']:.2f}σ"
     else:
         note = f"적어 둔 반응식으로는 설명되지 않음({txt}). 후보 중 RMSE를 절반으로 줄이는 단계 없음"
-    ho_note = None
+    # held-out side (shown, not deciding): the candidates that at least halve the held-out RMSE, the same factor as
+    # the training rule; a smaller drop is reported as such so noise-level differences do not read as findings
+    ho_note, ho_halving = None, []
     if hold and best_ho is not None and base.get("holdout") is not None:
-        ho_note = (
-            f"홀드아웃 기준: 가장 크게 줄이는 후보 {best_ho['step']} "
-            f"(홀드아웃 RMSE {base['holdout']:.2f}σ → {best_ho['holdout']:.2f}σ, ΔAIC {best_ho['d_aic']:+.1f})"
+        ho_halving = sorted(
+            (r for r in ok_rows if r.get("holdout") is not None and r["holdout"] <= 0.5 * base["holdout"]),
+            key=lambda r: r["holdout"],
         )
+        if ho_halving:
+            items = ", ".join(f"{r['step']} {r['holdout']:.2f}σ (ΔAIC {r['d_aic']:+.1f})" for r in ho_halving[:3])
+            ho_note = f"홀드아웃 기준: RMSE {base['holdout']:.2f}σ를 절반 이하로 줄이는 후보 — {items}"
+        else:
+            ho_note = (
+                f"홀드아웃 기준: RMSE {base['holdout']:.2f}σ를 절반 이하로 줄이는 후보 없음"
+                f"(가장 낮은 {best_ho['step']} {best_ho['holdout']:.2f}σ)"
+            )
     return {
         "base_explains_data": bool(base_ok),
         "sets_missed_by_base": misses,
@@ -325,6 +412,7 @@ def decide(base: dict, rows: list[dict], train: list[str], hold: list[str]) -> d
             bool(top["holdout"] < base["holdout"]) if suggest and top.get("holdout") is not None else None
         ),
         "best_holdout_step": best_ho["step"] if best_ho else None,
+        "holdout_halving_steps": [r["step"] for r in ho_halving],
         "note": note,
         "holdout_note": ho_note,
     }
@@ -477,7 +565,9 @@ def run(p, out: Path, quick: bool, kinds=KINDS, run_dir: Path | None = None, roo
                 "cost": f["cost"],
                 "nfev": f["nfev"],
                 "seconds": f["seconds"],
-                "k_new": {"kf": float(kf[-1]), "kr": float(kr[-1])} if c else None,
+                "k_new": {"kf": [float(kf[j]) for j in touched(p, c)], "kr": [float(kr[j]) for j in touched(p, c)]}
+                if c
+                else None,
             }
         )
         rows.append(row)
@@ -501,7 +591,7 @@ def run(p, out: Path, quick: bool, kinds=KINDS, run_dir: Path | None = None, roo
     for r in cand_rows[:10]:
         ho = f", 홀드아웃 {r['holdout']:.2f}σ" if r.get("holdout") is not None else ""
         log(f"  {r['step']:32s} 학습 {r['train']:.2f}σ{ho}, ΔAIC {r['d_aic']:+.1f}")
-    log(f"결론: {verdict['note']}" + (f" → {verdict['suggested_step']}" if verdict["suggested_step"] else ""))
+    log(f"결론: {verdict['note']}")
     if verdict["holdout_note"]:
         log(verdict["holdout_note"])
 
@@ -536,8 +626,8 @@ def run(p, out: Path, quick: bool, kinds=KINDS, run_dir: Path | None = None, roo
                 r["train"],
                 r.get("holdout"),
                 r.get("d_aic"),
-                (r.get("k_new") or {}).get("kf"),
-                (r.get("k_new") or {}).get("kr"),
+                ";".join(f"{v:.4g}" for v in (r.get("k_new") or {}).get("kf", [])),
+                ";".join(f"{v:.4g}" for v in (r.get("k_new") or {}).get("kr", [])),
             ]
             for r in [base_row, *cand_rows]
         ],
