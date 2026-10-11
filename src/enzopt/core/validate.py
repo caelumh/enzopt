@@ -27,9 +27,21 @@ def _species(rxns):
 
 
 def validate_closed(
-    t, S, rxns, rates=None, tol_cons=TOL_CONSERVATION, tol_G=TOL_LYAPUNOV, tol_eq=TOL_EQUILIBRIUM_LOG
+    t,
+    S,
+    rxns,
+    rates=None,
+    tol_cons=TOL_CONSERVATION,
+    tol_G=TOL_LYAPUNOV,
+    tol_eq=TOL_EQUILIBRIUM_LOG,
+    guarantee: bool = True,
 ) -> dict:
-    """t: time array, S: {species: array}, rxns: [(a, b)], rates: [k] aligned with rxns (for the equilibrium check)."""
+    """t: time array, S: {species: array}, rxns: [(a, b)], rates: [k] aligned with rxns (for the equilibrium check).
+
+    ``guarantee``: the network has the 149 guarantee (weakly reversible). Without it CRNT promises no positive
+    equilibrium — species may go extinct and one-way steps keep reversible steps off balance — so positivity, the
+    equilibrium relation and the Lyapunov decrease are still reported but do not decide ``ok``; conservation and
+    non-negativity (within the conservation tolerance, relative to the largest concentration) do."""
     species = _species(rxns)
     X = np.column_stack([np.asarray(S[s], float) for s in species])
     N = stoichiometric_matrix(rxns, species)
@@ -72,7 +84,12 @@ def validate_closed(
         dG = np.diff(G)
         out["lyapunov_max_increase"] = float(max(dG.max(), 0.0)) if len(dG) else 0.0
         out["lyapunov_ok"] = bool(len(dG) == 0 or dG.max() <= tol_G * max(G[0], 1e-12) + 1e-14)
-    out["ok"] = passed(out)
+    out["guarantee_checks"] = bool(guarantee)
+    if guarantee:
+        out["ok"] = passed(out)
+    else:
+        out["nonnegative_ok"] = bool(out["min_concentration"] >= -tol_cons * scale)
+        out["ok"] = bool(out["conservation_ok"] and out["nonnegative_ok"])
     return out
 
 

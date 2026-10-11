@@ -58,7 +58,9 @@ def run_design_stage(ctx: RunContext) -> None:
     vd = verdict(dnet.reactions(), dnet.name)
     why = limit_reason(vd, Kp, ov, len(p.reactions))
     use_limit = why is None
-    if not use_limit:
+    # the equilibrium limit sets the automatic ρ grid and the conversion ceiling of assay goals; a yield or selectivity
+    # goal on a given ρ grid does not use it, so its absence is recorded (design_summary) without a warning
+    if not use_limit and (goal in ("assay", "time") or isinstance(des.get("rho_grid", "auto"), str)):
         ctx.warn(f"설계 반응망 {why}: 평형 한계를 쓰지 않고 정방향 해석만으로 설계 범위를 탐색")
     design = AssayDesign(
         dnet,
@@ -117,6 +119,7 @@ def run_design_stage(ctx: RunContext) -> None:
     summ.update(
         {
             "use_equilibrium_limit": use_limit,
+            "equilibrium_limit_reason": why,
             "design_network": dnet.name,
             "Kp": Kp,
             "conversion": design.conversion,

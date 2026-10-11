@@ -51,6 +51,7 @@ class ValidatedRun:
             "equilibrium_ok": r.get("equilibrium_ok"),
             "lyapunov_ok": r.get("lyapunov_ok"),
             "step": self.step,
+            "guarantee_checks": r.get("guarantee_checks"),  # False: conservation + non-negativity only (no 149)
         }
 
 
@@ -61,12 +62,14 @@ def run_validated(
     rxns,
     rates,
     step: float,
+    guarantee: bool = True,
 ) -> ValidatedRun:
-    """``solve(step)`` → (t, X). Validate; on failure re-run once with step/10 and keep the second result."""
+    """``solve(step)`` → (t, X). Validate; on failure re-run once with step/10 and keep the second result.
+    ``guarantee``: the network has the 149 guarantee (``validate_closed``)."""
 
     def check(t, X):
         S = {s: X[:, i] for i, s in enumerate(species)}
-        return validate_closed(t, S, rxns, rates)
+        return validate_closed(t, S, rxns, rates, guarantee=guarantee)
 
     try:
         t, X = solve(step)

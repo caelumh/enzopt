@@ -1,7 +1,8 @@
 """Stage ④ simulation + CRNT validation.
 
 * scipy (Radau): every kept sample × (same-class random initial states + one other-class state), validated with the
-  CRNT checks; a failing run is flagged "수치 오류 의심" and re-run once with the step / 10 (SC5-5).
+  CRNT checks (without the 149 guarantee: conservation and non-negativity only); a failing run is flagged
+  "수치 오류 의심" and re-run once with the step / 10 (SC5-5).
 * Hopsan (system level, I1-Hopsan): the apparent one-step reaction's class batch and one representative sample of
   the full mechanism with a small Δt, each compared with scipy. Without Hopsan the same runs use scipy and the run is
   marked "Hopsan 미사용" (SC5-4).
@@ -92,6 +93,8 @@ def run_sim_stage(ctx: RunContext) -> None:
     t = np.linspace(0.0, t_long, int(sim.get("n_points", 601)))
     coeff = p.observable_weights()
     rows, traj, finals_by_sample = [], [], {}
+    # without the 149 guarantee (stage ①) a run is checked for conservation and non-negativity only (core.validate)
+    guarantee = bool(ctx.manifest["flags"].get("guarantee_149", True))
     n_total = len(samples) * (len(same_states) + (1 if other else 0))
     done = 0
     t0 = time.time()
@@ -104,7 +107,8 @@ def run_sim_stage(ctx: RunContext) -> None:
         for name, init, Et in runs:
             ctx.progress(0.7 * done / max(1, n_total), f"표본 {s['seed']} · {name}")
             x0 = x0_vector(net, init, Et)
-            vr = run_validated(name, scipy_solver(net, k, x0, t, Et, model=model), net.species, rxns, k, 1.0)
+            solver = scipy_solver(net, k, x0, t, Et, model=model)
+            vr = run_validated(name, solver, net.species, rxns, k, 1.0, guarantee=guarantee)
             row = vr.row()
             row.update(
                 {
@@ -147,7 +151,7 @@ def run_sim_stage(ctx: RunContext) -> None:
         ctx.warn(f"수치 오류 의심 {n_retry}건: Δt를 1/10로 줄여 다시 풀었음(검증 표 참조)")
     if n_pass < len(rows):
         msg = f"CRNT 검증 실패 {len(rows) - n_pass}/{len(rows)}"
-        ctx.warn(msg + ("" if ctx.manifest["flags"].get("guarantee_149", True) else " — 149 보장 없음(멸종 방향 예상)"))
+        ctx.warn(msg + ("" if guarantee else " — 149 보장 없는 반응망: 보존량·음수 없음 검사에서"))
     plots.write_rows(out / "validation.csv", list(rows[0].keys()), [list(r.values()) for r in rows])
     plots.write_rows(
         out / "trajectories.csv",
@@ -160,6 +164,7 @@ def run_sim_stage(ctx: RunContext) -> None:
         "n_runs": len(rows),
         "n_pass": n_pass,
         "n_retried": n_retry,
+        "checks": "crnt149" if guarantee else "conservation_nonnegative",
         "reference_experiment": ref.name,
         "other_class_experiment": other.name if other else None,
         "same_class_runs": len(same_states),
