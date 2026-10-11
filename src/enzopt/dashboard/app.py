@@ -241,6 +241,27 @@ def tab_design(run):
         st.caption(d["skipped"])
         return
     c = st.columns(4)
+    if d.get("goal") == "peak":
+        lo, hi = d["stop_window_s"]
+        c[0].metric("강건 ρ*", sig3(d["rho_star"]))
+        c[1].metric("효소량", f"{sig3(d['Et_nM'])} nM")
+        c[2].metric("멈출 시각", f"{d['robust_stop_s']:.0f} s")
+        c[3].metric("최악 표본 수율", f"{d['robust_yield'] * 100:.1f} %")
+        st.caption(f"{d['window_fraction'] * 100:.0f} % 이상 유지 구간 {lo:.0f}~{hi:.0f} s")
+    elif d.get("goal") == "time":
+        c[0].metric("강건 ρ*", sig3(d["rho_star"]))
+        c[1].metric("효소량", f"{sig3(d['Et_nM'])} nM")
+        c[2].metric("최악 표본 도달 시간", f"{d['robust_time_s']:.0f} s")
+    if d.get("goal") in ("peak", "time"):
+        p, _ = D.stage_file(run, "5_design", "pipette.csv")
+        if p:
+            st.markdown("**피펫 표**")
+            table(D.read_table(p), "pipette")
+            st.download_button(
+                "피펫 표 내려받기(CSV)", p.read_bytes(), file_name=f"pipette_{run.name}.csv", key="dl_pip"
+            )
+        figures(run, "5_design")
+        return
     c[0].metric("강건 ρ*", sig3(d["rho_star"]))
     c[1].metric("강건 Et*", f"{sig3(d['robust_Et_star_nM'])} nM")
     c[2].metric("E₀ 배수", sig3(d["robust_Et_over_E0"]) if d.get("robust_Et_over_E0") else "—")

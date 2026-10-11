@@ -136,6 +136,25 @@ def test_dashboard_non_wr_banner_on_every_tab(dash):
     assert len(banners) >= len(TAB_LABELS)
 
 
+def test_dashboard_design_tab_for_the_peak_goal(dash):
+    """Goal ``peak`` writes a different design summary (stop time, worst-sample yield): the tab shows it."""
+    peak = {
+        "goal": "peak",
+        "rho_star": 3.0,
+        "Et_nM": 200.0,
+        "robust_stop_s": 1234.0,
+        "robust_yield": 0.567,
+        "stop_window_s": [900.0, 1500.0],
+        "window_fraction": 0.95,
+    }
+    (dash["done"] / "5_design" / "design_summary.json").write_text(json.dumps(peak), encoding="utf-8")
+    at = _select(_app(), dash["done"])
+    labels = {m.label: m.value for m in at.metric}
+    assert labels.get("멈출 시각") == "1234 s" and labels.get("최악 표본 수율") == "56.7 %"
+    assert not any("결과를 표시하지 못함" in c.value for c in at.caption)
+    assert any("피펫 표" in m.value for m in at.markdown)
+
+
 def _wait_completed(rd: Path, timeout=300.0) -> str:
     t0 = time.time()
     while time.time() - t0 < timeout:
