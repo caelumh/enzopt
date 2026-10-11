@@ -586,7 +586,8 @@ def _figure(out: Path, base: dict, rows: list[dict], n_top: int = 15) -> None:
     if not top:
         return
     y = np.arange(len(top))[::-1]
-    fig, ax = plt.subplots(figsize=(8.0, 0.35 * len(top) + 1.6))
+    # constrained layout keeps long step labels, the title and the legend below the axes from overlapping
+    fig, ax = plt.subplots(figsize=(9.0, 0.38 * len(top) + 1.9), layout="constrained")
     ax.barh(y + 0.18, [r["train"] for r in top], height=0.36, color="#0072B2", label="training")
     if any(r.get("holdout") is not None for r in top):
         ax.barh(y - 0.18, [r.get("holdout") or 0 for r in top], height=0.36, color="#E69F00", label="held out")
@@ -595,9 +596,8 @@ def _figure(out: Path, base: dict, rows: list[dict], n_top: int = 15) -> None:
     ax.set_yticks(y)
     ax.set_yticklabels([f"{r['step']}  (ΔAIC {r['d_aic']:+.0f})" for r in top], fontsize=8)
     ax.set_xlabel("RMSE / σ (all signals)")
-    ax.set_title("candidate steps, fitted by least squares (best by ΔAIC and by held-out RMSE)", fontsize=10)
-    ax.legend(fontsize=8, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=4)
-    fig.tight_layout()
+    ax.set_title("candidate steps fitted by least squares", fontsize=10)
+    fig.legend(fontsize=8, frameon=False, loc="outside lower center", ncol=4)
     fig.savefig(out / "candidates.png", dpi=120)
     plt.close(fig)
 
