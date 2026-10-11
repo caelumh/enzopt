@@ -189,7 +189,7 @@ def equilibrium_observable(project, initial: dict) -> float | None:
     from .network import Step
 
     ov = project.thermodynamics.get("overall")
-    if not ov:
+    if not ov or project.Kp is None:  # no overall reaction, or one without K′ (driven by one-way steps)
         return None
     st = Step.parse(ov)
     lhs, rhs = st.lhs, st.rhs

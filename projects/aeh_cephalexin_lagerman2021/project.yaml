@@ -1,0 +1,91 @@
+# 실측 문헌 데이터 프로젝트: Lagerman et al. (2021) α-아미노 에스터 가수분해효소(AEH)의 세팔렉신 합성, pH 7.0, 25 ℃
+# 데이터는 make_data.py가 raw/EnzymeML_Lagerman.omex(DaRUS doi:10.18419/DARUS-2468, CC BY 4.0)에서 꺼낸 HPLC 시계열 8개.
+# 네 물질(PGME, 7-ADCA, 세팔렉신, 페닐글라이신)을 모두 mM로 쟀다: 주 신호 PGME + 추가 신호 3개.
+name: aeh_cephalexin_lagerman2021
+description: 실측 문헌 데이터 — Lagerman 2021 AEH 세팔렉신 합성, HPLC 4종 × 8실험(0~30분)
+
+network:
+  name: aeh_acyl_enzyme
+  # ES = E·PGME, EA = 아실 효소, EAN = EA·7-ADCA, EP = E·세팔렉신, EN = E·7-ADCA(막다른), EG = E·PG(생성물 저해),
+  # ESS = E·PGME·PGME, EAS = EA·PGME(기질 저해). 메탄올·물은 따로 두지 않음. 단계는 저자 모델(Lauterbach 2022 Scenario 5
+  # "Model 4")과 같고, 빠른 평형 가정 대신 질량 작용(kf, kr 모두 식별), 효소 실활 단계는 뺐다(README).
+  species: [E, PGME, ES, EA, PG, ADCA, EAN, EP, CEX, EN, EG, ESS, EAS]
+  enzyme_species: [E, ES, EA, EAN, EP, EN, EG, ESS, EAS]
+  steps:
+    - E + PGME <=> ES               # 1 PGME 결합
+    - ES -> EA                      # 2 아실화(메탄올 나감)
+    - EA -> E + PG                  # 3 아실 효소 가수분해
+    - EA + ADCA <=> EAN             # 4 친핵체 결합
+    - EAN <=> EP                    # 5 아미노 분해(거꾸로 = 세팔렉신 가수분해의 첫걸음)
+    - EP <=> E + CEX                # 6 세팔렉신이 떠남
+    - EAN -> E + PG + ADCA          # 7 친핵체가 붙은 채 가수분해
+    - E + ADCA <=> EN               # 8 막다른 결합
+    - E + PG <=> EG                 # 9 생성물 저해
+    - ES + PGME <=> ESS             # 10 기질 저해
+    - EA + PGME <=> EAS             # 11 기질 저해(아실 효소)
+    - EAS -> E + PG + PGME          # 12 PGME가 붙은 채 가수분해
+  observable:
+    name: PGME_mM
+    coefficients: {PGME: 1, ES: 1, ESS: 2, EAS: 1}   # HPLC는 효소에 붙은 몫까지 잼(효소 0.2 µM라 거의 0)
+  signals:
+    - {name: ADCA_mM, coefficients: {ADCA: 1, EAN: 1, EN: 1}, sigma: 0.5}
+    - {name: CEX_mM, coefficients: {CEX: 1, EP: 1}, sigma: 0.5}
+    - {name: PG_mM, coefficients: {PG: 1, EG: 1}, sigma: 0.5}
+  thermodynamics:
+    reactions:                      # 가수분해가 한 방향이라 가역 순환이 없음: K'가 필요 없다
+      - {overall: PGME + ADCA <=> CEX}
+      - {overall: PGME <=> PG}
+  prior:                            # 일반 자릿수(문헌 값이 아님, README "사전분포"), 표준편차 1.5 자릿수
+    # kf: 결합 1/(mM·s), 해리·화학 단계 1/s
+    kf_log10: [3, 3, 2, 3, 3, 4, 2, 3, 3, 3, 3, 2]
+    # kr(가역 단계 1, 4, 5, 6, 8, 9, 10, 11 순서): 해리 1/s, 단계 6·결합 1/(mM·s)
+    kr_log10: [4, 4, 2, 3, 4, 4, 4, 4]
+    sd_decades: 1.5
+
+control:                            # 비약가역 대조: 아미노 분해를 한 방향으로(세팔렉신 가수분해 경로가 없어짐)
+  one_way_steps: [5]
+
+# 0.2 µM 효소(저자 기록), 시각 0~1800 s(0, 1, 2, 3, 5, 10, 15, 20, 25, 30분). 처음 농도 = t = 0 측정 행
+experiments:
+  m0: {file: data/m0.csv, PGME: 20, ADCA: 10, CEX: 0, PG: 2.0, Et_nM: 200, role: train}
+  m1: {file: data/m1.csv, PGME: 20, ADCA: 20, CEX: 0, PG: 1.3, Et_nM: 200, role: train}
+  m2: {file: data/m2.csv, PGME: 20, ADCA: 40, CEX: 0, PG: 5.1, Et_nM: 200, role: train}
+  m3: {file: data/m3.csv, PGME: 20, ADCA: 60, CEX: 0, PG: 1.9, Et_nM: 200, role: train}
+  m5: {file: data/m5.csv, PGME: 40, ADCA: 42, CEX: 0, PG: 3.3, Et_nM: 200, role: train}
+  m6: {file: data/m6.csv, PGME: 76, ADCA: 40, CEX: 0, PG: 5.7, Et_nM: 200, role: train}
+  # 홀드아웃: 학습 조건 사이(m4: PGME 20 · 7-ADCA 42)와 바깥(m7: PGME 140 mM, 학습 최대의 1.8배)
+  m4: {file: data/m4.csv, PGME: 20, ADCA: 42, CEX: 0, PG: 1.5, Et_nM: 200, role: holdout}
+  m7: {file: data/m7.csv, PGME: 140, ADCA: 40, CEX: 0, PG: 14.0, Et_nM: 200, role: holdout}
+
+identification:
+  method: pinn
+  seeds: 4
+  noise_sigma: 0.5                  # mM. HPLC 한 번 측정(반복 없음). 물질 수지의 어긋남(1~2 mM)을 보고 정한 값(README)
+  baseline_fit: {starts: 4, max_nfev: 200}
+  pinn: {inactivation: shared}      # 효소 활성 a(t)를 모든 실험이 함께 쓰는 곡선으로 식별(README "실활")
+
+simulation:
+  t_long_s: 3600
+  hopsan: {enabled: false}
+
+design:                             # 세팔렉신 수율 설계(참고용): 10분 안에 PGME 20 mM에서 세팔렉신 수율 40 % 이상
+  target: yield
+  analyte: PGME
+  partner: ADCA                     # ρ = 7-ADCA ÷ PGME
+  product: CEX
+  side_product: PG
+  free_enzyme: E
+  analyte0_mM: 20
+  yield: 0.4
+  time_s: 600
+  # 효소가 너무 많으면 세팔렉신이 다시 가수분해되어 수율이 떨어진다(효소량에 단조가 아님). 설계의 이분법은
+  # "상한에서 성공"을 가정하므로 상한을 실험 효소량(0.2 µM)으로 둔다(1 µM로 두면 모든 ρ에서 실패, README)
+  Et_bounds_mM: [1.0e-5, 2.0e-4]
+  rho_grid: [1, 1.5, 2, 3]
+  check_t_end_s: 1800
+  pipette:
+    volume_uL: 1000
+    enzyme_uL: 10
+    stocks_mM: {PGME: 200, ADCA: 200}
+    limit_test_rhos: []
+    limit_test_enzyme_multiples: []
