@@ -1,4 +1,5 @@
-"""Write t25 … t45/project.yaml from the experiment lines that make_data.py printed (t<T>/experiments.txt).
+"""Write projects/slac_abts_haussler2023_25C … _45C/project.yaml from the experiment lines that make_data.py printed
+(experiments.txt in each).
 
     uv run python -I projects/slac_abts_haussler2023/make_projects.py
 
@@ -12,12 +13,14 @@ from __future__ import annotations
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+PROJECTS = HERE.parent
 TEMPS = [25, 30, 35, 40, 45]
 TRAIN = {"S5", "S15", "S50", "S100"}
 
 TEMPLATE = """# 공개 문헌 데이터 프로젝트: Häußler (2023) 작은 라카아제(SLAC, S. coelicolor)의 ABTS 산화, pH 3.0, {T} ℃
-# 데이터: DaRUS doi:10.18419/DARUS-3337 (University of Stuttgart, CC BY 4.0). ../make_data.py가 플레이트 리더 내보내기
-# 파일에서 340 nm ABTS 흡광을 같은 온도의 표준 곡선으로 농도로 바꾸고, 측정마다의 플레이트 온도를 T_C 열로 넣음
+# 데이터: DaRUS doi:10.18419/DARUS-3337 (University of Stuttgart, CC BY 4.0).
+# slac_abts_haussler2023/make_data.py가 플레이트 리더 파일에서 340 nm ABTS 흡광을 같은 온도의 표준 곡선으로
+# 농도로 바꾸고, 측정마다의 플레이트 온도를 T_C 열로 넣음
 name: slac_abts_haussler2023_{T}C
 description: 공개 문헌 데이터 — SLAC + ABTS, pH 3.0, {T} ℃, 우물 24개(ABTS 5~150 µM × 3반복), 15분 11점
 
@@ -81,7 +84,7 @@ experiments:
 
 def main() -> None:
     for T in TEMPS:
-        d = HERE / f"t{T}"
+        d = PROJECTS / f"slac_abts_haussler2023_{T}C"
         lines = []
         for ln in (d / "experiments.txt").read_text(encoding="utf-8").splitlines():
             name = ln.split(":")[0].strip()
@@ -90,7 +93,7 @@ def main() -> None:
         text = TEMPLATE.format(T=T) + "\n".join(lines) + "\n"
         (d / "project.yaml").write_text(text, encoding="utf-8", newline="\n")
         print(
-            f"t{T}/project.yaml: {sum('role: train' in x for x in lines)} train, "
+            f"slac_abts_haussler2023_{T}C/project.yaml: {sum('role: train' in x for x in lines)} train, "
             f"{sum('role: holdout' in x for x in lines)} held out"
         )
 

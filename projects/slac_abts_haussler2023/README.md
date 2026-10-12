@@ -17,10 +17,12 @@
 
 ## 데이터 처리 (`make_data.py`, `make_projects.py`)
 
+온도마다 프로젝트 하나다: `projects/slac_abts_haussler2023_25C`, `_30C`, `_35C`, `_40C`, `_45C`(대시보드 목록에도 나옴). 이 폴더(`projects/slac_abts_haussler2023/`)에는 다섯 프로젝트가 함께 쓰는 원자료·변환 스크립트·정리 그림만 있다.
+
 ```
-uv run python -I projects/slac_abts_haussler2023/make_data.py       # t25 … t45/data/ 만들기
-uv run python -I projects/slac_abts_haussler2023/make_projects.py   # t25 … t45/project.yaml 만들기
-uv run enzopt run projects/slac_abts_haussler2023/t35               # 온도 하나 실행(약 1분 30초)
+uv run python -I projects/slac_abts_haussler2023/make_data.py       # 다섯 프로젝트의 data/ 만들기
+uv run python -I projects/slac_abts_haussler2023/make_projects.py   # 다섯 프로젝트의 project.yaml 만들기
+uv run enzopt run projects/slac_abts_haussler2023_35C               # 온도 하나 실행(약 1분 30초)
 uv run python projects/slac_abts_haussler2023/temperature_summary.py   # 다섯 온도의 상수 모으기, 그림
 ```
 

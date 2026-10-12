@@ -1,6 +1,7 @@
 # 공개 문헌 데이터 프로젝트: Häußler (2023) 작은 라카아제(SLAC, S. coelicolor)의 ABTS 산화, pH 3.0, 35 ℃
-# 데이터: DaRUS doi:10.18419/DARUS-3337 (University of Stuttgart, CC BY 4.0). ../make_data.py가 플레이트 리더 내보내기
-# 파일에서 340 nm ABTS 흡광을 같은 온도의 표준 곡선으로 농도로 바꾸고, 측정마다의 플레이트 온도를 T_C 열로 넣음
+# 데이터: DaRUS doi:10.18419/DARUS-3337 (University of Stuttgart, CC BY 4.0).
+# slac_abts_haussler2023/make_data.py가 플레이트 리더 파일에서 340 nm ABTS 흡광을 같은 온도의 표준 곡선으로
+# 농도로 바꾸고, 측정마다의 플레이트 온도를 T_C 열로 넣음
 name: slac_abts_haussler2023_35C
 description: 공개 문헌 데이터 — SLAC + ABTS, pH 3.0, 35 ℃, 우물 24개(ABTS 5~150 µM × 3반복), 15분 11점
 

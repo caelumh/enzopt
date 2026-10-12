@@ -1,4 +1,5 @@
-"""Build the five temperature projects t25 … t45 from the SLAC/ABTS plate-reader exports of Häußler (2023)
+"""Build the data of the five temperature projects projects/slac_abts_haussler2023_25C … _45C from the SLAC/ABTS
+plate-reader exports of Häußler (2023)
 (DaRUS doi:10.18419/DARUS-3337, CC BY 4.0; see README.md).
 
     uv run python -I projects/slac_abts_haussler2023/make_data.py
@@ -11,7 +12,8 @@ chamber temperature and two 6 × 12 blocks at 340 nm (ABTS) and 420 nm (ABTS rad
 As in the authors' analysis (parser_functions, SLAC_kinetic_characterization.ipynb) ABTS is read at 340 nm through
 the standard curve of the same temperature, and absorbances ≥ 3.2 are left out. The standard curve here is a
 straight line through the standards up to 100 µM (Beer–Lambert, see standard_curve). Each enzyme well becomes
-t<T>/data/S<µM>_<row>.csv (time_s, ABTS_mM, T_C), the 200 µM column is left out (its absorbance starts above 3.2).
+projects/slac_abts_haussler2023_<T>C/data/S<µM>_<row>.csv (time_s, ABTS_mM, T_C); the 200 µM column is left out
+(its absorbance starts above 3.2).
 The initial ABTS of a well is its own first reading (printed as project.yaml lines); the controls give the noise
 and the drift without enzyme.
 """
@@ -25,6 +27,7 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
+PROJECTS = HERE.parent  # the temperature projects sit next to this folder
 RAW = HERE / "raw"
 TEMPS = [25, 30, 35, 40, 45]
 CONC = [0, 5, 10, 15, 25, 50, 75, 100, 150, 200]  # µM, columns 1–10 (authors' measurement_parser)
@@ -100,7 +103,7 @@ def main() -> None:
         t, temp, A = read_kinetic(RAW / "timecourse" / f"SLAC_pH3.0_{T}C.txt")
         std = read_standards(RAW / "standards" / f"pH3.0+3.5_{T}C_standards.txt")
         coef, inv, res, n_std = standard_curve(std)
-        out = HERE / f"t{T}" / "data"
+        out = PROJECTS / f"slac_abts_haussler2023_{T}C" / "data"
         out.mkdir(parents=True, exist_ok=True)
         lines, ctrl_sd, ctrl_drift = [], [], []
         for j in USE:
@@ -130,7 +133,8 @@ def main() -> None:
             f"a line), "
             f"drift {np.median(ctrl_drift):+.2f} µM over 15 min (median)"
         )
-        (HERE / f"t{T}" / "experiments.txt").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+        listing = PROJECTS / f"slac_abts_haussler2023_{T}C" / "experiments.txt"
+        listing.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":
