@@ -29,9 +29,21 @@ def fig_network(out: Path, vd: dict, name: str = "fig1a_network") -> dict:
             pos[i] = (col * 1.6, -row)
     edges = [tuple(e) for e in vd["edges"]]
     eset = set(edges)
+    # an edge that skips over other complexes in its row is drawn as an arc (above; the reverse of a reversible pair
+    # below) so it does not run through the boxes in between; arcs widen the row band
+    arc = {}
+    for u, v in edges:
+        span = abs(pos[v][0] - pos[u][0]) / 1.6
+        if pos[u][1] == pos[v][1] and span > 1.5:
+            side = 1 if ((v, u) not in eset or u < v) else -1
+            arc[(u, v)] = (side, min(0.2 + 0.05 * (span - 2), 0.3))
+    up = max([h for (u, _), (s, h) in arc.items() if s > 0 and pos[u][1] == 0] + [0.0])
+    down = max([h for (u, _), (s, h) in arc.items() if s < 0 and pos[u][1] == -(len(lcs) - 1)] + [0.0])
+    extra_up, extra_down = max(0.0, up - 0.15), max(0.0, down - 0.15)
     width = DOUBLE if max(len(c) for c in lcs) > 3 else SINGLE
-    fig, ax = new_figure(width, 0.45 + 0.42 * len(lcs))
-    from matplotlib.patches import FancyBboxPatch
+    fig, ax = new_figure(width, 0.45 + 0.42 * (len(lcs) + extra_up + extra_down))
+    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+    from matplotlib.path import Path as MplPath
 
     ax = ax[0, 0]
     for row, comp in enumerate(lcs):
@@ -55,19 +67,30 @@ def fig_network(out: Path, vd: dict, name: str = "fig1a_network") -> dict:
         off = 0.06 if rev else 0.0
         sgn = 1 if u < v else -1
         one_way = not rev
-        ax.annotate(
-            "",
-            xy=(x1 - 0.45 * np.sign(x1 - x0 or 1), y1 + sgn * off),
-            xytext=(x0 + 0.45 * np.sign(x1 - x0 or 1), y0 + sgn * off),
-            arrowprops=dict(
-                arrowstyle="-|>",
-                lw=1.6 if one_way else 0.6,
-                color="#D55E00" if one_way else "0.25",
-                shrinkA=0,
-                shrinkB=0,
-                mutation_scale=7,
-            ),
+        style = dict(
+            arrowstyle="-|>",
+            lw=1.6 if one_way else 0.6,
+            color="#D55E00" if one_way else "0.25",
+            shrinkA=0,
+            shrinkB=0,
+            mutation_scale=7,
         )
+        if (u, v) in arc:
+            side, h = arc[(u, v)]
+            # quadratic Bézier in data coordinates (arc3 would bend in display units, which differ in x and y here):
+            # the control point 2h above the box tops puts the curve's peak h above them
+            a, b = (x0, y0 + side * 0.2), (x1, y1 + side * 0.2)
+            ctrl = ((a[0] + b[0]) / 2, a[1] + side * 2 * h)
+            path = MplPath([a, ctrl, b], [MplPath.MOVETO, MplPath.CURVE3, MplPath.CURVE3])
+            style = {key: val for key, val in style.items() if not key.startswith("shrink")}
+            ax.add_patch(FancyArrowPatch(path=path, **style))
+        else:
+            ax.annotate(
+                "",
+                xy=(x1 - 0.45 * np.sign(x1 - x0 or 1), y1 + sgn * off),
+                xytext=(x0 + 0.45 * np.sign(x1 - x0 or 1), y0 + sgn * off),
+                arrowprops=style,
+            )
         rows.append(["edge", labels[u], labels[v], lc_of[u], scc_of[u], "", "", "one-way" if one_way else "reversible"])
     for i, (x, y) in pos.items():
         ax.text(
@@ -84,11 +107,13 @@ def fig_network(out: Path, vd: dict, name: str = "fig1a_network") -> dict:
         rows.append(["node", labels[i], "", lc_of[i], scc_of[i], x, y, ""])
     xmax = max(p[0] for p in pos.values())
     ax.set_xlim(-0.9, xmax + 0.9)
-    ax.set_ylim(-len(lcs) + 0.5, 0.5)
+    ax.set_ylim(-len(lcs) + 0.5 - extra_down, 0.5 + extra_up)
     ax.axis("off")
     wr = "weakly reversible" if vd["weakly_reversible"] else "NOT weakly reversible"
+    lc = f"{len(lcs)} linkage class" + ("" if len(lcs) == 1 else "es")
+    steps = f"{len(vd['steps'])} steps, " if vd.get("steps") else ""
     ax.set_title(
-        f"{vd['name']}: {len(labels)} complexes, {len(lcs)} linkage classes, deficiency {vd['deficiency']}, {wr}",
+        f"{vd['name']}: {steps}{len(labels)} complexes, {lc}, deficiency {vd['deficiency']}, {wr}",
         loc="left",
     )
     return save(fig, out, name, ["kind", "complex", "to", "linkage_class", "scc", "x", "y", "direction"], rows)
