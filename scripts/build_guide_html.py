@@ -3,6 +3,7 @@
     uv run python scripts/build_guide_html.py              # docs/GUIDE.md → docs/GUIDE.html, docs/guide/* embedded
     uv run python scripts/build_guide_html.py --link-images  # keep relative image paths (smaller file)
     uv run python scripts/build_guide_html.py --page identification  # docs/identification/README.md → .html
+    uv run python scripts/build_guide_html.py --page dashboard  # docs/dashboard/README.md → DASHBOARD.html
 
 Handles the Markdown that the pages use: headings, paragraphs, bold/italic/code/links, nested lists, tables,
 block quotes, fenced code, rules and stand-alone images (rendered as figures; a long alt text becomes the caption).
@@ -35,6 +36,14 @@ PAGES = {
         "eyebrow": "enzopt · 처음부터 읽는 안내",
         "description": "효소 반응의 속도 상수를 빛으로 잰 곡선과 반응식에서 찾고 실험 조건을 정하는 과정을 "
         "배경지식부터 그림 22장으로, 실제 측정 데이터(효소로 항생제 만들기)까지 설명하는 안내",
+    },
+    "dashboard": {
+        "src": ROOT / "docs" / "dashboard" / "README.md",
+        "out": ROOT / "docs" / "DASHBOARD.html",
+        "label": "대시보드 레퍼런스",
+        "eyebrow": "enzopt · 탭과 그림 읽기",
+        "description": "대시보드의 탭 다섯 개와 그림 15장이 무엇을 뜻하는지, 공개 LDH 데이터 프로젝트 ldh_wang2025의 "
+        "실제 결과로 설명하는 레퍼런스",
     },
 }
 
@@ -418,11 +427,25 @@ JS = """
 """
 
 
+def relink(body: str, src: Path, out_dir: Path) -> str:
+    """Relative links are written from the Markdown's folder; rewrite them for the page's folder (like images)."""
+
+    def fix(m: re.Match) -> str:
+        url = html.unescape(m.group(1))
+        if re.match(r"^([a-zA-Z][\w+.-]*:|#|/)", url):
+            return m.group(0)
+        path, _, frag = url.partition("#")
+        new = Path(os.path.relpath((src.parent / path).resolve(), out_dir)).as_posix() + (f"#{frag}" if frag else "")
+        return f'href="{html.escape(new)}"'
+
+    return re.sub(r'href="([^"]+)"', fix, body)
+
+
 def render(page: str = "guide", embed: bool = True) -> Path:
     cfg = PAGES[page]
     src, out = cfg["src"], cfg["out"]
     b = Builder(src, embed, cfg["eyebrow"], out.parent)
-    body = b.build(src.read_text(encoding="utf-8"))
+    body = relink(b.build(src.read_text(encoding="utf-8")), src, out.parent)
     toc = b.toc_html()
     today = dt.date.today().isoformat()
     label, desc, src_rel = html.escape(cfg["label"]), html.escape(cfg["description"]), src.relative_to(ROOT).as_posix()

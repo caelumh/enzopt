@@ -629,6 +629,8 @@ def sim_figures(out: Path, rows: list, traj: list, hop: dict, analyte: str, obs:
 # ------------------------------------------------------------------------------------------------ ⑤ design
 def design_figures(out: Path, res, summ: dict, check: dict) -> list:
     figs = []
+    # the design's analyte and partner (older summaries: the LDH NADH assay)
+    an, pa = summ.get("analyte") or "NADH", summ.get("partner") or ("pyruvate" if "analyte" not in summ else None)
     # (a) U-curve
     fig, ax = new_figure(SINGLE, 0.72 * SINGLE)
     ax = ax[0, 0]
@@ -650,9 +652,9 @@ def design_figures(out: Path, res, summ: dict, check: dict) -> list:
         label=f"ρ* = {sig3(res.rho_star)}, Et* = {sig3(res.Et_star * 1e6)} nM",
     )
     ax.set(
-        xlabel="pyruvate / NADH ratio ρ",
+        xlabel=f"{pa} / {an} ratio ρ" if pa else "ratio ρ",
         ylabel="min enzyme Et (nM)",
-        title=f"(a) {summ['conversion'] * 100:.0f}% NADH conversion within {summ['time_s']:g} s "
+        title=f"(a) {summ['conversion'] * 100:.0f}% {an} conversion within {summ['time_s']:g} s "
         f"(K' = {sig3(summ['Kp'])})",
     )
     ax.legend(frameon=False)
@@ -731,18 +733,18 @@ def design_figures(out: Path, res, summ: dict, check: dict) -> list:
     ax.axvline(summ["time_s"], color="0.5", lw=0.5, ls=":")
     ax.set_yscale("log")
     ax.set_ylim(max(target / 30, 1e-3), summ["analyte0_mM"] * 1e3 * 1.3)
-    ax.set(xlabel="time (s)", ylabel="NADH (µM)", title="(c) predicted NADH at the design condition")
+    ax.set(xlabel="time (s)", ylabel=f"{an} (µM)", title=f"(c) predicted {an} at the design condition")
     # figure-level legend below the axes, so long labels never squeeze the plot
     h, lb = ax.get_legend_handles_labels()
     fig.legend(h, lb, loc="outside lower center", frameon=False, fontsize=5.5, ncol=2)
-    figs.append(save(fig, out, "fig5c_design_check", ["model", "id", "time_s", "NADH_uM"], rows))
+    figs.append(save(fig, out, "fig5c_design_check", ["model", "id", "time_s", f"{an}_uM"], rows))
     # (d) equilibrium limit table
     if res.equilibrium_limit:
         figs.append(
             table_figure(
                 out,
                 "fig5d_equilibrium_limit",
-                ["rho", "conversion_eq", "NADH_left_uM"],
+                ["rho", "conversion_eq", f"{an}_left_uM"],
                 [[e["rho"], e["conversion_eq"], e["NADH_left_uM"]] for e in res.equilibrium_limit],
                 title=f"CRNT equilibrium limit (K' = {sig3(summ['Kp'])})\nindependent of rate constants",
                 width=SINGLE,

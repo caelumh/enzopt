@@ -162,6 +162,7 @@ def tab_data(run):
     if d is None:
         st.caption(why)
         return
+    obs = (d.get("observable") or {}).get("name") or "A340"  # what the data files hold (A340, NADH_mM, …)
     rows = []
     for k, v in d["experiments"].items():
         t = v.get("temperature") or {}
@@ -171,8 +172,8 @@ def tab_data(run):
                 "역할": v["role"],
                 "점 수": v["n"],
                 "시간(s)": f"{v['t_first_s']:g}–{v['t_last_s']:g}",
-                "A340 처음": round(v["A_first"], 4),
-                "A340 끝": round(v["A_last"], 4),
+                f"{obs} 처음": round(v["A_first"], 4),
+                f"{obs} 끝": round(v["A_last"], 4),
                 "Et (nM)": v["Et_nM"],
                 "온도 평균(℃)": round(t.get("mean_C", float("nan")), 2) if t else None,
                 "온도 범위(℃)": round(t.get("range_C", float("nan")), 3) if t else None,
@@ -192,10 +193,13 @@ def tab_fit(run):
     c[0].metric("표본(남음/시드)", f"{len(d['kept'])}/{len(d['seeds'])}")
     c[1].metric("장치", f"{dev.get('used', '?')} {dev.get('precision', '')}")
     c[2].metric("학습 시간", f"{d['train_seconds']:.0f} s")
-    hs = d["holdout_rmse"]["summary"]
-    c[3].metric(
-        "홀드아웃 RMSE(평균)", ", ".join(f"{k} {sig3(v['mean'])}" for k, v in hs.items() if v["mean"] is not None)
-    )
+    hs = {k: v["mean"] for k, v in d["holdout_rmse"]["summary"].items() if v["mean"] is not None}
+    if len(hs) > 4:  # many held-out sets: one line, not a list (per set in the comparison table below)
+        vals = list(hs.values())
+        line = f"평균 {sig3(sum(vals) / len(vals))} · 최대 {sig3(max(vals))}"
+        c[3].metric(f"홀드아웃 RMSE(표본 평균, {len(vals)}개)", line)
+    else:
+        c[3].metric("홀드아웃 RMSE(평균)", ", ".join(f"{k} {sig3(v)}" for k, v in hs.items()))
     if dev.get("fallback"):
         st.warning(dev["fallback"])
     for s, reason in (d.get("excluded") or {}).items():
@@ -220,7 +224,7 @@ def tab_sim(run):
     c[1].metric("수치 오류 의심 재실행", d["n_retried"])
     full = h.get("full_representative") or {}
     c[2].metric(
-        "Hopsan vs scipy 최대 차이(A340)",
+        "Hopsan vs scipy 최대 차이(관측값)",
         sig3(full["max_abs_diff_A340"]) if full.get("max_abs_diff_A340") is not None else "Hopsan 미사용",
     )
     if not h.get("used"):

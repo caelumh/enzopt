@@ -168,6 +168,7 @@ def run_design_stage(ctx: RunContext) -> None:
     ctx.progress(0.8, "설계 조건 예측 곡선")
     check = design_check_curves(ctx, design, rates, samples, res, out)
     summ["design_check"] = {k: v for k, v in check.items() if k != "curves" and not k.startswith("_")}
+    summ["analyte"], summ["partner"] = des["analyte"], des.get("partner")  # figure labels
     write_json(out / "design_summary.json", summ)
     ctx.progress(0.95, "그림")
     figs = plots.design_figures(out, res, summ, check)
