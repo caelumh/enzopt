@@ -1,0 +1,69 @@
+# 공개 문헌 데이터 프로젝트: Giess et al. (2026) 효모 용해액의 포스포글리세르산 뮤테이스(PGM)·에놀레이스(ENO) 연쇄 반응,
+# ³¹P NMR, 25 ℃, pH 7. 데이터: GitHub EnzymeML/Giess_2026 Scenario 2 (BSD-3-Clause). make_data.py가 EnzymeML 문서
+# (raw/pgm-eno_output.json)에서 3PG·2PG·PEP 농도(mM)를 꺼냄. 3PG ⇌ 2PG ⇌ PEP, 정방향 7 · 역방향 7 · 혼합 1
+name: pgm_eno_giess2026
+description: 공개 문헌 데이터 — PGM·에놀레이스 연쇄(효소 둘), ³¹P NMR 15실험(3PG에서 7, PEP에서 7, 혼합 1), 25 ℃
+
+network:
+  name: pgm_eno_cascade
+  # 효소 둘: PGM(E)과 에놀레이스(F). 저자 모델(효소마다 가역 Michaelis–Menten, 생성물 경쟁)을 질량 작용으로:
+  # 효소마다 결합 + 변환·방출 두 단계(가역). EX = PGM 복합체, FY = 에놀레이스 복합체
+  species: [E, P3, EX, P2, F, FY, PEP, EX_PEP]
+  enzyme_species: [E, EX, EX_PEP, F, FY]   # 효소 그래프 둘(PGM: E·EX·EX_PEP, ENO: F·FY). PGM 양은 Et_nM, ENO(F)는 실험의 F 값(mM)
+  steps:
+    - E + P3 <=> EX                 # 1 PGM에 3PG 결합
+    - EX <=> E + P2                 # 2 2PG로 바뀌어 떨어짐
+    - F + P2 <=> FY                 # 3 에놀레이스에 2PG 결합
+    - FY <=> F + PEP                # 4 PEP로 바뀌어 떨어짐(물이 빠짐)
+    - EX + PEP <=> EX_PEP           # 5 PEP가 PGM 복합체를 붙잡음(저자 모델에 없음. enzopt suggest가 찾은 단계, README)
+  observable:
+    name: P3_mM                     # 주 신호 3PG(효소는 µM 수준이라 효소에 붙은 몫은 넣지 않음)
+    coefficients: {P3: 1}
+  signals:
+    - {name: P2_mM, coefficients: {P2: 1}, sigma: 0.2}
+    - {name: PEP_mM, coefficients: {PEP: 1}, sigma: 0.2}
+  thermodynamics:
+    reactions:                      # 두 반응 모두 가역. K'는 문헌 자릿수(평형에서 3PG:2PG ≈ 6:1, PEP:2PG ≈ 5)를
+      - {overall: P3 <=> P2, Kp: 0.17}    # 사전분포 중심으로 쓰고(폭 1.5 자릿수) 데이터로 학습한다
+      - {overall: P2 <=> PEP, Kp: 5}
+  prior:                            # 일반 자릿수(저자 값이 아님), 표준편차 1.5 자릿수
+    kf_log10: [3, 1, 3, 1, 3]       # 결합 1/(mM·s), 변환·방출 1/s(효소량 가정이 임의라 kcat은 상대값)
+    kr_log10: [3, 3, 3, 3, 3]       # 해리 1/s, 거꾸로 결합 1/(mM·s); 열역학으로 정해지는 단계의 값은 쓰지 않음
+    sd_decades: 1.5
+
+control:                            # 대조: PGM의 변환·방출을 한 방향으로(PEP 쪽에서 3PG로 돌아갈 수 없음)
+  one_way_steps: [2]
+
+identification:
+  method: pinn
+  seeds: 4
+  noise_sigma: 0.2                  # mM. 세 물질 합의 흔들림 ÷ √3(중앙값 0.35/√3 ≈ 0.2). 내부 표준(TEP)만은 0.13
+  baseline_fit: {starts: 4, max_nfev: 200}
+  pinn: {restarts: 16}               # 느린 변수가 둘(전체 반응 둘)이라 재시작 8번으로는 표본이 덜 남음(README)
+
+simulation:
+  t_long_s: 14400
+  hopsan: {enabled: false}
+
+design:
+  enabled: false                    # 효소 둘의 양을 함께 정하는 설계는 아직 없음(⑤는 첫 효소의 양만 바꿈)
+
+# 효소량: 저자 기록은 용해액 단백(mg/mL)뿐이라 PGM·에놀레이스 모두 1 mg/mL당 1 µM로 가정(Et_nM, F). 속도 상수의
+# 절대값(특히 kcat)은 이 가정에 대한 상대값이고, 결합·해리의 비와 K'는 영향을 받지 않음.
+# 홀드아웃: 혼합 시작(meas03), 3PG 12.9 mM(meas07), PEP 16.0 mM(meas10), PEP 18.7 mM(meas14, 학습 최대 바깥)
+experiments:
+  meas01: {file: data/meas01.csv, P3: 0, P2: 0, PEP: 9.5, Et_nM: 199, F: 0.000199, role: train}   # from PEP, lysate 0.199 mg/mL, 46 points to 7114 s
+  meas02: {file: data/meas02.csv, P3: 0, P2: 0, PEP: 11.326, Et_nM: 889, F: 0.000889, role: train}   # from PEP, lysate 0.889 mg/mL, 46 points to 7114 s
+  meas03: {file: data/meas03.csv, P3: 17.353, P2: 0, PEP: 2.7408, Et_nM: 889, F: 0.000889, role: holdout}   # from P3+PEP, lysate 0.889 mg/mL, 46 points to 7114 s
+  meas04: {file: data/meas04.csv, P3: 10.27, P2: 0, PEP: 0, Et_nM: 213, F: 0.000213, role: train}   # from P3, lysate 0.213 mg/mL, 21 points to 3134 s
+  meas05: {file: data/meas05.csv, P3: 0, P2: 0, PEP: 11, Et_nM: 199, F: 0.000199, role: train}   # from PEP, lysate 0.199 mg/mL, 46 points to 7114 s
+  meas06: {file: data/meas06.csv, P3: 0, P2: 0, PEP: 9.8391, Et_nM: 889, F: 0.000889, role: train}   # from PEP, lysate 0.889 mg/mL, 46 points to 7114 s
+  meas07: {file: data/meas07.csv, P3: 12.905, P2: 0, PEP: 0, Et_nM: 213, F: 0.000213, role: holdout}   # from P3, lysate 0.213 mg/mL, 21 points to 3134 s
+  meas08: {file: data/meas08.csv, P3: 0, P2: 0, PEP: 14.568, Et_nM: 199, F: 0.000199, role: train}   # from PEP, lysate 0.199 mg/mL, 46 points to 7114 s
+  meas09: {file: data/meas09.csv, P3: 15.951, P2: 0, PEP: 0, Et_nM: 213, F: 0.000213, role: train}   # from P3, lysate 0.213 mg/mL, 21 points to 3134 s
+  meas10: {file: data/meas10.csv, P3: 0, P2: 0, PEP: 15.982, Et_nM: 199, F: 0.000199, role: holdout}   # from PEP, lysate 0.199 mg/mL, 46 points to 7114 s
+  meas11: {file: data/meas11.csv, P3: 17.203, P2: 0, PEP: 0, Et_nM: 213, F: 0.000213, role: train}   # from P3, lysate 0.213 mg/mL, 26 points to 3930 s
+  meas12: {file: data/meas12.csv, P3: 16.527, P2: 0, PEP: 0, Et_nM: 213, F: 0.000213, role: train}   # from P3, lysate 0.213 mg/mL, 26 points to 3930 s
+  meas13: {file: data/meas13.csv, P3: 12.489, P2: 0, PEP: 0, Et_nM: 1090, F: 0.00109, role: train}   # from P3, lysate 1.09 mg/mL, 36 points to 5522 s
+  meas14: {file: data/meas14.csv, P3: 0, P2: 0, PEP: 18.741, Et_nM: 199, F: 0.000199, role: holdout}   # from PEP, lysate 0.199 mg/mL, 46 points to 7114 s
+  meas15: {file: data/meas15.csv, P3: 6.2468, P2: 0, PEP: 0, Et_nM: 1090, F: 0.00109, role: train}   # from P3, lysate 1.09 mg/mL, 36 points to 5522 s
