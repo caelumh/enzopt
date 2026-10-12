@@ -233,7 +233,7 @@ def run_comparisons(ctx: RunContext, train, every, prior, pinn_cfg, prog_base: f
         if why:
             summary["control"] = {"skipped": f"대조 반응망의 PINN 표현을 만들 수 없음: {why}"}
         else:
-            ctx.progress(prog_base + 0.01, "비약가역 대조 PINN")
+            ctx.progress(prog_base + 0.01, "대조 PINN")
             t0 = time.time()
             ctrl_lay = layout(ctrl_net, p.overall, [p.haldane_step] if p.haldane_step else None)
             cfg = replace(pinn_cfg, seeds=list(range(int(cc["seeds"]))), network=ctrl_net)

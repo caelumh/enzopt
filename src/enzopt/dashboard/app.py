@@ -131,7 +131,8 @@ def tab_verdict(run):
     st.subheader(main["headline"])
     st.info("보장하는 것 / 전제 — " + main["guarantee_line"])
     rows = []
-    names = {"main": "식별", "control": "비약가역 대조", "design": "설계"}
+    names = {"main": "식별", "control": "비약가역 대조" if main["weakly_reversible"] else "대조", "design": "설계"}
+    names.update(d.get("labels") or {})
     for k, v in d["networks"].items():
         rows.append(
             {
@@ -203,7 +204,7 @@ def tab_fit(run):
         st.error("남은 표본 < 2: 설계 단계에서 멈춤")
     p, _ = D.stage_file(run, "3_fit", "holdout_comparison.csv")
     if p:
-        with st.expander("홀드아웃 외삽 비교(PINN · 고전 피팅 · 비약가역 대조)"):
+        with st.expander("홀드아웃 외삽 비교(PINN · 고전 피팅 · 대조)"):
             table(D.read_table(p), "holdout_cmp")
     figures(run, "3_fit")
 

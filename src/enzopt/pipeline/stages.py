@@ -26,7 +26,13 @@ def stage_verdict(ctx: RunContext) -> None:
     for k, n in nets.items():
         vds[k]["steps"] = n.describe()
     main = vds["main"]
-    write_json(out / "verdict.json", {"networks": vds, "main": "main"})
+    # the control is "non-WR" only next to a WR network; otherwise it is named by the steps it makes one-way
+    steps = (p.control or {}).get("one_way_steps") or []
+    ctrl_label = "비약가역 대조" if main["weakly_reversible"] else "대조"
+    if steps and not main["weakly_reversible"]:
+        ctrl_label += f"(단계 {', '.join(str(s) for s in steps)} 한 방향)"
+    labels = {"main": "식별", "control": ctrl_label, "design": "설계"}
+    write_json(out / "verdict.json", {"networks": vds, "main": "main", "labels": labels})
     lines = [f"[판정] {main['headline']}", main["guarantee_line"], ""]
     if p.mechanism is not None:
         m = p.mechanism
@@ -35,7 +41,7 @@ def stage_verdict(ctx: RunContext) -> None:
     if p.overall:
         kps = ", ".join(f"{r['overall']} (K' {r['Kp']:g})" if r["Kp"] else r["overall"] for r in p.reactions)
         lines += [f"전체 반응: {kps}", f"열역학 제약: {p.layout.describe()}", ""]
-    titles = {"main": "식별 반응망", "control": "비약가역 대조 반응망", "design": "설계 반응망(막다른 복합체 포함)"}
+    titles = {"main": "식별 반응망", "control": f"{ctrl_label} 반응망", "design": "설계 반응망(막다른 복합체 포함)"}
     for k, v in vds.items():
         lines.append(f"== {titles.get(k, k)}: {v['name']} ==")
         lines += [f"  {s}" for s in v["steps"]]
