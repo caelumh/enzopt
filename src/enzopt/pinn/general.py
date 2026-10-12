@@ -7,6 +7,7 @@ reactions, then enzyme-free background steps):
     ξ_k = lo_k + (hi_k − lo_k)·sigmoid(u_k)              (range that keeps the small molecules ≥ 0)
     x_small ≈ x0 + V ξ  → φ = quasi-steady enzyme distribution (graph null vector, Gaussian elimination)
     enzyme forms = Et·a(t)·φ,   x_small = x0 + V ξ + Et·a·Mcorr (φ − e0)   (bound amounts in the conservation laws)
+    several enzymes (connected graphs of forms, ``core.qss``): Et = their sum, φ = Σ f_c φ_c with f_c per experiment
     slow residual  dξ/dt = W r(x)   (small-molecule change projected onto V; = r₁ for LDH at quasi-steady state)
 
 Rate constants: θ = log10 [kf, free kr, K′] with the dependent k₋ from the thermodynamic constraints (``core.thermo``).
@@ -230,6 +231,11 @@ class GeneralPinn:
             raise ValueError("실활 단계(X -> ED)가 있는 반응망은 inactivation: none, representation: qss로만 학습")
         self.dead = cfg.discrepancy == "dead_end"
         self.disc = cfg.discrepancy == "rate_factor"
+        self.multi = qs.n_enzymes > 1
+        if self.multi and (self.inact or self.dead or self.disc or cfg.representation != "qss"):
+            raise ValueError(
+                "효소가 둘 이상인 반응망은 inactivation: none, discrepancy 없이 representation: qss로만 학습"
+            )
         if (self.dead or self.disc) and self.d != 1:
             raise ValueError("빠진 단계 탐색(discrepancy)은 전체 반응이 하나일 때만")
         n_inact = cfg.inact_k if self.inact else 0
@@ -272,7 +278,7 @@ class GeneralPinn:
         self.kr_free_idx = torch.tensor(lay.free_kr, dtype=torch.long, device=self.dev)
         self.kr_dep_idx = torch.tensor(lay.dependent, dtype=torch.long, device=self.dev)
         # per-experiment constants, repeated for each seed: index b = s*E + e
-        x0s, lo, span, msk, p0, Et = [], [], [], [], [], []
+        x0s, lo, span, msk, p0, Et, frac = [], [], [], [], [], [], []
         for e in exps:
             x0 = np.array([float(e.initial.get(s, 0.0)) for s in qs.small])
             l, h = qs.ranges(x0)
@@ -290,7 +296,14 @@ class GeneralPinn:
             span.append(sp)
             msk.append(ok.astype(float))
             p0.append(np.clip(np.where(ok, (0.0 - l) / np.where(ok, sp, 1.0), 0.5), 1e-4, 1 - 1e-4))
-            Et.append(e.Et)
+            tot = qs.totals(e.initial, e.Et)
+            if self.multi and np.any(tot <= 0):
+                names = [qs.enzyme[r] for r in qs.refs]
+                raise ValueError(
+                    f"실험 {e.name}: 효소마다 양이 필요함(첫 효소는 Et_nM, 나머지는 {', '.join(names[1:])}의 처음 값)"
+                )
+            Et.append(float(tot.sum()))
+            frac.append(tot / tot.sum())
 
         def rep(v, width):
             a = np.tile(np.asarray(v, float).reshape(E, width), (S, 1))
@@ -305,6 +318,12 @@ class GeneralPinn:
         self.lo, self.span, self.maskd, self.p0 = (rep(v, self.d) for v in (lo, span, msk, p0))
         self.n_valid = self.maskd.sum(dim=-1, keepdim=True).clamp_min(1.0)
         self.Et = rep(Et, 1)
+        if self.multi:  # per (seed, experiment) share of each enzyme and the initial distribution Σ f_c e_ref(c)
+            self.frac = rep(frac, qs.n_enzymes)
+            e0m = np.zeros((E, self.ne))
+            for c, r in enumerate(qs.refs):
+                e0m[:, r] = np.asarray(frac)[:, c]
+            self.e0 = rep(e0m, self.ne)
         self.Tb = rep(T_e, 1)  # time scale per (seed, experiment)
         tc = np.unique(
             np.concatenate([np.linspace(0, 1, cfg.n_col_uniform), np.geomspace(1e-4, 0.05, cfg.n_col_early)])
@@ -425,7 +444,22 @@ class GeneralPinn:
         vals = torch.broadcast_tensors(*vals)
         scale = torch.stack(vals, dim=0).amax(dim=0).clamp_min(1e-30)
         rate = {k: v / scale for k, v in zip(rate.keys(), vals, strict=True)}
-        n = self.ne_act  # the dead form (inactivation) is outside the graph
+        if self.multi:  # one graph per enzyme, each normalised to its share of the total
+            cols = [None] * self.ne
+            for c, r in enumerate(self.qs.refs):
+                members = [i for i in range(self.ne_act) if self.qs.comp[i] == c]
+                order = [r] + [m for m in members if m != r]
+                pos = {m: j for j, m in enumerate(order)}
+                sub = {(pos[i], pos[j]): v for (i, j), v in rate.items() if i in pos}
+                phi_c = self._graph_fractions(sub, len(order), scale)
+                for m, j in pos.items():
+                    cols[m] = self.frac[..., c : c + 1] * phi_c[..., j : j + 1]
+            return torch.cat(cols, dim=-1)
+        return self._graph_fractions(rate, self.ne_act, scale)  # the dead form (inactivation) is outside the graph
+
+    def _graph_fractions(self, rate: dict, n: int, scale: torch.Tensor) -> torch.Tensor:
+        """Quasi-steady distribution of one connected graph of n forms (form 0 = its free form; ``rate[(i, j)]`` the
+        scaled rate i → j), summing to 1."""
         if n == 1:
             return torch.ones_like(scale)
         out_tot = [None] * n

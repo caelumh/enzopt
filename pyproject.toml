@@ -41,7 +41,7 @@ explicit = true
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-extend-exclude = ["src/enzopt/_vendor", "docs/pinn_representation/m0_cadkimm_copy"]
+extend-exclude = ["src/enzopt/_vendor", "docs/pinn_representation/m0_cadkimm_copy", "projects/*/raw"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

@@ -10,6 +10,11 @@ Inactivation steps: an enzyme form that no step leaves (``X -> ED``, ED appearin
 is a dead form. Its steps are kept out of the quasi-steady graph (``inact_edges``); the dead form is listed last in
 ``enzyme`` and the PINN carries the active fraction a(t) as one more slow variable, d ln a/dt = −Σ k·[ligands]·φ_X.
 
+Several enzymes: the active forms may fall into several connected graphs (e.g. two enzymes of a cascade). Each graph
+is one enzyme; its free form is the first of its forms in ``enzyme_species``, and its amount is Et for the graph of the
+first form and the free form's initial value for the others (``totals``). φ is then Σ_c f_c φ_c, each φ_c summing to 1
+over its graph and f_c = amount_c / Σ amounts (``qss_fractions(..., fractions)``). Inactivation steps need one enzyme.
+
 Slow coordinates: the net small-molecule changes that leave the enzyme forms unchanged span a space of dimension d
 (1 for one overall reaction; more with competing substrates or enzyme-free background steps). The small molecules are
 x = x0 + V ξ + δ, with ξ the d reaction extents, V the overall reactions (then the background steps) and δ the
@@ -61,6 +66,18 @@ class QssStructure:
     Mcorr: np.ndarray  # (n_s × n_e): δ = Et · Mcorr (φ − e0)
     inact_edges: list = None  # steps into the dead form (kept out of ``edges``)
     n_dead: int = 0  # dead enzyme forms, listed last in ``enzyme`` (at most one)
+    comp: list = None  # per active form: the index of its enzyme (connected graph); None = one enzyme
+    refs: list = None  # per enzyme: the index (into ``enzyme``) of its free form
+
+    @property
+    def n_enzymes(self) -> int:
+        return len(self.refs) if self.refs else 1
+
+    def totals(self, initial: dict, Et: float) -> np.ndarray:
+        """Amount of each enzyme in one experiment: Et for the first, the free form's initial value for the others."""
+        if self.n_enzymes == 1:
+            return np.array([float(Et)])
+        return np.array([float(Et)] + [float(initial.get(self.enzyme[r], 0.0)) for r in self.refs[1:]])
 
     @property
     def d(self) -> int:
@@ -147,8 +164,16 @@ def structure(network: Network, overall: list[str] | None = None) -> QssStructur
     for e in inact:
         if np.any(N_s[:, e.step]):
             raise QssError(f"단계 {e.step + 1} '{network.steps[e.step]}': 실활 단계는 작은 분자를 바꾸지 않아야 함")
-    # every active enzyme form must be reachable from the free enzyme and back (strongly connected graph)
-    reach = _strongly_connected_to(n_act, edges)
+    # enzymes = connected graphs of the active forms; each free form (first of its graph) must reach every form of its
+    # graph and be reached back (strongly connected), otherwise the quasi-steady distribution is not defined
+    comp = _components(n_act, edges)
+    refs = [min(i for i in range(n_act) if comp[i] == c) for c in range(max(comp) + 1)]
+    if len(refs) > 1 and dead:
+        raise QssError("효소가 둘 이상인 반응망의 실활 단계(X -> ED)는 아직 다루지 않음")
+    reach = [False] * n_act
+    for r in refs:
+        for i, ok in enumerate(_strongly_connected_to(n_act, edges, r)):
+            reach[i] = reach[i] or (ok and comp[i] == comp[r])
     if not all(reach):
         bad = [ens[i] for i, ok in enumerate(reach) if not ok]
         raise QssError(f"효소 형태 {', '.join(bad)}: 자유 효소와 오가는 경로가 없음(준정상 분포가 정해지지 않음)")
@@ -209,11 +234,35 @@ def structure(network: Network, overall: list[str] | None = None) -> QssStructur
         Mcorr=Mcorr,
         inact_edges=inact,
         n_dead=len(dead),
+        comp=comp if len(refs) > 1 else None,
+        refs=refs if len(refs) > 1 else None,
     )
 
 
-def _strongly_connected_to(n: int, edges: list[Edge]) -> list[bool]:
-    """Forms that can reach form 0 and be reached from it."""
+def _components(n: int, edges: list[Edge]) -> list[int]:
+    """Connected graph (undirected) of each active form, numbered in order of first appearance."""
+    nb = {i: set() for i in range(n)}
+    for e in edges:
+        nb[e.a].add(e.b)
+        nb[e.b].add(e.a)
+    comp = [-1] * n
+    c = 0
+    for i in range(n):
+        if comp[i] >= 0:
+            continue
+        stack, comp[i] = [i], c
+        while stack:
+            x = stack.pop()
+            for y in nb[x]:
+                if comp[y] < 0:
+                    comp[y] = c
+                    stack.append(y)
+        c += 1
+    return comp
+
+
+def _strongly_connected_to(n: int, edges: list[Edge], root: int = 0) -> list[bool]:
+    """Forms that can reach form ``root`` and be reached from it."""
     fwd = {i: set() for i in range(n)}
     for e in edges:
         fwd[e.a].add(e.b)
@@ -234,14 +283,30 @@ def _strongly_connected_to(n: int, edges: list[Edge]) -> list[bool]:
                     stack.append(y)
         return seen
 
-    f, b = visit(0, fwd), visit(0, bwd)
+    f, b = visit(root, fwd), visit(root, bwd)
     return [i in f and i in b for i in range(n)]
 
 
-def qss_fractions(st: QssStructure, x_small: np.ndarray, kf: np.ndarray, kr: np.ndarray) -> np.ndarray:
+def qss_fractions(
+    st: QssStructure, x_small: np.ndarray, kf: np.ndarray, kr: np.ndarray, fractions: np.ndarray | None = None
+) -> np.ndarray:
     """Quasi-steady distribution φ of the active enzyme (sums to 1; 0 for a dead form) at one small-molecule state
-    (numpy reference)."""
+    (numpy reference). With several enzymes, ``fractions`` (amount of each ÷ total, ``QssStructure.totals``) weights
+    the distribution of each enzyme's graph."""
     n = st.n_active
+    if st.n_enzymes > 1:
+        f = np.asarray(fractions if fractions is not None else np.full(st.n_enzymes, 1.0 / st.n_enzymes), float)
+        out = np.zeros(len(st.enzyme))
+        for c, r in enumerate(st.refs):
+            members = [i for i in range(n) if st.comp[i] == c]
+            sub = [e for e in st.edges if e.a in members]
+            pos = {m: j for j, m in enumerate([r] + [m for m in members if m != r])}
+            part = QssStructure(**{**st.__dict__, "edges": [_reindex(e, pos) for e in sub], "comp": None,
+                                   "refs": None, "n_dead": 0, "enzyme": [st.enzyme[m] for m in pos]})  # fmt: skip
+            phi_c = qss_fractions(part, x_small, kf, kr)
+            for m, j in pos.items():
+                out[m] = f[c] * phi_c[j]
+        return out
     L = np.zeros((n, n))
     for e in st.edges:
         wf = kf[e.step] * np.prod([x_small[i] ** o for i, o in e.lf]) if e.lf else kf[e.step]
@@ -256,3 +321,7 @@ def qss_fractions(st: QssStructure, x_small: np.ndarray, kf: np.ndarray, kr: np.
     psi = np.linalg.solve(A, b) if n > 1 else np.zeros(0)
     phi = np.concatenate([[1.0], psi])
     return np.concatenate([phi / phi.sum(), np.zeros(st.n_dead)])
+
+
+def _reindex(e: Edge, pos: dict) -> Edge:
+    return Edge(e.step, pos[e.a], pos[e.b], e.lf, e.lr, e.reversible)
