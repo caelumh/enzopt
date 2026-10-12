@@ -189,7 +189,29 @@ def test_a_fit_past_its_time_budget_returns_its_best_point(tmp_path, monkeypatch
     exps = [x for x, _ in sg.load_all(p, tmp_path / "tmp")]
     net, lay, prior = sg.setup(p, None)
     monkeypatch.setattr(sg, "FIT_BUDGET_S", 0.0)
+    monkeypatch.setattr(sg, "_Guarded", lambda model, deadline: model)  # only the per-evaluation check here
     f = sg._fit((0, net, lay, prior, prior, 1e-2, exps, 50))
     assert f["timed_out"] and len(f["theta"]) == lay.n_theta and np.isfinite(f["cost"])
     r = sg._residuals(np.array(f["theta"]), net, lay, exps, prior, 1e-2)
     assert 0.5 * float(r @ r) == pytest.approx(f["cost"])
+
+
+def test_the_time_budget_also_stops_a_single_long_solve(tmp_path, monkeypatch):
+    """The deadline is checked inside the ODE right-hand side too: a solve that would outlast the whole budget stops
+    there (the per-evaluation check alone never runs while one solve hangs)."""
+    from enzopt.core.project import load_project
+    from enzopt.pipeline import suggest_general as sg
+
+    p = load_project(write_project(tmp_path / "proj", holdout=False))
+    exps = [x for x, _ in sg.load_all(p, tmp_path / "tmp")]
+    net, lay, prior = sg.setup(p, None)
+    monkeypatch.setattr(sg, "FIT_BUDGET_S", 0.0)
+    with pytest.raises(sg._OutOfTime):
+        sg._DEADLINE = 0.0  # long past
+        try:
+            kf, kr = lay.rates(prior)
+            sg._z(net, net.rate_vector(kf, kr), exps[0])
+        finally:
+            sg._DEADLINE = None
+    f = sg._fit((0, net, lay, prior, prior, 1e-2, exps, 50))
+    assert sg._DEADLINE is None and (f.get("timed_out") or "error" in f)

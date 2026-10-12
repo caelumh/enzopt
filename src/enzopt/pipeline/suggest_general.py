@@ -276,7 +276,8 @@ def _z(net: Network, k, exp) -> list[np.ndarray]:
     _name, initial, Et, series = exp
     t_u = np.unique(np.concatenate([s[1] for s in series]))
     atol = atol_vector(net.species, net.enzyme_species, Et, FIT_SETTINGS)
-    X = simulate(_model(net), k, x0_vector(net, initial, Et), t_u, atol=atol, settings=FIT_SETTINGS)
+    model = _model(net) if _DEADLINE is None else _Guarded(_model(net), _DEADLINE)
+    X = simulate(model, k, x0_vector(net, initial, Et), t_u, atol=atol, settings=FIT_SETTINGS)
     idx = net.index()
     out = []
     for _sig, t, y, sg, cf in series:
@@ -308,11 +309,33 @@ class _OutOfTime(Exception):
     pass
 
 
+_DEADLINE: float | None = None  # wall-clock end of the fit running in this process (set by _fit)
+
+
+class _Guarded:
+    """A mass-action model whose right-hand side stops a solve past the fit's deadline: a candidate that turns very
+    stiff can spend longer than the whole budget inside one ODE solve, where the per-evaluation check never runs."""
+
+    def __init__(self, model: MassAction, deadline: float):
+        self.model, self.deadline, self.calls = model, deadline, 0
+
+    def rhs(self, t, x, k):
+        self.calls += 1
+        if self.calls % 256 == 0 and time.time() > self.deadline:
+            raise _OutOfTime
+        return self.model.rhs(t, x, k)
+
+    def jac(self, t, x, k):
+        return self.model.jac(t, x, k)
+
+
 def _fit(job) -> dict:
     """One least-squares fit. Past ``FIT_BUDGET_S`` it stops and returns the best point evaluated so far, marked
     ``timed_out`` (one stiff candidate must not hold up the whole comparison)."""
+    global _DEADLINE
     key, net, lay, theta0, prior, wp, exps, max_nfev = job
     t0 = time.time()
+    _DEADLINE = t0 + FIT_BUDGET_S
     best = {"cost": math.inf, "theta": None}
 
     def fun(theta):
@@ -327,6 +350,9 @@ def _fit(job) -> dict:
     try:
         sol = least_squares(fun, theta0, method="trf", max_nfev=max_nfev, diff_step=1e-4)
     except _OutOfTime:
+        if best["theta"] is None:
+            why = f"시간 상한 {FIT_BUDGET_S:.0f} s 안에 한 번도 풀지 못함"
+            return {"key": key, "error": why, "seconds": time.time() - t0}
         return {
             "key": key,
             "theta": best["theta"].tolist(),
@@ -337,6 +363,8 @@ def _fit(job) -> dict:
         }
     except Exception as e:  # noqa: BLE001 — a crashed fit is reported, not fatal
         return {"key": key, "error": f"{type(e).__name__}: {e}", "seconds": time.time() - t0}
+    finally:
+        _DEADLINE = None
     return {
         "key": key,
         "theta": sol.x.tolist(),
