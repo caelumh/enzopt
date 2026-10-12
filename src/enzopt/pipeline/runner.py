@@ -257,6 +257,8 @@ class RunContext:
     def warn(self, msg: str) -> None:
         if msg not in self.manifest["warnings"]:
             self.manifest["warnings"].append(msg)
+            if self._stage and self._stage in self.manifest.get("stages", {}):
+                self.manifest["stages"][self._stage].setdefault("warnings", []).append(msg)
             self.save_manifest()
         print(f"[경고] {msg}", flush=True)
 
@@ -474,6 +476,7 @@ def run_project(
                     break
                 continue
             st.update({"key": key, "started": now_iso(), "finished": None, "error": None, "cached_from": None})
+            st.pop("warnings", None)
             cached = _find_cached(ctx, stage, key) if use_cache else None
             if cached is not None:
                 if (rd / stage).exists():
@@ -485,9 +488,14 @@ def run_project(
                 if stage == "3_fit":
                     man["device"] = old.get("device", {})
                     man["seeds"] = old.get("seeds", [])
-                for w in old.get("warnings") or []:
+                # only this stage's warnings (runs before 2026-10-12 did not record them per stage: all of them)
+                old_st = (old.get("stages") or {}).get(stage) or {}
+                carried = old_st.get("warnings") if "warnings" in old_st else old.get("warnings") or []
+                for w in carried:
                     if w not in man["warnings"]:
                         man["warnings"].append(w)
+                if carried:
+                    st["warnings"] = list(carried)
                 st.update(
                     {"status": "cached", "cached_from": str(cached.name), "finished": now_iso(), "elapsed_s": 0.0}
                 )

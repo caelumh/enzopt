@@ -32,6 +32,13 @@ def test_rerun_new_folder_and_cache(quick_run, runs_root):
     a = json.loads((quick_run / "3_fit" / "fit_summary.json").read_text(encoding="utf-8"))
     b = json.loads((rd2 / "3_fit" / "fit_summary.json").read_text(encoding="utf-8"))
     assert a["kept"] == b["kept"] and a["holdout_rmse"] == b["holdout_rmse"]
+    # warnings are recorded per stage, and a cached stage brings only its own (not those of later stages of the old run)
+    m1 = manifest(quick_run)
+    per_stage = [w for st_ in m1["stages"].values() for w in st_.get("warnings", [])]
+    assert sorted(per_stage) == sorted(m1["warnings"])
+    for name, st_ in m2["stages"].items():
+        if st_["status"] == "cached":
+            assert st_.get("warnings", []) == m1["stages"][name].get("warnings", [])
 
 
 def test_resume_after_interruption(tmp_path):
