@@ -7,6 +7,7 @@
 명세는 `PROJECT_SPEC.md`, 진행 상태는 `PROGRESS.md`, 평가 기준은 `evals/EVAL.md`에 있습니다.
 
 **처음이라면 [`docs/GUIDE.md`](docs/GUIDE.md)(안내서)를 먼저 읽으세요.** 단계별 계산의 뜻과 그림 15개를 읽는 법(무엇을 그렸나, 예제 값, 정상·이상 신호), 피펫 표, 문제 해결, 용어집이 있습니다.
+대시보드의 탭 다섯 개와 그림이 무엇을 뜻하는지는 실측 공개 데이터(`ldh_wang2025`)의 실제 화면 값으로 정리한 [`docs/dashboard/README.md`](docs/dashboard/README.md)(그림을 넣은 판: [`docs/DASHBOARD.html`](docs/DASHBOARD.html))에 있습니다.
 
 ## 설치
 
