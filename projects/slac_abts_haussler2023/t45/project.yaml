@@ -1,0 +1,86 @@
+# 공개 문헌 데이터 프로젝트: Häußler (2023) 작은 라카아제(SLAC, S. coelicolor)의 ABTS 산화, pH 3.0, 45 ℃
+# 데이터: DaRUS doi:10.18419/DARUS-3337 (University of Stuttgart, CC BY 4.0). ../make_data.py가 플레이트 리더 내보내기
+# 파일에서 340 nm ABTS 흡광을 같은 온도의 표준 곡선으로 농도로 바꾸고, 측정마다의 플레이트 온도를 T_C 열로 넣음
+name: slac_abts_haussler2023_45C
+description: 공개 문헌 데이터 — SLAC + ABTS, pH 3.0, 45 ℃, 우물 24개(ABTS 5~150 µM × 3반복), 15분 11점
+
+network:
+  name: slac_mm_inactivation
+  # 저자 모델(비가역 Michaelis–Menten + 시간에 따른 효소 실활)을 질량 작용으로. O₂는 재지 않았고 넉넉하다고 봄
+  # (ABTS 150 µM을 다 산화해도 O₂는 약 40 µM만 씀). P = ABTS 라디칼, ED = 망가진 효소
+  species: [E, ABTS, ES, P, ED]
+  enzyme_species: [E, ES, ED]
+  steps:
+    - E + ABTS <=> ES               # 1 ABTS 결합
+    - ES -> E + P                   # 2 산화와 방출
+    - E -> ED                       # 3 자유 효소의 실활
+    - ES -> ED                      # 4 ABTS가 붙은 효소의 실활(저자처럼 효소 전체가 망가짐; 35 ℃에서 3만 둘 때보다
+                                    #   ΔAIC −40, enzopt suggest --candidate "ES -> ED", README)
+  observable:
+    name: ABTS_mM                   # 340 nm 표준 곡선으로 잰 ABTS(효소에 붙은 몫 포함)
+    coefficients: {ABTS: 1, ES: 1}
+  thermodynamics:
+    reactions:                      # 한 방향 반응이라 K'를 쓰지 않음
+      - {overall: ABTS <=> P}
+  prior:                            # 일반 자릿수(저자 값이 아님), 표준편차 1.5 자릿수
+    kf_log10: [3, 2, -2, -2]        # 결합 1/(mM·s), 산화 1/s, 실활 둘 1/s
+    kr_log10: [2]                   # 해리 1/s(해리 상수 0.1 mM 근처)
+    sd_decades: 1.5
+
+control:                            # 대조: ABTS 결합을 한 방향으로(ABTS가 다시 떨어지지 않음)
+  one_way_steps: [1]
+
+identification:
+  method: pinn
+  seeds: 4
+  noise_sigma: 0.0005               # mM = 0.5 µM: 표준 곡선 직선의 잔차(0.4 µM) 근처, 대조 우물의 읽기 잡음보다 큼
+  baseline_fit: {starts: 4, max_nfev: 200}
+
+simulation:
+  t_long_s: 1800
+  hopsan: {enabled: false}
+
+design:                             # 참고용: ABTS 0.1 mM의 90 %를 15분 안에 산화하는 최소 효소량
+  target: assay
+  analyte: ABTS
+  partner: null                     # 기질 1개(O₂는 넉넉): 효소량만 찾음
+  free_enzyme: E
+  analyte0_mM: 0.1
+  conversion: 0.9
+  time_s: 900
+  Et_bounds_mM: [1.0e-6, 1.0e-2]
+  check_t_end_s: 1800
+  pipette:
+    volume_uL: 200
+    enzyme_uL: 20
+    stocks_mM: {ABTS: 2}
+    limit_test_rhos: []
+    limit_test_enzyme_multiples: []
+
+# 처음 ABTS = 그 우물의 첫 읽기(효소 0.0739 µM = 73.94 nM, 저자 템플릿). 학습: 5, 15, 50, 100 µM(3반복씩),
+# 홀드아웃: 10, 25, 75 µM(학습 범위 안), 150 µM(학습 범위 바깥)
+experiments:
+  S5_A: {file: data/S5_A.csv, ABTS: 0.0041685, P: 0, Et_nM: 73.94, role: train}   # 5 µM nominal, 11 points
+  S5_B: {file: data/S5_B.csv, ABTS: 0.0041437, P: 0, Et_nM: 73.94, role: train}   # 5 µM nominal, 11 points
+  S5_C: {file: data/S5_C.csv, ABTS: 0.0043424, P: 0, Et_nM: 73.94, role: train}   # 5 µM nominal, 11 points
+  S10_A: {file: data/S10_A.csv, ABTS: 0.0083317, P: 0, Et_nM: 73.94, role: holdout}   # 10 µM nominal, 11 points
+  S10_B: {file: data/S10_B.csv, ABTS: 0.0081379, P: 0, Et_nM: 73.94, role: holdout}   # 10 µM nominal, 11 points
+  S10_C: {file: data/S10_C.csv, ABTS: 0.0082373, P: 0, Et_nM: 73.94, role: holdout}   # 10 µM nominal, 11 points
+  S15_A: {file: data/S15_A.csv, ABTS: 0.012584, P: 0, Et_nM: 73.94, role: train}   # 15 µM nominal, 11 points
+  S15_B: {file: data/S15_B.csv, ABTS: 0.012371, P: 0, Et_nM: 73.94, role: train}   # 15 µM nominal, 11 points
+  S15_C: {file: data/S15_C.csv, ABTS: 0.0125, P: 0, Et_nM: 73.94, role: train}   # 15 µM nominal, 11 points
+  S25_A: {file: data/S25_A.csv, ABTS: 0.020667, P: 0, Et_nM: 73.94, role: holdout}   # 25 µM nominal, 11 points
+  S25_B: {file: data/S25_B.csv, ABTS: 0.021253, P: 0, Et_nM: 73.94, role: holdout}   # 25 µM nominal, 11 points
+  S25_C: {file: data/S25_C.csv, ABTS: 0.020935, P: 0, Et_nM: 73.94, role: holdout}   # 25 µM nominal, 11 points
+  S50_A: {file: data/S50_A.csv, ABTS: 0.044474, P: 0, Et_nM: 73.94, role: train}   # 50 µM nominal, 11 points
+  S50_B: {file: data/S50_B.csv, ABTS: 0.045651, P: 0, Et_nM: 73.94, role: train}   # 50 µM nominal, 11 points
+  S50_C: {file: data/S50_C.csv, ABTS: 0.047668, P: 0, Et_nM: 73.94, role: train}   # 50 µM nominal, 11 points
+  S75_A: {file: data/S75_A.csv, ABTS: 0.06515, P: 0, Et_nM: 73.94, role: holdout}   # 75 µM nominal, 11 points
+  S75_B: {file: data/S75_B.csv, ABTS: 0.065955, P: 0, Et_nM: 73.94, role: holdout}   # 75 µM nominal, 11 points
+  S75_C: {file: data/S75_C.csv, ABTS: 0.067282, P: 0, Et_nM: 73.94, role: holdout}   # 75 µM nominal, 11 points
+  S100_A: {file: data/S100_A.csv, ABTS: 0.087054, P: 0, Et_nM: 73.94, role: train}   # 100 µM nominal, 11 points
+  S100_B: {file: data/S100_B.csv, ABTS: 0.088475, P: 0, Et_nM: 73.94, role: train}   # 100 µM nominal, 11 points
+  S100_C: {file: data/S100_C.csv, ABTS: 0.088584, P: 0, Et_nM: 73.94, role: train}   # 100 µM nominal, 11 points
+  S150_A: {file: data/S150_A.csv, ABTS: 0.13314, P: 0, Et_nM: 73.94, role: holdout}   # 150 µM nominal, 11 points
+  S150_B: {file: data/S150_B.csv, ABTS: 0.13325, P: 0, Et_nM: 73.94, role: holdout}   # 150 µM nominal, 11 points
+  S150_C: {file: data/S150_C.csv, ABTS: 0.13358, P: 0, Et_nM: 73.94, role: holdout}   # 150 µM nominal, 11 points
