@@ -1,0 +1,120 @@
+[task]
+task = simulate
+data = rates
+approx = rapid-equilibrium
+
+[mechanism]
+
+E + AcAcCoA <===> EAcAcCoA                  : KM_AcAcCoA  dissoc 
+EAcAcCoA + NADH <===> EAcAcCoANADH          : KM_NADH  dissoc
+EAcAcCoANADH + AcAcCoA <===> EAcAcCoA2NADH  : KiS_AcAcCoA_NADH  dissoc ; substrate inhibition by AcAcCoA 
+EAcAcCoA + NADPH <===> EAcAcCoANADPH        : KM_NADPH  dissoc ; inhibition by NADPH
+EAcAcCoANADPH + AcAcCoA <===> EAcAcCoA2NADPH    : KiS_AcAcCoA_NADPH  dissoc ;substrate inhibition by AcAcCoA 
+EAcAcCoANADH --------> E + NAD + HBCoA      : kcatfNADH
+
+[constants]
+
+KM_AcAcCoA  = 47
+KM_NADH     = 42
+KiS_AcAcCoA_NADH = 47 ; KiS_AcAcCoA = KM_AcAcCoA (special case of substrate inhibition)
+KiS_AcAcCoA_NADPH = 333
+KM_NADPH    = 3254
+kcatfNADH   = 140
+
+[concentrations]
+
+E = 0.001
+
+[responses]
+
+NAD = 1
+
+[data]
+
+variable AcAcCoA
+  
+mesh       from 0 to 22 step 2
+   
+error      constant 0 percent
+
+directory  ./results/simulations/simple_model_AARs
+
+extension  txt
+
+file       vNADH1 | concentration  NADH = 50,  NADPH = 253
+file       vNADH2 | concentration  NADH = 50,  NADPH = 226
+file       vNADH3 | concentration  NADH = 50,  NADPH = 198
+file       vNADH4 | concentration  NADH = 50,  NADPH = 171
+file       vNADH5 | concentration  NADH = 50,  NADPH = 144
+file       vNADH6 | concentration  NADH = 50,  NADPH = 117
+file       vNADH7 | concentration  NADH = 50,  NADPH = 89
+file       vNADH8 | concentration  NADH = 50,  NADPH = 62
+
+file       vNADH9 | concentration  NADH = 136,  NADPH = 253
+file       vNADH10 | concentration  NADH = 136,  NADPH = 226
+file       vNADH11 | concentration  NADH = 136,  NADPH = 198
+file       vNADH12 | concentration  NADH = 136,  NADPH = 171
+file       vNADH13 | concentration  NADH = 136,  NADPH = 144
+file       vNADH14 | concentration  NADH = 136,  NADPH = 117
+file       vNADH15 | concentration  NADH = 136,  NADPH = 89
+file       vNADH16 | concentration  NADH = 136,  NADPH = 62
+
+file       vNADH17 | concentration  NADH = 221,  NADPH = 253
+file       vNADH18 | concentration  NADH = 221,  NADPH = 226
+file       vNADH19 | concentration  NADH = 221,  NADPH = 198
+file       vNADH20 | concentration  NADH = 221,  NADPH = 171
+file       vNADH21 | concentration  NADH = 221,  NADPH = 144
+file       vNADH22 | concentration  NADH = 221,  NADPH = 117
+file       vNADH23 | concentration  NADH = 221,  NADPH = 89
+file       vNADH24 | concentration  NADH = 221,  NADPH = 62
+
+file       vNADH25 | concentration  NADH = 307,  NADPH = 253
+file       vNADH26 | concentration  NADH = 307,  NADPH = 226
+file       vNADH27 | concentration  NADH = 307,  NADPH = 198
+file       vNADH28 | concentration  NADH = 307,  NADPH = 171
+file       vNADH29 | concentration  NADH = 307,  NADPH = 144
+file       vNADH30 | concentration  NADH = 307,  NADPH = 117
+file       vNADH31 | concentration  NADH = 307,  NADPH = 89
+file       vNADH32 | concentration  NADH = 307,  NADPH = 62
+
+file       vNADH33 | concentration  NADH = 393,  NADPH = 253
+file       vNADH34 | concentration  NADH = 393,  NADPH = 226
+file       vNADH35 | concentration  NADH = 393,  NADPH = 198
+file       vNADH36 | concentration  NADH = 393,  NADPH = 171
+file       vNADH37 | concentration  NADH = 393,  NADPH = 144
+file       vNADH38 | concentration  NADH = 393,  NADPH = 117
+file       vNADH39 | concentration  NADH = 393,  NADPH = 89
+file       vNADH40 | concentration  NADH = 393,  NADPH = 62
+
+file       vNADH41 | concentration  NADH = 479,  NADPH = 253
+file       vNADH42 | concentration  NADH = 479,  NADPH = 226
+file       vNADH43 | concentration  NADH = 479,  NADPH = 198
+file       vNADH44 | concentration  NADH = 479,  NADPH = 171
+file       vNADH45 | concentration  NADH = 479,  NADPH = 144
+file       vNADH46 | concentration  NADH = 479,  NADPH = 117
+file       vNADH47 | concentration  NADH = 479,  NADPH = 89
+file       vNADH48 | concentration  NADH = 479,  NADPH = 62
+
+file       vNADH49 | concentration  NADH = 564,  NADPH = 253
+file       vNADH50 | concentration  NADH = 564,  NADPH = 226
+file       vNADH51 | concentration  NADH = 564,  NADPH = 198
+file       vNADH52 | concentration  NADH = 564,  NADPH = 171
+file       vNADH53 | concentration  NADH = 564,  NADPH = 144
+file       vNADH54 | concentration  NADH = 564,  NADPH = 117
+file       vNADH55 | concentration  NADH = 564,  NADPH = 89
+file       vNADH56 | concentration  NADH = 564,  NADPH = 62
+
+file       vNADH57 | concentration  NADH = 650,  NADPH = 253
+file       vNADH58 | concentration  NADH = 650,  NADPH = 226
+file       vNADH59 | concentration  NADH = 650,  NADPH = 198
+file       vNADH60 | concentration  NADH = 650,  NADPH = 171
+file       vNADH61 | concentration  NADH = 650,  NADPH = 144
+file       vNADH62 | concentration  NADH = 650,  NADPH = 117
+file       vNADH63 | concentration  NADH = 650,  NADPH = 89
+file       vNADH64 | concentration  NADH = 650,  NADPH = 62
+
+[output]
+
+directory ./results/simulations/simple_model_AARs/outputNADH
+
+[end]

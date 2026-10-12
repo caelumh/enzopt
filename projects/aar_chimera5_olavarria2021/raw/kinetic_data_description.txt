@@ -1,0 +1,58 @@
+This folder contains four folders named as follows:
+
+1) fitting BiBi with MM model
+2) raw data and progress curves
+3) kinetic parameters estimations
+4) simple_model_AARs
+
+1) The folder "fitting BiBi with MM model" contains two MATLAB scripts.
+
+The script entitled "comparing_genericBiBi_and_MMsimple.m" shows a comparison between the true kinetic parameters of a reversible BiBi reaction (A + B <---> P + Q) and the kinetic parameter obtained under the assumption that such reaction is an irreversible UniUni reaction (simple Michaelis-Menten model).
+
+For the sake of simplicity, the interactions between the ligands and any form of the enzyme are considered as rapid-equilibria.
+The pseudo-experimental values of the changing concentrations of the substrates A and B, as well as the products P and Q were generated with the generic BiBi equation proposed by Rohwer and co-workers: See the paper "Evaluation of a simplified generic bi-substrate rate equation for computational systems biology" 
+DOI: 10.1049/ip-syb:20060026
+    
+For the simulation, the arbitrarily chosen kinetic parameters to generate the pseudo-experimental progress curves are:
+           
+Keq :92; KMB :20; KMP :20; KMQ :300; kcat_forward :15; KMA :30
+           
+Given those parameters, the kcat_reverse of the reaction will be: 1.6304
+           
+The variable substrate A concentrations under considerations are:
+10   20   25   30   40   50   70   80  100  120  140  170  200  230  260  290  320  360  400  440  480  520  560  600
+and the concentration of the co-substrate B is: 2000
+    
+Using as input the pseudo-experimental data generated as explained above, the parameters KMA and kcat_forward were estimated, under the assumption that the reaction is an irreversible UniUni reaction. Pseudo-experimental progress curves were fitted to the closed form solution of the integrated form of the Michaelis-Menten equation.
+See the paper "Closed Form Solution for Time-dependent Enzyme Kinetics", Schnell and Mendoza, 1997, DOI: https://doi.org/10.1006/jtbi.1997.0425
+
+The script entitled "comparing_genericBiBi_and_MMsimple_time_windows.m" does the same but considering different time windows inside the reaction progress curves. This way, it is possible to see how the estimates of KMA and kcat, obtained under the assumptions of the Michaelis-Menten model, deviate from the true values depending on the size of the time window chosen for the parameter fitting.
+
+2) The folder entitled "raw data and progress curves" contains four folders, corresponding to experimental data obtained with the enzymes Chimera2, Chimera3, Chimera4 and Chimera5. Each one of these folders contain:
+- the files with the experimental records obtained with a spectrophotometer Synergy HTX (Biotek). These files can be open with the propietary software Gen 5 (www.biotek.com).
+- Microsoft Excel files containing the raw absorbance data obtained in each well, the time values, as well as the initial concentrations of acetoacetyl-CoA and the relevant cofactor. These files also contain information about the absorbance of the wells with blank solutions, the pathlengths and the extinction coefficients at 340 nm or 360 nm. It must be noticed that some experimental values were obtained following the reactions at 340 nm and other at 360 nm. Some reactions volumes were 80 microliters and other 100 microliters. Therefore, pathlenghts and extinction coefficients are different in each case.
+- with these data, the product (NAD+, NADP+ or 3-hydroxybutyryl-CoA) formed in time was calculated. No product or enzyme degradation was considered for these calculations.
+
+Substrates stocks were always freshly prepared from reagents with analytical grade (purchased from Santa Cruz Biotechnology or Sigma-Aldrich). The substrate concentrations in such stocks were estimated by spectrophotometry, using the Lambert-Beer law. Acetoacetyl-CoA (AcAcCoA) stocks were prepared in distilled water (slightly acid pH favors the stability of AcAcCoA solutions). However, the substrate concentrations in these freshly prepared AcAcCoA stocks were assessed as follows: a solution (at a known dilution) of the freshly prepared stock was prepared in W buffer ((W buffer: Tris-HCl 50 mM, NaCl 5 mM, MgCl2 5 mM, pH 8.0)). The absorbance of this solution, at 310 nm, was recorded, using W buffer as the blank. The use of W buffer ensured stable and known H+ and Mg2+ concentrations (the extinction coefficient of AcAcCoA steeply change with small changes in Mg2+ and H+ concentrations, showing an ε310nm = 11000 M-1cm-1 at pH 8.0 and Mg2+ 5 mM [Stern, J. R. (1956) Optical properties of aceto-acetyl-S-coenzyme A and its metal chelates, J Biol Chem. 221, 33-44.]). In the case of NAD(P)H, the stocks were prepared and quantified in MOPS buffer (((3-(N-morpholino)-propanesulfonic acid) 50 mM, NaCl 5 mM, MgCl2 5 mM, pH 7.0)). The reference molar extinction coefficient of ε340nm = 6220 M-1cm-1 was employed to evaluate the concentrations of the NAD(P)H stocks. 
+Kinetic assays were performed in MOPS buffer, at 30 Celsius, in a Synergy HTX plate reader (Biotek), using 96 wells half-area microplates (Greiner, code 675101). Changes in substrate concentrations were followed by spectrophotometry, observing the changes in absorbance at 340 nm or 360 nm. To determine the apparent extinction coefficients to be used at 360 nm, some dilutions, at known dilution factor of AcAcCoA and NAD(P)H in MOPS buffer, were prepared. The absorbance values were measured and with these experimental values, apparent extinction coefficients for AcAcCoA (23 M-1cm-1) and NAD(P)H (4075 M-1cm-1) at 360 nm were determined.
+
+3) The folder entitle "kinetic parameters estimations" contains four folders, corresponding to the enzymes Chimera2, Chimera3, Chimera4 and Chimera5. Each one of these folders contain:
+
+- the progress curves data (time in seconds and product concentration in microM)
+- DYNAFIT scripts to read the progress curves and test if the data can be explained with different biochemical mechanisms. These scripts also enable a model discrimination analysis. The scripts also contain information about the initial substrate, product and enzyme concentrations for each experimental record. Each folder containing experimental data has the name of the variable substrate.
+- DYNAFIT scripts to calculate the 95 % confidence intervals for the kinetic parameters of the model that best explained the experimental data, using a Monte Carlo approach.
+
+It is strongly recommended to read the included DYNAFIT scripting manual to understand the syntaxis of these scripts. DYNAFIT (http://www.biokin.com/dynafit/) is a software, freely available for academic purposes, enabling different simulations and analysis of (bio)chemical processes. The seminal paper describing DYNAFIT is 
+
+Kuzmic, P. (1996) Anal. Biochem. 237, 260-273.
+"Program DYNAFIT for the Analysis of Enzyme Kinetic Data: Application to HIV Proteinase"
+
+4) The folder entitled "simple_model_AARs" contains the following files:
+
+- a graphical representation (kinetic model.tif) of a biochemical mechanism describing the reactions catalyzed by the enzyme Chimera5, with NADH and NADPH.
+- a DYNAFIT script to calculate the rates of NADH consumption according to the biochemical model
+- a DYNAFIT script to calculate the rates of NADPH consumption according to the biochemical model
+- a MATLAB script able to read the files generated by the DYNAFIT scripts and calculate the relative use of NADH over NADPH in the situations considered in the DYNAFIT scripts. This MATLAB script also generates a visual representation of the relative use of NADH over NADPH.
+- another DYNAFIT script to calculate the forward flux capacities for the NADH-driven reaction catalyzed by Chimera5, at three different enzyme concentrations, different NADH concentrations, and keeping the NADPH concentration at 253 microM.
+- a Microsoft Excel file enabling the calculation of the backward and net flux capacities of the NADH-driven reaction catalyzed by Chimera5, given the expected free energy variation (deltaG) and the forward flux capacities calculated with the DYNAFIT script. The deltaG is calculated as a function of physiologically feasible NAD+, NADH, acetoacetyl-CoA and 3-hydroxybutyryl-CoA concentrations.
+

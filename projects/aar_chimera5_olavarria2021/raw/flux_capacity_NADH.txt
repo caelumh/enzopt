@@ -1,0 +1,52 @@
+[task]
+task = simulate
+data = rates
+approx = rapid-equilibrium
+
+[mechanism]
+
+E + AcAcCoA <===> EAcAcCoA                  : KM_AcAcCoA  dissoc 
+EAcAcCoA + NADH <===> EAcAcCoANADH          : KM_NADH  dissoc
+EAcAcCoANADH + AcAcCoA <===> EAcAcCoA2NADH  : KiS_AcAcCoA_NADH  dissoc ; substrate inhibition by AcAcCoA 
+EAcAcCoA + NADPH <===> EAcAcCoANADPH        : KM_NADPH  dissoc ; inhibition by NADPH
+EAcAcCoANADPH + AcAcCoA <===> EAcAcCoA2NADPH    : KiS_AcAcCoA_NADPH  dissoc ;substrate inhibition by AcAcCoA 
+EAcAcCoANADH --------> E + NAD + HBCoA      : kcatfNADH
+
+[constants]
+
+KM_AcAcCoA  = 47
+KM_NADH     = 42
+KiS_AcAcCoA_NADH = 47 ; KiS_AcAcCoA = KM_AcAcCoA (special case of substrate inhibition)
+KiS_AcAcCoA_NADPH = 333
+KM_NADPH    = 3254
+kcatfNADH   = 504 ; 140 * 3.6 = 504 (to express velocity in mmol/gCDW/h)
+
+[concentrations]
+
+AcAcCoA = 22
+
+[responses]
+
+NAD = 1
+
+[data]
+
+variable NADH
+  
+mesh       from 45 to 650 step 50
+   
+error      constant 0 percent
+
+directory  ./results/simulations/simple_model_AARs
+
+extension  txt
+
+file       capacity_min | concentration  NADPH = 253, E = 0.030 ; in micromol/gCDW; low expression level
+file       capacity_mid | concentration  NADPH = 253, E = 0.215 ; in micromol/gCDW; intermediate expression level
+file       capacity_max | concentration  NADPH = 253, E = 0.400 ; in micromol/gCDW; high expression level
+
+[output]
+
+directory ./results/simulations/simple_model_AARs/fluxcapacityNADH
+
+[end]

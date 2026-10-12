@@ -1,0 +1,394 @@
+;-------------------------------------------------------------
+; Script to perform global fitting of different progress curves and model discrimination between different models describing substrate inhibition
+;-------------------------------------------------------------
+[task]
+
+data = progress
+
+task = fit
+
+model = MMsimple ?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1  kminus1    
+
+ES --> E + P     : kcat
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 30000 ?   
+
+kcat = 25 ?
+
+[concentrations]
+
+E = 0.001
+
+[responses]
+
+P = 1
+
+
+[progress]
+
+directory  ./results/progress_curves/AARChimera5/AcAcCoA/NADH2  
+
+extension  txt
+
+maximum 1200
+
+file       curve1 | concentration S = 23.49 ?, P = 0.51
+file       curve2 | concentration S = 25.12 ?, P = 0.88
+file       curve3 | concentration S = 30.94 ?, P = 1.06
+file       curve4 | concentration S = 28.76 ?, P = 3.24
+file       curve5 | concentration S = 32.63 ?, P = 2.37
+file       curve6 | concentration S = 36.98 ?, P = 1.02
+file       curve7 | concentration S = 59.61 ?, P = 2.39 
+file       curve8 | concentration S = 70.28 ?, P = 1.72 
+file       curve9 | concentration S = 81.11 ?, P = 1.89
+file       curve10 | concentration S = 86.41 , P = 2.59
+file       curve11 | concentration S = 99.93 , P = 0.07
+file       curve12 | concentration S = 199.4 , P = 0.6
+
+maximum off
+
+[output]
+
+directory  ./results/progress_curves/AARChimera5/AcAcCoA/NADH2/output_model_discrimination
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = clasical-substrate-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + S <===> ES2    : k1 kminus2
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 30000 ?  
+
+kcat = 25 ?
+
+kminus2 = 300 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = substrate-inhibition-special?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + S <===> ES2    : k1 kminus1
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 30000 ?  
+
+kcat = 25 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = substrate-plus-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + S <===> ES2    : k1 kminus2
+
+E + P <===> EP : k1 kp
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 30000 ? 
+
+kminus2 = 30000 ?    
+
+kcat = 25 ?
+
+kp = 30000 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+;;;Mixed ES still active;;;
+model = mixed_ES_active
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+E + S <===> ES1    : k1 Koff1
+
+ES + S <===> ES2    : k1 Koff2
+
+ES1 --> E + P : kcat2
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 272 ?   
+
+kcat = 25 ?
+
+kcat2 = 25 ?
+
+Koff1 = 30000 ?
+
+Koff2 = 30000 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+;;;Mixed ES inactive ;;;
+model = mixed_ES_inactive
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+E + S <===> ES1    : k1 Koff1
+
+ES + S <===> ES2    : k1 Koff2
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 272 ?   
+
+kcat = 25 ?
+
+Koff1 = 30000 ?
+
+Koff2 = 30000 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+;;; Non competitive ES still active ;;;
+model = non-competitive_ES_active ?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + S <===> ES2    : k1 Koff2
+
+ES1 --> E + P : kcat2
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 272 ?   
+
+kcat = 25 ?
+
+kcat2 = 25 ?
+
+Koff2 = 30000 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+;;; general substrate inhbition model ;;;
+model = general-substrate-inhibition
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    : k1 kminus1   
+
+E + S <===> ES1    : k1 Koff1
+
+ES + S <===> ES2    : k1 Koff2
+
+ES --> E + P : kcat
+
+ES1 --> E + P : kcat1
+
+ES2 --> E + P : kcat2
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 272 ?   
+
+kcat = 25 ?
+
+kcat1 = 25 ?
+
+kcat2 = 25 ?
+
+Koff1 = 30000 ?
+
+Koff2 = 30000 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+ 
+data = progress
+
+task = fit
+
+;;; competitive Inhibition by the substrate and the product;;;
+
+model = InhbySubtANDProd?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES :  k1 kminus1   
+
+ES --> E + P : kcat
+
+E + S <===> ESA : k1 Koff1
+
+E + P <===> ESP : k1 Koff2
+
+[constants] 
+
+k1 = 100 
+
+kminus1 = 272 ?   
+
+kcat = 25 ?
+
+Koff1 = 30000 ?
+
+Koff2 = 30000 ?
+
+[responses]
+
+P = 1
+
+[end]

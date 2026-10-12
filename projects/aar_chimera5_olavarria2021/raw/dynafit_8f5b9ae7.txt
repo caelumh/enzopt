@@ -1,0 +1,229 @@
+;-------------------------------------------------------------
+; Script to perform global fitting of different progress curves and model discrimination
+;-------------------------------------------------------------
+[task]
+
+data = progress
+
+task = fit
+
+model = MMsimple ?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1  kminus1    
+
+ES --> E + P     : kcat
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 5000 ?  
+
+kcat = 10 ?
+
+[responses]
+
+P = 1
+
+[progress]
+
+directory  ./results/progress_curves/AARChimera5/NADPH2  
+
+extension  txt
+
+maximum 1200
+
+file       curve1 | concentration S = 9.48 ?, P = 0.52 ?, E = 0.001
+file       curve2 | concentration S = 18.32 ?,  P = 1.68 , E = 0.001 
+file       curve3 | concentration S = 22.44 ?,  P = 2.56 , E = 0.001
+file       curve4 | concentration S = 27.3 ?,  P = 2.7 , E = 0.002 
+file       curve5 | concentration S = 37.89 ?,  P = 0.11 ?, E = 0.002 
+file       curve6 | concentration S = 49.77 ?,  P = 0.23 , E = 0.002
+file       curve8 | concentration S = 70.99 ?,  P = 4.01 , E = 0.002
+file       curve9 | concentration S = 98.27 ?,  P = 1.73 , E = 0.002
+file       curve10 | concentration S = 122.86 ?,  P = 2.14 , E = 0.002
+file       curve11 | concentration S = 132.15 ?,  P = 5.35 , E = 0.002
+file       curve12 | concentration S = 148.18 ?,  P = 1.82 , E = 0.002
+file       curve13 | concentration S = 210.21 ?,  P = 0.79 , E = 0.004 
+file       curve14 | concentration S = 230.58 ,  P = 0.42 , E = 0.004 
+file       curve15 | concentration S = 257.08 ,  P = 0.92 , E = 0.004 
+file       curve16 | concentration S = 275.24 ,  P = 0.76 , E = 0.004 
+file       curve17 | concentration S = 304.2 ,  P = 0.8 , E = 0.004 
+file       curve18 | concentration S = 356.32 ,  P = 0.68 , E = 0.004 
+file       curve19 | concentration S = 372.77 ,  P = 2.23 , E = 0.004 
+;file       curve20 | concentration S = 399.41 ?,  P = 0.59 ?, E = 0.004
+file       curve21 | concentration S = 446.69 ,  P = 3.31 , E = 0.004 
+file       curve22 | concentration S = 501.8 ,  P = 1.2 , E = 0.004 
+file       curve23 | concentration S = 551.17 ,  P = 0.83 , E = 0.004 
+file       curve24 | concentration S = 597.66 ,  P = 2.34 , E = 0.004
+
+maximum off
+
+[output]
+
+directory  ./results/progress_curves/AARChimera5/NADPH2/outputModelDiscrimination
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = noncompetitive-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + P <===> ESP    : k1 kp
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 2000 ?
+
+kcat = 25 ?
+
+kp = 1000 ?
+
+[responses]
+
+P = 1
+
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = competitive-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+E + P <===> EP    : k1 kp
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 2000 ?  
+
+kcat = 10 ?
+
+kp = 200 ?
+
+[responses]
+
+P = 1
+
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = mixed-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + P <===> ESP    : k1 kp
+
+E + P <===> EP : k1 kp2
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 200 ?  
+
+kcat = 15 ?
+
+kp = 200 ?
+
+kp2 = 200 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = mixed-product-inhibition-special?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + P <===> ESP    : k1 kp
+
+E + P <===> EP : k1 kp
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 200 ?  
+
+kcat = 15 ?
+
+kp = 200 ?
+
+
+[responses]
+
+P = 1
+
+[end]

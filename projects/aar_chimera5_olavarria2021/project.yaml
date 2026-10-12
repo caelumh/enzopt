@@ -1,0 +1,100 @@
+# 공개 문헌 데이터 프로젝트: Olavarria (2021) 아세토아세틸-CoA 환원효소(AAR, PhaB 키메라 "Chimera 5")와 NADH, 30 ℃
+# 데이터: Mendeley Data doi:10.17632/tspycdy2rm.1 (TU Delft, CC BY 4.0). make_data.py가 raw/의 작업 파일에서 우물마다
+# 생성물(µM, 저자가 360 nm 흡광으로 계산)을 꺼내 mM로 바꿈. 반응: AcAcCoA + NADH → (R)-3-히드록시부티릴-CoA + NAD⁺
+name: aar_chimera5_olavarria2021
+description: 공개 문헌 데이터 — Olavarria 2021 AAR Chimera 5 + NADH, 360 nm 진행 곡선 36개(8 s × 1 h), 30 ℃
+
+network:
+  name: aar_ordered_dead_end
+  # 저자 모델(simple_model_AARs: AcAcCoA가 먼저 붙고 NADH가 붙은 뒤 한 번에 생성물 둘을 냄, AcAcCoA의 기질 저해)을
+  # 빠른 평형 대신 질량 작용으로. EA = E·AcAcCoA, EAN = E·AcAcCoA·NADH, EAAN = EAN에 AcAcCoA가 하나 더(막다른)
+  species: [E, AcAc, EA, NADH, EAN, NAD, HB, EAAN]
+  enzyme_species: [E, EA, EAN, EAAN]
+  steps:
+    - E + AcAc <=> EA               # 1 AcAcCoA 결합
+    - EA + NADH <=> EAN             # 2 NADH 결합
+    - EAN -> E + NAD + HB           # 3 환원과 생성물 방출(저자: 한 방향)
+    - EAN + AcAc <=> EAAN           # 4 기질 저해(AcAcCoA가 하나 더 붙음)
+  observable:
+    name: P_mM                      # 생성물 = 쓰인 NADH(효소 1~4 nM이라 효소에 붙은 몫은 무시할 만함)
+    coefficients: {NAD: 1}
+  thermodynamics:
+    reactions:                      # 저자 모델이 한 방향이라 K'를 쓰지 않음
+      - {overall: AcAc + NADH <=> NAD + HB}
+  prior:                            # 일반 자릿수(저자 값이 아님, README "사전분포"), 표준편차 1.5 자릿수
+    kf_log10: [3, 3, 2, 3]          # 결합 1/(mM·s), 단계 3 1/s
+    kr_log10: [2, 2, 2]             # 가역 단계 1, 2, 4의 해리 1/s(해리 상수 0.1 mM 근처)
+    sd_decades: 1.5
+
+control:                            # 대조: NADH 결합을 한 방향으로(NADH가 다시 떨어지지 않음)
+  one_way_steps: [2]
+
+identification:
+  method: pinn
+  seeds: 4
+  noise_sigma: 0.0004               # mM = 0.4 µM. 2차 차분으로 잰 우물별 잡음(중앙값 NADH 묶음 0.17, AcAcCoA 묶음 0.43 µM)
+  baseline_fit: {starts: 4, max_nfev: 200}
+
+simulation:
+  t_long_s: 3600
+  hopsan: {enabled: false}
+
+design:                             # 참고용: AcAcCoA 0.1 mM을 10분 안에 99 % 환원하는 최소 효소량과 NADH 비
+  target: assay
+  analyte: AcAc
+  partner: NADH                     # ρ = NADH ÷ AcAcCoA
+  free_enzyme: E
+  analyte0_mM: 0.1
+  conversion: 0.99
+  time_s: 600
+  rho_grid: [1.5, 2, 3, 5, 10]
+  Et_bounds_mM: [1.0e-7, 1.0e-3]
+  check_t_end_s: 1800
+  pipette:
+    volume_uL: 100
+    enzyme_uL: 5
+    stocks_mM: {AcAc: 2, NADH: 10}
+    limit_test_rhos: []
+    limit_test_enzyme_multiples: []
+
+# 처음 농도 = 첫 측정 시점(t = 0)의 값: 생성물은 그때까지 이미 생긴 양, 바뀐 기질은 저자가 계산한 그 시점의 값,
+# 고정한 기질은 명목값 − 이미 생긴 생성물. N_* = NADH를 바꾼 24개(AcAcCoA 1.6 mM), A_* = AcAcCoA를 바꾼 12개(NADH 약 1 mM).
+# N_*: 학습·홀드아웃을 농도 순으로 번갈아, 가장 높은 N_B12(600 µM)는 홀드아웃(외삽). A_*: 우물마다 처음 속도가 거의 같은
+# 농도에서도 2배까지 달라(효소 1 nM의 우물별 차이로 보임) 학습에 넣지 않고 예측만 비교(design-check, README)
+experiments:
+  N_A1: {file: data/N_A1.csv, AcAc: 1.59929, NADH: 0.0112923, NAD: 0.0007077, HB: 0.0007077, Et_nM: 1, role: train}   # NADH 12 µM nominal
+  N_A2: {file: data/N_A2.csv, AcAc: 1.59846, NADH: 0.0184627, NAD: 0.001537, HB: 0.001537, Et_nM: 1, role: holdout}   # NADH 20 µM nominal
+  N_A3: {file: data/N_A3.csv, AcAc: 1.59886, NADH: 0.0238592, NAD: 0.001141, HB: 0.001141, Et_nM: 1, role: train}   # NADH 25 µM nominal
+  N_A4: {file: data/N_A4.csv, AcAc: 1.59696, NADH: 0.0269619, NAD: 0.003038, HB: 0.003038, Et_nM: 2, role: holdout}   # NADH 30 µM nominal
+  N_A5: {file: data/N_A5.csv, AcAc: 1.59741, NADH: 0.0349103, NAD: 0.00259, HB: 0.00259, Et_nM: 2, role: train}   # NADH 37.5 µM nominal
+  N_A6: {file: data/N_A6.csv, AcAc: 1.59934, NADH: 0.0513411, NAD: 0.0006589, HB: 0.0006589, Et_nM: 2, role: holdout}   # NADH 52 µM nominal
+  N_A7: {file: data/N_A7.csv, AcAc: 1.59876, NADH: 0.0612585, NAD: 0.001241, HB: 0.001241, Et_nM: 2, role: train}   # NADH 62.5 µM nominal
+  N_A8: {file: data/N_A8.csv, AcAc: 1.59677, NADH: 0.0717728, NAD: 0.003227, HB: 0.003227, Et_nM: 2, role: holdout}   # NADH 75 µM nominal
+  N_A9: {file: data/N_A9.csv, AcAc: 1.59431, NADH: 0.0943143, NAD: 0.005686, HB: 0.005686, Et_nM: 2, role: train}   # NADH 100 µM nominal
+  N_A10: {file: data/N_A10.csv, AcAc: 1.59849, NADH: 0.123493, NAD: 0.001507, HB: 0.001507, Et_nM: 2, role: holdout}   # NADH 125 µM nominal
+  N_A11: {file: data/N_A11.csv, AcAc: 1.59929, NADH: 0.136789, NAD: 0.0007107, HB: 0.0007107, Et_nM: 2, role: train}   # NADH 137.5 µM nominal
+  N_A12: {file: data/N_A12.csv, AcAc: 1.5996, NADH: 0.149597, NAD: 0.0004026, HB: 0.0004026, Et_nM: 2, role: holdout}   # NADH 150 µM nominal
+  N_B1: {file: data/N_B1.csv, AcAc: 1.59901, NADH: 0.224006, NAD: 0.0009944, HB: 0.0009944, Et_nM: 4, role: train}   # NADH 225 µM nominal
+  N_B2: {file: data/N_B2.csv, AcAc: 1.59994, NADH: 0.229939, NAD: 6.101e-05, HB: 6.101e-05, Et_nM: 4, role: holdout}   # NADH 230 µM nominal
+  N_B3: {file: data/N_B3.csv, AcAc: 1.59929, NADH: 0.254286, NAD: 0.0007138, HB: 0.0007138, Et_nM: 4, role: train}   # NADH 255 µM nominal
+  N_B4: {file: data/N_B4.csv, AcAc: 1.59965, NADH: 0.277646, NAD: 0.0003538, HB: 0.0003538, Et_nM: 4, role: holdout}   # NADH 278 µM nominal
+  N_B5: {file: data/N_B5.csv, AcAc: 1.59917, NADH: 0.31117, NAD: 0.0008297, HB: 0.0008297, Et_nM: 4, role: train}   # NADH 312 µM nominal
+  N_B6: {file: data/N_B6.csv, AcAc: 1.59949, NADH: 0.355488, NAD: 0.0005124, HB: 0.0005124, Et_nM: 4, role: holdout}   # NADH 356 µM nominal
+  N_B7: {file: data/N_B7.csv, AcAc: 1.59894, NADH: 0.376939, NAD: 0.001061, HB: 0.001061, Et_nM: 4, role: train}   # NADH 378 µM nominal
+  N_B8: {file: data/N_B8.csv, AcAc: 1.59978, NADH: 0.40378, NAD: 0.0002196, HB: 0.0002196, Et_nM: 4, role: holdout}   # NADH 404 µM nominal
+  N_B9: {file: data/N_B9.csv, AcAc: 1.59918, NADH: 0.452176, NAD: 0.0008236, HB: 0.0008236, Et_nM: 4, role: train}   # NADH 453 µM nominal
+  N_B10: {file: data/N_B10.csv, AcAc: 1.59985, NADH: 0.506847, NAD: 0.0001525, HB: 0.0001525, Et_nM: 4, role: holdout}   # NADH 507 µM nominal
+  N_B11: {file: data/N_B11.csv, AcAc: 1.5953, NADH: 0.548296, NAD: 0.004704, HB: 0.004704, Et_nM: 4, role: train}   # NADH 553 µM nominal
+  N_B12: {file: data/N_B12.csv, AcAc: 1.59644, NADH: 0.596437, NAD: 0.003563, HB: 0.003563, Et_nM: 4, role: holdout}   # NADH 600 µM nominal
+  A_C1: {file: data/A_C1.csv, AcAc: 0.0234932, NADH: 1.01449, NAD: 0.0005068, HB: 0.0005068, Et_nM: 1, role: design-check}   # AcAc 24 µM nominal
+  A_C2: {file: data/A_C2.csv, AcAc: 0.025122, NADH: 1.00712, NAD: 0.000878, HB: 0.000878, Et_nM: 1, role: design-check}   # AcAc 26 µM nominal
+  A_C3: {file: data/A_C3.csv, AcAc: 0.0309419, NADH: 1.01494, NAD: 0.001058, HB: 0.001058, Et_nM: 1, role: design-check}   # AcAc 32 µM nominal
+  A_C4: {file: data/A_C4.csv, AcAc: 0.0287579, NADH: 1.00676, NAD: 0.003242, HB: 0.003242, Et_nM: 1, role: design-check}   # AcAc 32 µM nominal
+  A_C5: {file: data/A_C5.csv, AcAc: 0.0326257, NADH: 1.01263, NAD: 0.002374, HB: 0.002374, Et_nM: 1, role: design-check}   # AcAc 35 µM nominal
+  A_C6: {file: data/A_C6.csv, AcAc: 0.0364934, NADH: 1.01049, NAD: 0.001507, HB: 0.001507, Et_nM: 1, role: design-check}   # AcAc 38 µM nominal
+  A_C7: {file: data/A_C7.csv, AcAc: 0.0596083, NADH: 1.00261, NAD: 0.002392, HB: 0.002392, Et_nM: 1, role: design-check}   # AcAc 62 µM nominal
+  A_C8: {file: data/A_C8.csv, AcAc: 0.0702843, NADH: 1.00328, NAD: 0.001716, HB: 0.001716, Et_nM: 1, role: design-check}   # AcAc 72 µM nominal
+  A_C9: {file: data/A_C9.csv, AcAc: 0.0804722, NADH: 0.995472, NAD: 0.002528, HB: 0.002528, Et_nM: 1, role: design-check}   # AcAc 83 µM nominal
+  A_C10: {file: data/A_C10.csv, AcAc: 0.0862616, NADH: 1.00226, NAD: 0.002738, HB: 0.002738, Et_nM: 1, role: design-check}   # AcAc 89 µM nominal
+  A_C11: {file: data/A_C11.csv, AcAc: 0.0999329, NADH: 1.00493, NAD: 6.711e-05, HB: 6.711e-05, Et_nM: 1, role: design-check}   # AcAc 100 µM nominal
+  A_C12: {file: data/A_C12.csv, AcAc: 0.199396, NADH: 0.984396, NAD: 0.000604, HB: 0.000604, Et_nM: 1, role: design-check}   # AcAc 200 µM nominal

@@ -1,0 +1,292 @@
+;-------------------------------------------------------------
+; Script to perform global fitting of different progress curves and model discrimination
+;-------------------------------------------------------------
+[task]
+
+data = progress
+
+task = fit
+
+model = MMsimple ?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1  kminus1    
+
+ES --> E + P     : kcat
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 2700 ?   
+
+kcat = 25 ?
+
+[concentrations]
+
+E = 0.001
+
+[responses]
+
+P = 1
+
+[progress]
+
+directory  ./results/progress_curves/AARChimera5/AcAcCoA/NADPH2  
+
+extension  txt
+
+maximum 600
+
+file       curve1 | concentration S = 56.97 , P = 1.03
+file       curve2 | concentration S = 51.55 , P = 1.45
+file       curve3 | concentration S = 54.04 , P = 0.96
+file       curve4 | concentration S = 52.08 , P = 0.92
+file       curve5 | concentration S = 55.58 , P = 1.42
+file       curve6 | concentration S = 46.01 , P = 0.99
+file       curve7 | concentration S = 61.52 , P = 0.48 
+file       curve8 | concentration S = 69.91 , P = 2.09 
+file       curve9 | concentration S = 82.25 , P = 0.75
+file       curve10 | concentration S = 86.32 , P = 2.68
+file       curve11 | concentration S = 99.36 , P = 0.64
+file       curve12 | concentration S = 198.49 , P = 1.51
+
+maximum off
+
+[output]
+
+directory  ./results/progress_curves/AARChimera5/AcAcCoA/NADPH2/outputModelDiscrimination
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = substrate-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + S <===> ES2    : k1 kminus2
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 300 ?   
+
+kcat = 25 ?
+
+kminus2 = 300 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = substrate-inhibition-special?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + S <===> ES2    : k1 kminus1
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 300 ?  
+
+kcat = 25 ?
+
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = competitive-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+E + P <===> EP    : k1 kp
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 272 ?   
+
+kcat = 25 ?
+
+kp = 3000 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = noncompetitive-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + P <===> ESP    : k1 kp
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 272 ?   
+
+kcat = 25 ?
+
+kp = 3000 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = mixed-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+E + P <===> EP    : k1 kp
+
+ES + P <===> ESP    : k1 kp2
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 272 ?   
+
+kcat = 25 ?
+
+kp = 3000 ?
+
+kp2 = 3000 ?
+
+[responses]
+
+P = 1
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = substrate-plus-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + S <===> ES2    : k1 kminus2
+
+E + P <===> EP : k1 kp
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 300 ? 
+
+kminus2 = 300 ?    
+
+kcat = 25 ?
+
+kp = 3000 ?
+
+[responses]
+
+P = 1
+
+[end]

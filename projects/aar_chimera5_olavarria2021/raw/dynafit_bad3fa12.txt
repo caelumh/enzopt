@@ -1,0 +1,190 @@
+;-------------------------------------------------------------
+; Script to perform global fitting of different progress curves and model discrimination
+;-------------------------------------------------------------
+[task]
+
+data = progress
+
+task = fit
+
+model = MMsimple ?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    : k1  kminus1    
+
+ES --> E + P     : kcat
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 5000 ?  
+
+kcat = 10 ?
+
+[responses]
+
+P = 1
+
+[progress]
+
+directory  ./results/progress_curves/AARChimera5/NADH2  
+
+extension  txt
+
+maximum 600
+
+file       curve1 | concentration S = 11.34 , P = 0.66 , E = 0.001 
+file       curve2 | concentration S = 18.46 , P = 1.54 , E = 0.001 
+file       curve3 | concentration S = 23.91 ,  P = 1.09 , E = 0.001
+file       curve4 | concentration S = 26.96 ,  P = 3.04 , E = 0.002 
+file       curve5 | concentration S = 34.91 ,  P = 2.59 , E = 0.002 
+file       curve6 | concentration S = 51.34 ,  P = 0.66 , E = 0.002 
+file       curve7 | concentration S = 61.26 ,  P = 1.24 , E = 0.002
+file       curve8 | concentration S = 71.77 ,  P = 3.23 , E = 0.002
+file       curve9 | concentration S = 94.31 ,  P = 5.69 , E = 0.002
+file       curve10 | concentration S = 123.49 ,  P = 1.51 , E = 0.002 
+file       curve11 | concentration S = 136.84 ,  P = 0.66 , E = 0.002 
+file       curve12 | concentration S = 149.6 ,  P = 0.4 , E = 0.002 
+file       curve13 | concentration S = 224.01 ,  P = 0.99 , E = 0.004 
+file       curve14 | concentration S = 229.94 ,  P = 0.66 , E = 0.004 
+file       curve15 | concentration S = 254.29 ,  P = 0.71 , E = 0.004
+file       curve16 | concentration S = 277.65 ,  P = 0.35 , E = 0.004 
+file       curve17 | concentration S = 311.32 ,  P = 0.68 , E = 0.004 
+file       curve18 | concentration S = 355.49 ,  P = 0.51 , E = 0.004 
+file       curve19 | concentration S = 377.04 ,  P = 0.96 , E = 0.004 
+file       curve20 | concentration S = 403.88 ,  P = 0.12 , E = 0.004 
+file       curve21 | concentration S = 452.57 ,  P = 0.43 , E = 0.004 
+file       curve22 | concentration S = 506.85 ,  P = 0.15 , E = 0.004 
+file       curve23 | concentration S = 551.71 ,  P = 1.29 , E = 0.004 
+file       curve24 | concentration S = 596.78 ,  P = 3.22 , E = 0.004 
+
+maximum off
+
+[output]
+
+directory  ./results/progress_curves/AARChimera5/NADH2/outputModelDiscrimination
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = noncompetitive-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + P <===> ESP    : k1 kp
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 2000 ?
+
+kcat = 25 ?
+
+kp = 1000 ?
+
+[responses]
+
+P = 1
+
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = competitive-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+E + P <===> EP    : k1 kp
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 2000 ?  
+
+kcat = 10 ?
+
+kp = 200 ?
+
+[responses]
+
+P = 1
+
+
+;-------------------------------------------------------------
+
+[task]
+
+data = progress
+
+task = fit
+
+model = mixed-product-inhibition?
+
+[settings]
+{Constraints}
+Concentrations = 0.05 ; = 5% titration error
+
+[mechanism]
+
+E + S <===> ES    :  k1 kminus1   
+
+ES --> E + P : kcat
+
+ES + P <===> ESP    : k1 kp
+
+E + P <===> EP : k1 kp2
+
+
+[constants]
+
+k1 = 100 
+
+kminus1 = 200 ?  
+
+kcat = 15 ?
+
+kp = 200 ?
+
+kp2 = 200 ?
+
+[responses]
+
+P = 1
+
+[end]
