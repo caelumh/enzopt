@@ -38,7 +38,6 @@ identification:
 
 simulation:
   t_long_s: 1800
-  hopsan: {enabled: false}
 
 design:                             # 참고용: ABTS 0.1 mM의 90 %를 15분 안에 산화하는 최소 효소량
   target: assay

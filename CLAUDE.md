@@ -12,7 +12,7 @@
 
 ## 명령
 - 설치: `uv sync` (호환 환경은 하네스가 `.venv-kimmcad`에 만든다)
-- 실행: `uv run enzopt run projects/example_ldh_synth` (`--quick` 짧은 모드, `--resume <실행 폴더>`)
+- 실행: `uv run enzopt run projects/example_ldh_synth` (`--quick` 짧은 모드, `--resume <실행 폴더>`, `--no-hopsan` Hopsan 끄기 — 기본은 켬)
 - 점검: `uv run enzopt doctor`
 - 빠진 반응 단계 제안: `uv run enzopt suggest projects/<이름>`
 - 반응식 고르기(메커니즘 목록): `uv run enzopt mechanisms`

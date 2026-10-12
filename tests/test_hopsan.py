@@ -51,3 +51,20 @@ def test_without_hopsan_falls_back_to_scipy(tmp_path):
     assert "Hopsan 미사용" in rep
     s = json.loads((rd / "4_sim" / "sim_summary.json").read_text(encoding="utf-8"))
     assert all(r["backend"] == "scipy" for r in s["hopsan"]["one_step"]["runs"])
+
+
+def test_no_hopsan_option_turns_it_off(tmp_path):
+    """Hopsan is on by default; `enzopt run --no-hopsan` turns it off for that run only (stage ④ uses scipy and says
+    why, without looking for HopsanCLI)."""
+    proj = tmp_path / "projects" / "opt_out"
+    shutil.copytree(EXAMPLE, proj)
+    y = (proj / "project.yaml").read_text(encoding="utf-8")
+    (proj / "project.yaml").write_text(y + "\nquick:\n  hopsan: true\n", encoding="utf-8")
+    env = {"HOPSANCLI": str(tmp_path / "missing_hopsancli.exe")}
+    r = run_cli("run", proj, "--quick", "--no-hopsan", "--runs-root", tmp_path / "runs", env=env)
+    rd = run_dir_from(r.stdout)
+    m = manifest(rd)
+    assert m["status"] == "completed", m.get("error")
+    assert m["options"]["hopsan"] is False and m["settings"]["simulation"]["hopsan"]["enabled"] is False
+    assert m["flags"]["hopsan_used"] is False and "--no-hopsan" in m["flags"]["hopsan_note"]
+    assert not any("찾지 못" in w for w in m["warnings"])  # HopsanCLI was not looked for

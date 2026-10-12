@@ -30,7 +30,7 @@ def _popen(cmd: list[str], log: Path) -> subprocess.Popen:
 
 
 def start_run(
-    project_dir: Path, runs_root: Path, quick: bool = False, project_name: str | None = None
+    project_dir: Path, runs_root: Path, quick: bool = False, project_name: str | None = None, hopsan: bool = True
 ) -> tuple[Path, int]:
     """Create the run folder now (so the dashboard can show it at once) and start ``enzopt run`` detached."""
     from .data import project_name as pname
@@ -53,6 +53,8 @@ def start_run(
     cmd = [sys.executable, "-m", "enzopt", "run", str(project_dir), "--runs-root", str(runs_root), "--run-dir", str(rd)]
     if quick:
         cmd.append("--quick")
+    if not hopsan:
+        cmd.append("--no-hopsan")
     p = _popen(cmd, rd / "run.log")
     from ..pipeline.runner import read_json
 

@@ -28,8 +28,9 @@ def sidebar():
     sel = st.sidebar.selectbox("프로젝트", names, key="project")
     proj = projects[names.index(sel)]
     quick = st.sidebar.checkbox("짧은 모드(시험용)", key="quick")
+    no_hopsan = st.sidebar.checkbox("Hopsan 끄기", key="no_hopsan")
     if st.sidebar.button("새 실행", type="primary", key="new_run"):
-        rd, pid = start_run(proj, D.runs_root(), quick)
+        rd, pid = start_run(proj, D.runs_root(), quick, hopsan=not no_hopsan)
         st.session_state["run"] = rd.name
         st.session_state["flash"] = f"새 실행 시작: {rd.name} (엔진 프로세스 {pid})"
     runs = D.project_runs(proj)

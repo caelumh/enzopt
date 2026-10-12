@@ -332,6 +332,14 @@ def stage_key(ctx: RunContext, stage: str, upstream: dict) -> str:
     return stable_hash({**common, "cfg": cfg})[:20]
 
 
+def _settings(project: Project, quick: bool, options: dict) -> dict:
+    """project.yaml settings with the run options applied (``--no-hopsan``)."""
+    s = project.settings(quick)
+    if options.get("hopsan") is False:
+        s["simulation"]["hopsan"]["enabled"] = False
+    return s
+
+
 def _hopsan_env_signature() -> str:
     try:
         from ..hopsan.cli import find_cli
@@ -419,14 +427,17 @@ def run_project(
     device: str | None = None,
     precision: str | None = None,
     run_dir: str | Path | None = None,
+    hopsan: bool | None = None,
 ) -> Path:
     """Run stages ①–⑤ for a project and return the run folder.
 
     ``resume``: continue an earlier run folder (skip its finished stages; with ``from_stage`` redo from there).
     ``stop_after``: stop after that stage with status ``interrupted`` (used to test resume).
     ``run_dir``: use this pre-created empty folder (the dashboard creates it so it can show it at once).
+    ``hopsan``: False turns the Hopsan comparison of stage ④ off for this run (``enzopt run --no-hopsan``); None follows
+    project.yaml (``simulation.hopsan.enabled``, on by default).
     """
-    options = {"device": device, "precision": precision}
+    options = {"device": device, "precision": precision, "hopsan": hopsan}
     if resume:
         rd = Path(resume)
         man = read_json(rd / "manifest.json")
@@ -439,7 +450,7 @@ def run_project(
         man["pid"] = os.getpid()
         man["error"] = None
         man.setdefault("resumed", []).append(now_iso())
-        ctx = RunContext(project, rd, quick, project.settings(quick), man, options)
+        ctx = RunContext(project, rd, quick, _settings(project, quick, options), man, options)
         if from_stage:
             for s in STAGES[STAGES.index(from_stage) :]:
                 man["stages"][s]["status"] = "pending"
@@ -453,7 +464,7 @@ def run_project(
         else:
             rd = new_run_dir(root, project.name)
         man = _init_manifest(project, rd, quick, options)
-        ctx = RunContext(project, rd, quick, project.settings(quick), man, options)
+        ctx = RunContext(project, rd, quick, _settings(project, quick, options), man, options)
         _copy_inputs(project, rd)
         man["settings"] = ctx.settings
     ctx.save_manifest()

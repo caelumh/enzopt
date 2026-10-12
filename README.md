@@ -37,6 +37,7 @@ uv run enzopt pack runs/example_ldh_synth/<실행 폴더>   # 제출용 zip 하�
 | `enzopt run <프로젝트> --no-cache` | 재사용 없이 전부 다시 계산 |
 | `enzopt run --resume <실행 폴더>` | 중단된 실행을 끊긴 단계부터 이어서 (`--from-stage 3_fit`처럼 특정 단계부터 다시) |
 | `enzopt run ... --device cpu --precision float64` | PINN 장치·정밀도 지정(기본은 project.yaml) |
+| `enzopt run ... --no-hopsan` | 이 실행만 ④의 Hopsan 대조를 끄고 scipy로만 푼다. Hopsan은 기본으로 켜져 있다(전체 모드). 프로젝트마다 늘 끄려면 `simulation.hopsan.enabled: false`, 짧은 모드(`--quick`)는 빠르게 하려고 끈다(`quick.hopsan: true`로 켬). 대시보드는 [새 실행] 위 "Hopsan 끄기" |
 | `enzopt check <프로젝트>` | 측정 직후 점검: 판정·데이터 검사만 임시 폴더에서. 실험별 점 수·처음/끝값·K'로 푼 예상 평형과의 차이·끝 기울기·온도 |
 | `enzopt mechanisms [유형 --substrates … --products …]` | 반응식 고르기: 메커니즘 9종(기질 1~3개, 순서형·무작위형·핑퐁형 등)과 판정 등급. 유형과 분자 이름을 주면 만들어지는 반응식·보존 법칙·`project.yaml` 조각 |
 | `enzopt suggest <프로젝트> [--quick] [--kinds …] [--run 실행] [--method pinn]` | 빠진 반응 단계 제안(모든 반응망): 반응망 구조에서 후보(막다른 결합·실활·효소 없는 반응·다른 결합 순서·역반응)를 만들어 전체 ODE 최소제곱으로 비교하고, 학습 기준 판정과 ΔAIC·홀드아웃 RMSE를 함께 냄. `--method pinn`은 LDH 순차 bi-bi 전용 PINN 방식(후보 4종, `--verify N`). 결과는 `runs/<프로젝트>/<날짜_시각>_suggest/`, 근거는 `docs/suggest/`·안내서 9절 |
@@ -75,7 +76,7 @@ projects/<이름>/
 | `control.one_way_steps` | 비약가역 대조 반응망(F-10): 이 단계들을 한 방향으로 |
 | `experiments.<이름>` | 초기 농도(종 이름: mM), `Et_nM`, `role`(train / holdout / design-check), `file`, `temp_file`, (선택) `format`(`temp_col` 포함), `time_offset_s`, `signal_files` |
 | `identification` | `method: pinn`, `seeds`, `noise_sigma`(σ), `device`, `precision`, `pinn: {adam_iters, lbfgs_iters, restarts, representation: qss, time_scale: per_experiment, inactivation: none|shared, range_margin: 0.05}`(range_margin: 반응 하나일 때 시그모이드 범위 여유, 기본 5%), `baseline_fit: {starts, max_nfev}`(F-9), `control: {seeds}`(F-10), `exclusion_rmse: ode|pinn`, `exclusion_sigma`(기본 3) |
-| `simulation` | `t_long_s`, `same_class_runs`, `class_seed`, `hopsan: {enabled, one_step_k1: auto, representative_experiment, max_steps}` |
+| `simulation` | `t_long_s`, `same_class_runs`, `class_seed`, `hopsan: {enabled(기본 true), one_step_k1: auto, representative_experiment, max_steps}` |
 | `design` | `target`(`assay` 분석 대상 소모 · `yield` 생성물 수율 · `selectivity` 선택도 + 수율 · `time` 효소량 상한에서 도달 시간 최소 · `peak` 만들었다 다시 분해되는 생성물의 최고 수율과 멈출 시각), `analyte`, `partner`(ρ = partner₀/analyte₀, 기질 1개면 `null`: 효소량만 찾음), `fixed_ratio`(다른 짝 기질 = analyte₀의 배수), `product`·`side_product`·`yield`·`selectivity`(수율·선택도 목표), `Et_max_nM`(시간 목표), `Et_nM`·`t_max_s`(최고 수율 목표: 고정 효소량, 기본 첫 학습 실험의 값 · 곡선을 풀 시간), `free_enzyme`, `analyte0_mM`, `conversion`, `time_s`, `Kp`, `dead_end: {step, enzyme_species, kf, Ki_mM}`, `rho_grid: auto`, `Et_bounds_mM`, `bisection_iters`, `check_t_end_s`, `pipette: {volume_uL, enzyme_uL, stocks_mM, limit_test_rhos(auto = ρ_min × 0.3·0.6), limit_test_enzyme_multiples}`. 평형 한계는 분석 대상의 전체 반응과 K′로 수치 계산(기질 수·계수 무관, 약가역·결핍 0·전체 반응 하나일 때만) |
 | `quick` | 짧은 모드에서 바꿀 값(`seeds`, `same_class_runs`, `rho_grid`, `bisection_iters`, `baseline_starts`, `hopsan` …) |
 

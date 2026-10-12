@@ -37,7 +37,6 @@ identification:
 
 simulation:
   t_long_s: 3600
-  hopsan: {enabled: false}
 
 design:                             # 참고용: AcAcCoA 0.1 mM을 10분 안에 99 % 환원하는 최소 효소량과 NADH 비
   target: assay

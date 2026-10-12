@@ -226,7 +226,8 @@ def hopsan_part(ctx: RunContext, sample: dict, same_states, other, ref, t_long: 
     out.mkdir(exist_ok=True)
     info: dict = {"used": False}
     if not hcfg.get("enabled", True):
-        info["note"] = f"{HOPSAN_NOT_USED}(설정에서 끔{' · 짧은 모드' if ctx.quick else ''})"
+        why = "실행 옵션 --no-hopsan" if ctx.options.get("hopsan") is False else "설정에서 끔"
+        info["note"] = f"{HOPSAN_NOT_USED}({why}{' · 짧은 모드' if ctx.quick else ''})"
     else:
         try:
             from ..hopsan.cli import find_cli

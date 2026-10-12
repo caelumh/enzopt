@@ -68,7 +68,6 @@ identification:
 
 simulation:
   t_long_s: 3600
-  hopsan: {enabled: false}
 
 design:                             # 세팔렉신을 가장 많이 얻는 멈출 시각(참고용, 목표 peak): 효소 200 nM, PGME 20 mM
   target: peak                      # 만들어진 세팔렉신이 다시 분해되므로 "언제 멈추나"가 설계의 답

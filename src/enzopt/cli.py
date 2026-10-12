@@ -45,6 +45,7 @@ def cmd_run(a) -> int:
         device=a.device,
         precision=a.precision,
         run_dir=a.run_dir,
+        hopsan=False if a.no_hopsan else None,
     )
     st = (read_json(rd / "manifest.json", {}) or {}).get("status")
     return 0 if st in ("completed", "interrupted") else 1
@@ -255,6 +256,11 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--run-dir", help=argparse.SUPPRESS)
     r.add_argument("--device", choices=["auto", "cuda", "cpu"], help="PINN 장치(기본: project.yaml)")
     r.add_argument("--precision", choices=["auto", "float32", "float64"], help="PINN 정밀도(기본: project.yaml)")
+    r.add_argument(
+        "--no-hopsan",
+        action="store_true",
+        help="④의 Hopsan 대조를 끄고 scipy로만(기본: 켬, project.yaml simulation.hopsan.enabled로도 끔)",
+    )
     r.set_defaults(func=cmd_run)
     c = sub.add_parser("check", help="측정 직후 점검: ①판정·②데이터 검사만(임시 폴더, 결과를 남기지 않음)")
     c.add_argument("project", help="프로젝트 폴더")

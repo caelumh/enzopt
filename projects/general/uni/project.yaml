@@ -34,7 +34,7 @@ identification:
   noise_sigma: 0.003
 
 simulation:
-  hopsan: {enabled: false}
+  hopsan: {enabled: false}   # 평가용 합성 반응망: 긴 평가 시간 예산 때문에 끔(다른 프로젝트는 기본 켬)
 
 design:
   target: assay

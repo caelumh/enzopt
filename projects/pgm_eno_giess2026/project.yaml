@@ -43,7 +43,6 @@ identification:
 
 simulation:
   t_long_s: 14400
-  hopsan: {enabled: false}
 
 design:
   enabled: false                    # 효소 둘의 양을 함께 정하는 설계는 아직 없음(⑤는 첫 효소의 양만 바꿈)
