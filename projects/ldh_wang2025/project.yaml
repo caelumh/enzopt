@@ -1,8 +1,8 @@
 # 공개 문헌 데이터 프로젝트: Wang 외 (2025) 토끼 근육 LDH, 피루브산 + NADH, PBS, 23 ℃, 플레이트 리더 340 nm
 # 데이터: figshare doi:10.6084/m9.figshare.26961733 (CC BY 4.0). make_data.py가 raw/Experimental_data.xlsx의 원 흡광을
-# 저자 환산(ε 6.3 /(mM·cm), 광로 0.3118 cm)으로 NADH 농도로 바꿈. 처음 NADH = 우물의 첫 읽기, 피루브산 = 명목값
+# 저자 환산(ε 6.3 /(mM·cm), 광로 0.3118 cm)으로 NADH 농도로 바꿈. 처음 NADH = 웰의 첫 읽기, 피루브산 = 명목값
 name: ldh_wang2025
-description: 공개 문헌 데이터 — Wang 외(2025) 토끼 근육 LDH, 피루브산 0.023~2 mM × NADH 0.4~0.6 mM × 효소 3가지, 우물 179개, 490초
+description: 공개 문헌 데이터 — Wang 외(2025) 토끼 근육 LDH, 피루브산 0.023~2 mM × NADH 0.4~0.6 mM × 효소 3가지, 웰 179개, 490초
 
 network:
   name: ldh_ordered_bibi
@@ -33,10 +33,10 @@ control:                     # 대조: NAD⁺ 방출을 한 방향으로(약가�
 identification:
   method: pinn
   seeds: 4
-  noise_sigma: 0.009         # mM = 9 µM: 같은 조건 3반복 우물끼리 곡선 모양 차이 중앙값 8.8 µM(우물별 효소량·피펫 차이를
+  noise_sigma: 0.009         # mM = 9 µM: 같은 조건 3반복 웰끼리 곡선 모양 차이 중앙값 8.8 µM(웰별 효소량·피펫 차이를
                              # 모델이 따로 갖지 않으므로 잡음으로 봄). 읽기 잡음만은 1.2 µM(첫 실행 σ 2 µM은 표본 0개, README)
   pinn: {restarts: 8}
-  baseline_fit: {starts: 4, max_nfev: 40}   # 학습 우물이 108개라 반복을 줄임
+  baseline_fit: {starts: 4, max_nfev: 40}   # 학습 웰이 108개라 반복을 줄임
   control: {seeds: 2}
 
 simulation:

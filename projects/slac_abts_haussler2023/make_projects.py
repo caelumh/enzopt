@@ -22,7 +22,7 @@ TEMPLATE = """# 공개 문헌 데이터 프로젝트: Häußler (2023) 작은 �
 # slac_abts_haussler2023/make_data.py가 플레이트 리더 파일에서 340 nm ABTS 흡광을 같은 온도의 표준 곡선으로
 # 농도로 바꾸고, 측정마다의 플레이트 온도를 T_C 열로 넣음
 name: slac_abts_haussler2023_{T}C
-description: 공개 문헌 데이터 — SLAC + ABTS, pH 3.0, {T} ℃, 우물 24개(ABTS 5~150 µM × 3반복), 15분 11점
+description: 공개 문헌 데이터 — SLAC + ABTS, pH 3.0, {T} ℃, 웰 24개(ABTS 5~150 µM × 3반복), 15분 11점
 
 network:
   name: slac_mm_inactivation
@@ -53,7 +53,7 @@ control:                            # 대조: ABTS 결합을 한 방향으로(AB
 identification:
   method: pinn
   seeds: 4
-  noise_sigma: 0.0005               # mM = 0.5 µM: 표준 곡선 직선의 잔차(0.4 µM) 근처, 대조 우물의 읽기 잡음보다 큼
+  noise_sigma: 0.0005               # mM = 0.5 µM: 표준 곡선 직선의 잔차(0.4 µM) 근처, 대조 웰의 읽기 잡음보다 큼
   baseline_fit: {{starts: 4, max_nfev: 200}}
 
 simulation:
@@ -76,7 +76,7 @@ design:                             # 참고용: ABTS 0.1 mM의 90 %를 15분 �
     limit_test_rhos: []
     limit_test_enzyme_multiples: []
 
-# 처음 ABTS = 그 우물의 첫 읽기(효소 0.0739 µM = 73.94 nM, 저자 템플릿). 학습: 5, 15, 50, 100 µM(3반복씩),
+# 처음 ABTS = 그 웰의 첫 읽기(효소 0.0739 µM = 73.94 nM, 저자 템플릿). 학습: 5, 15, 50, 100 µM(3반복씩),
 # 홀드아웃: 10, 25, 75 µM(학습 범위 안), 150 µM(학습 범위 바깥)
 experiments:
 """
