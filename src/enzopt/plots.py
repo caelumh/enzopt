@@ -186,11 +186,24 @@ def fig_data(
     fig, axes = new_figure(DOUBLE, 0.36 * DOUBLE, ncols=2, gridspec_kw={"width_ratios": [1.6, 1]})
     ax, bx = axes[0]
     rows = []
+    # with many experiments a legend entry per curve would fill the figure: thin lines coloured by role instead
+    many = len(series) > 12
+    role_col: dict[str, str] = {}
     for i, (k, (t, y)) in enumerate(series.items()):
-        ax.plot(t, y, marker(i), ms=2.2, mfc="none", mew=0.6, color=color(i), label=f"{k} ({roles[k]})")
+        if many:
+            r = roles[k]
+            label = None if r in role_col else f"{r} ({sum(v == r for v in roles.values())})"
+            role_col.setdefault(r, color(len(role_col)))
+            ax.plot(t, y, "-", lw=0.5, alpha=0.6, color=role_col[r], label=label)
+        else:
+            ax.plot(t, y, marker(i), ms=2.2, mfc="none", mew=0.6, color=color(i), label=f"{k} ({roles[k]})")
         rows += [[k, obs, float(a), float(b)] for a, b in zip(t, y, strict=True)]
-    ax.set(xlabel="time (s)", ylabel=obs, title="(a) progress curves")
-    ax.legend(loc="lower right", bbox_to_anchor=(1.0, 0.1), ncol=2, frameon=False)
+    title = "(a) progress curves" + (f", {len(series)} experiments" if many else "")
+    ax.set(xlabel="time (s)", ylabel=obs, title=title)
+    if many:
+        ax.legend(frameon=False)
+    else:
+        ax.legend(loc="lower right", bbox_to_anchor=(1.0, 0.1), ncol=2, frameon=False)
     have = [(i, k, v) for i, (k, v) in enumerate(temps.items()) if v is not None]
     if have:
         means = []
@@ -204,7 +217,7 @@ def fig_data(
         bx.axhspan(
             c - iso_range / 2, c + iso_range / 2, color="0.88", zorder=0, label=f"isothermal band ({iso_range} °C)"
         )
-        bx.set_xticks(range(len(have)), [k for _, k, _ in have])
+        bx.set_xticks(range(len(have)), [] if len(have) > 12 else [k for _, k, _ in have])
         bx.legend(loc="upper right", frameon=False)
     bx.set(xlabel="experiment", ylabel="temperature (°C)", title="(b) cuvette temperature (min–max, mean)")
     return save(fig, out, name, ["experiment", "quantity", "time_s", "value"], rows)
@@ -218,6 +231,10 @@ def write_rows(path, header, rows):
 
 
 # ------------------------------------------------------------------------------------------------ ③ identification
+MAX_PANELS = 24  # fit figures draw at most this many experiments
+MAX_TABLE_COLUMNS = 12  # holdout table: above this many held-out sets, one summary row per model
+
+
 def _names(p) -> dict:
     """Display names of the comparison models. The CSV ids stay "WR …"/"nonWR …"/"PINN (WR)" (tests, dashboard); when
     the network as written is not weakly reversible itself, figures call it "identified" and name the control by the
@@ -306,19 +323,25 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
         ("fig3a_train_fit", "train", titles[0]),
         ("fig3b_holdout", "holdout", titles[1]),
     ):
-        names = [n for n, (_, _, r) in data.items() if r == role]
-        if not names:
+        every_name = [n for n, (_, _, r) in data.items() if r == role]
+        if not every_name:
             continue
+        # at most MAX_PANELS panels (evenly spread over the experiments); the CSV keeps every experiment
+        pick = np.unique(np.linspace(0, len(every_name) - 1, min(MAX_PANELS, len(every_name))).round().astype(int))
+        names = [every_name[i] for i in pick]
         ncol = min(4, len(names))
         nrow = -(-len(names) // ncol)
         fig, axes = new_figure(DOUBLE, 0.27 * DOUBLE * nrow + 0.06 * DOUBLE, ncols=ncol, nrows=nrow)
         rows = []
         handles = {}
-        for j, n in enumerate(names):
-            ax = axes[j // ncol, j % ncol]
+        for n in every_name:
             t, y, _ = data[n]
-            ax.plot(t, y, "o", ms=2.0, mfc="none", mew=0.5, color=color(j))
-            handles.setdefault("data", ax.lines[-1])
+            shown = n in names
+            if shown:
+                j = names.index(n)
+                ax = axes[j // ncol, j % ncol]
+                ax.plot(t, y, "o", ms=2.0, mfc="none", mew=0.5, color=color(j))
+                handles.setdefault("data", ax.lines[-1])
             rows += [["data", n, float(a), float(b)] for a, b in zip(t, y, strict=True)]
             for i, (label, cv) in enumerate(curves.items()):
                 if role == "train" and not label.startswith("WR"):
@@ -326,9 +349,12 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
                 if n not in cv:
                     continue
                 tt, aa = cv[n]
-                (ln,) = ax.plot(tt, aa, **_style(label, i))
-                handles.setdefault(label.split(" ")[0], ln)
+                if shown:
+                    (ln,) = ax.plot(tt, aa, **_style(label, i))
+                    handles.setdefault(label.split(" ")[0], ln)
                 rows += [[label, n, float(a), float(b)] for a, b in zip(tt, aa, strict=True)]
+            if not shown:
+                continue
             ax.set_title(n, fontsize=7)
             ax.tick_params(labelsize=6)
             if j % ncol == 0:
@@ -337,6 +363,8 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
                 ax.set_xlabel("time (s)")
         for k in range(len(names), nrow * ncol):
             axes[k // ncol, k % ncol].axis("off")
+        if len(names) < len(every_name):
+            title = f"{title} — {len(names)} of {len(every_name)} shown (all in the CSV)"
         fig.legend(
             list(handles.values()),
             [nm["legend"].get(k, k) for k in handles],
@@ -403,26 +431,26 @@ def fit_figures(out: Path, p, every, samples: list, summary: dict) -> list:
         # with further signals the table shows RMSE ÷ σ over every signal (column 6), else the primary RMSE
         col = 5 if p.signals and rr and len(rr[0]) > 5 else 4
         trows = []
+        many = len(hold) > MAX_TABLE_COLUMNS  # then one summary per model instead of a column per held-out set
         for m, ident in models:
             vals = {r[2]: r[col] for r in rr if (r[0], r[1]) == (m, ident)}
-            trows.append(
-                [nm["table"].get(m, m), ident]
-                + [float(vals[n]) if vals.get(n) not in (None, "", "None") else "—" for n in hold]
-            )
+            per = [float(vals[n]) if vals.get(n) not in (None, "", "None") else None for n in hold]
+            if many:
+                v = np.array([x for x in per if x is not None])
+                summ = [float(v.mean()), float(np.median(v)), float(v.max())] if v.size else ["—"] * 3
+                trows.append([nm["table"].get(m, m), ident, *summ, int(v.size)])
+            else:
+                trows.append([nm["table"].get(m, m), ident] + [x if x is not None else "—" for x in per])
         title = (
             "Held-out extrapolation RMSE / σ (all signals)"
             if col == 5
             else f"Held-out extrapolation RMSE ({p.observable['name']})"
         )
-        figs.append(
-            table_figure(
-                out,
-                "fig3d_holdout_table",
-                ["model", "id"] + [f"RMSE {n}" for n in hold],
-                trows,
-                title=title,
-            )
-        )
+        header = ["model", "id"] + [f"RMSE {n}" for n in hold]
+        if many:
+            title += f" over {len(hold)} held-out sets (each set in holdout_comparison.csv)"
+            header = ["model", "id", "mean", "median", "max", "sets"]
+        figs.append(table_figure(out, "fig3d_holdout_table", header, trows, title=title))
     if p.signals:
         figs.append(signals_figure(out, p, every, nm))
     return figs
