@@ -23,25 +23,41 @@ def fig_network(out: Path, vd: dict, name: str = "fig1a_network") -> dict:
     for comp in lcs:
         for i in comp:
             scc_col.setdefault(scc_of[i], len(scc_col))
-    pos = {}
-    for row, comp in enumerate(lcs):
-        for col, i in enumerate(comp):
-            pos[i] = (col * 1.6, -row)
+    col = {i: c for comp in lcs for c, i in enumerate(comp)}
     edges = [tuple(e) for e in vd["edges"]]
     eset = set(edges)
-    # an edge that skips over other complexes in its row is drawn as an arc (above; the reverse of a reversible pair
-    # below) so it does not run through the boxes in between; arcs widen the row band
-    arc = {}
-    for u, v in edges:
-        span = abs(pos[v][0] - pos[u][0]) / 1.6
-        if pos[u][1] == pos[v][1] and span > 1.5:
-            side = 1 if ((v, u) not in eset or u < v) else -1
-            arc[(u, v)] = (side, min(0.2 + 0.05 * (span - 2), 0.3))
-    up = max([h for (u, _), (s, h) in arc.items() if s > 0 and pos[u][1] == 0] + [0.0])
-    down = max([h for (u, _), (s, h) in arc.items() if s < 0 and pos[u][1] == -(len(lcs) - 1)] + [0.0])
-    extra_up, extra_down = max(0.0, up - 0.15), max(0.0, down - 0.15)
+    # an edge that skips over other complexes in its row is routed as an elbow (up, across, down) above the row — the
+    # reverse of a reversible pair below it — each on its own lane, and the row's box grows to hold the lanes
+    skip: dict[tuple, tuple[int, int]] = {}
+    lanes: dict[tuple[int, int], list[list[tuple[int, int]]]] = {}
+    for u, v in sorted(edges, key=lambda e: abs(col[e[1]] - col[e[0]])):
+        if abs(col[v] - col[u]) < 2:
+            continue
+        side = 1 if ((v, u) not in eset or u < v) else -1
+        lo, hi = sorted((col[u], col[v]))
+        used = lanes.setdefault((lc_of[u], side), [])
+        k = next(k for k in range(len(used) + 1) if k == len(used) or all(hi < a or lo > b for a, b in used[k]))
+        if k == len(used):
+            used.append([])
+        used[k].append((lo, hi))
+        skip[(u, v)] = (side, k)
+    ends: dict[tuple[int, int], list[tuple]] = {}
+    for (u, v), (side, _) in skip.items():
+        ends.setdefault((u, side), []).append((u, v))
+        ends.setdefault((v, side), []).append((u, v))
+    lane0, lane_step, label_edge = 0.32, 0.12, 0.17
+
+    def half(r: int, side: int) -> float:
+        n = len(lanes.get((r, side), []))
+        return 0.28 if n == 0 else lane0 + lane_step * (n - 1) + 0.1
+
+    yc = [0.0]
+    for r in range(1, len(lcs)):
+        yc.append(yc[-1] - half(r - 1, -1) - 0.44 - half(r, 1))
+    pos = {i: (col[i] * 1.6, yc[lc_of[i]]) for comp in lcs for i in comp}
+    top, bottom = half(0, 1) + 0.22, yc[-1] - half(len(lcs) - 1, -1) - 0.22
     width = DOUBLE if max(len(c) for c in lcs) > 3 else SINGLE
-    fig, ax = new_figure(width, 0.45 + 0.42 * (len(lcs) + extra_up + extra_down))
+    fig, ax = new_figure(width, 0.45 + 0.42 * (top - bottom))
     from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
     from matplotlib.path import Path as MplPath
 
@@ -50,9 +66,9 @@ def fig_network(out: Path, vd: dict, name: str = "fig1a_network") -> dict:
         xs = [pos[i][0] for i in comp]
         ax.add_patch(
             FancyBboxPatch(
-                (min(xs) - 0.6, -row - 0.28),
+                (min(xs) - 0.6, yc[row] - half(row, -1)),
                 max(xs) - min(xs) + 1.2,
-                0.56,
+                half(row, 1) + half(row, -1),
                 boxstyle="round,pad=0.02",
                 fc="none",
                 ec=color(row),
@@ -75,13 +91,18 @@ def fig_network(out: Path, vd: dict, name: str = "fig1a_network") -> dict:
             shrinkB=0,
             mutation_scale=7,
         )
-        if (u, v) in arc:
-            side, h = arc[(u, v)]
-            # quadratic Bézier in data coordinates (arc3 would bend in display units, which differ in x and y here):
-            # the control point 2h above the box tops puts the curve's peak h above them
-            a, b = (x0, y0 + side * 0.2), (x1, y1 + side * 0.2)
-            ctrl = ((a[0] + b[0]) / 2, a[1] + side * 2 * h)
-            path = MplPath([a, ctrl, b], [MplPath.MOVETO, MplPath.CURVE3, MplPath.CURVE3])
+        if (u, v) in skip:
+            side, k = skip[(u, v)]
+            ly = y0 + side * (lane0 + lane_step * k)
+            # several elbows ending at one complex are spread so their vertical legs do not overlap
+            xa, xb = (
+                x + (ends[(n, side)].index((u, v)) - (len(ends[(n, side)]) - 1) / 2) * 0.14
+                for x, n in ((x0, u), (x1, v))
+            )
+            path = MplPath(
+                [(xa, y0 + side * label_edge), (xa, ly), (xb, ly), (xb, y1 + side * label_edge)],
+                [MplPath.MOVETO, MplPath.LINETO, MplPath.LINETO, MplPath.LINETO],
+            )
             style = {key: val for key, val in style.items() if not key.startswith("shrink")}
             ax.add_patch(FancyArrowPatch(path=path, **style))
         else:
@@ -107,7 +128,7 @@ def fig_network(out: Path, vd: dict, name: str = "fig1a_network") -> dict:
         rows.append(["node", labels[i], "", lc_of[i], scc_of[i], x, y, ""])
     xmax = max(p[0] for p in pos.values())
     ax.set_xlim(-0.9, xmax + 0.9)
-    ax.set_ylim(-len(lcs) + 0.5 - extra_down, 0.5 + extra_up)
+    ax.set_ylim(bottom, top)
     ax.axis("off")
     wr = "weakly reversible" if vd["weakly_reversible"] else "NOT weakly reversible"
     lc = f"{len(lcs)} linkage class" + ("" if len(lcs) == 1 else "es")
