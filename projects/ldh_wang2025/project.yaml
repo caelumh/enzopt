@@ -1,0 +1,249 @@
+# 공개 문헌 데이터 프로젝트: Wang 외 (2025) 토끼 근육 LDH, 피루브산 + NADH, PBS, 23 ℃, 플레이트 리더 340 nm
+# 데이터: figshare doi:10.6084/m9.figshare.26961733 (CC BY 4.0). make_data.py가 raw/Experimental_data.xlsx의 원 흡광을
+# 저자 환산(ε 6.3 /(mM·cm), 광로 0.3118 cm)으로 NADH 농도로 바꿈. 처음 NADH = 우물의 첫 읽기, 피루브산 = 명목값
+name: ldh_wang2025
+description: 공개 문헌 데이터 — Wang 외(2025) 토끼 근육 LDH, 피루브산 0.023~2 mM × NADH 0.4~0.6 mM × 효소 3가지, 우물 179개, 490초
+
+network:
+  name: ldh_ordered_bibi
+  species: [E, NADH, EN, Pyr, ENP, EQL, Lac, EQ, NAD]
+  enzyme_species: [E, EN, ENP, EQL, EQ]
+  steps:
+    - E + NADH <=> EN
+    - EN + Pyr <=> ENP
+    - ENP <=> EQL
+    - EQL <=> EQ + Lac
+    - EQ <=> E + NAD
+  observable:
+    name: NADH_mM
+    coefficients: {NADH: 1.0, EN: 1.0, ENP: 1.0}   # 효소에 붙은 NADH도 340 nm에서 보임
+  thermodynamics:
+    overall: Pyr + NADH <=> Lac + NAD
+    Kp: 9.2e3                # PBS pH 7.4 가정: pH 7.0의 2.3×10⁴(ldh_holmes1988)에서 pH 1당 10배(H⁺ 하나 소비)
+    haldane_step: 5
+  prior:                     # ldh_holmes1988와 같은 문헌 자릿수, 표준편차 1.5 자릿수
+    kf_log10: [4, 4, 2, 3, 2]
+    kr_log10: [2, 3, 3, 2]
+    Kp_log10: 4
+    sd_decades: 1.5
+
+control:                     # 대조: NAD⁺ 방출을 한 방향으로(약가역이 아니게)
+  one_way_steps: [5]
+
+identification:
+  method: pinn
+  seeds: 4
+  noise_sigma: 0.009         # mM = 9 µM: 같은 조건 3반복 우물끼리 곡선 모양 차이 중앙값 8.8 µM(우물별 효소량·피펫 차이를
+                             # 모델이 따로 갖지 않으므로 잡음으로 봄). 읽기 잡음만은 1.2 µM(첫 실행 σ 2 µM은 표본 0개, README)
+  pinn: {restarts: 8}
+  baseline_fit: {starts: 4, max_nfev: 40}   # 학습 우물이 108개라 반복을 줄임
+  control: {seeds: 2}
+
+simulation:
+  t_long_s: 43200            # 12시간: Hopsan 겉보기 1단계 배치(k₁ 8.7×10⁻⁴ /(mM·s))가 평형에 닿도록. 1시간이면 0/13 통과
+                             # (|ln Q/K| 3.9~5, scipy와 같은 값이라 수치 오류가 아니라 시간 부족, pgm_eno_giess2026과 같음)
+
+design:                      # 참고용: 피루브산 정량(NADH를 짝 기질로). 0.1 mM을 10분 안에 99 %
+  target: assay
+  analyte: Pyr
+  partner: NADH
+  free_enzyme: E
+  analyte0_mM: 0.1
+  conversion: 0.99
+  time_s: 600
+  Kp: 9.2e3
+  rho_grid: auto
+  pipette:
+    volume_uL: 200
+    enzyme_uL: 10
+    stocks_mM: {NADH: 5.0, Pyr: 10.0}
+    limit_test_rhos: []
+    limit_test_enzyme_multiples: []
+
+# 실행 5번 × 피루브산 12농도(2 mM부터 1.5배씩 묽힘) × 3반복. 학습: 실행 2·3·4(효소 3.42 nM 활성 자리, NADH 0.5·0.4·0.6 mM),
+# 홀드아웃: 실행 1·5(효소 2.73·4.27 nM, 학습에 없는 효소량)
+experiments:
+  # run 1 (sheet 'Kinetik 1. D-F'): NADH 0.5 mM nominal, enzyme 0.0001 mg/mL = 2.73 nM active sites, background A340 0.134
+  r1_c01_D: {file: data/r1_c01_D.csv, NADH: 0.3856, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c01_E: {file: data/r1_c01_E.csv, NADH: 0.36728, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c01_F: {file: data/r1_c01_F.csv, NADH: 0.37237, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c02_D: {file: data/r1_c02_D.csv, NADH: 0.39324, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c02_E: {file: data/r1_c02_E.csv, NADH: 0.37237, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c02_F: {file: data/r1_c02_F.csv, NADH: 0.35964, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c03_D: {file: data/r1_c03_D.csv, NADH: 0.38204, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c03_E: {file: data/r1_c03_E.csv, NADH: 0.37746, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c03_F: {file: data/r1_c03_F.csv, NADH: 0.37339, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c04_D: {file: data/r1_c04_D.csv, NADH: 0.3912, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c04_E: {file: data/r1_c04_E.csv, NADH: 0.40342, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c04_F: {file: data/r1_c04_F.csv, NADH: 0.39019, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c05_D: {file: data/r1_c05_D.csv, NADH: 0.3795, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c05_E: {file: data/r1_c05_E.csv, NADH: 0.37899, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c05_F: {file: data/r1_c05_F.csv, NADH: 0.41106, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c06_D: {file: data/r1_c06_D.csv, NADH: 0.3963, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c06_E: {file: data/r1_c06_E.csv, NADH: 0.37797, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c06_F: {file: data/r1_c06_F.csv, NADH: 0.38917, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c07_D: {file: data/r1_c07_D.csv, NADH: 0.35964, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c07_E: {file: data/r1_c07_E.csv, NADH: 0.42379, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c07_F: {file: data/r1_c07_F.csv, NADH: 0.3683, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c08_D: {file: data/r1_c08_D.csv, NADH: 0.39579, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c08_E: {file: data/r1_c08_E.csv, NADH: 0.38459, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c08_F: {file: data/r1_c08_F.csv, NADH: 0.39782, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c09_D: {file: data/r1_c09_D.csv, NADH: 0.38255, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c09_E: {file: data/r1_c09_E.csv, NADH: 0.38662, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c09_F: {file: data/r1_c09_F.csv, NADH: 0.38662, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c10_D: {file: data/r1_c10_D.csv, NADH: 0.38153, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c10_E: {file: data/r1_c10_E.csv, NADH: 0.39222, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c10_F: {file: data/r1_c10_F.csv, NADH: 0.39426, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c11_D: {file: data/r1_c11_D.csv, NADH: 0.39477, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c11_E: {file: data/r1_c11_E.csv, NADH: 0.3856, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c11_F: {file: data/r1_c11_F.csv, NADH: 0.37899, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c12_D: {file: data/r1_c12_D.csv, NADH: 0.39884, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c12_E: {file: data/r1_c12_E.csv, NADH: 0.39273, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  r1_c12_F: {file: data/r1_c12_F.csv, NADH: 0.41208, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 2.732, role: holdout}
+  # run 2 (sheet 'Kinetik 2. A-C'): NADH 0.5 mM nominal, enzyme 0.000125 mg/mL = 3.42 nM active sites, background A340 0.135
+  r2_c01_A: {file: data/r2_c01_A.csv, NADH: 0.39668, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c01_B: {file: data/r2_c01_B.csv, NADH: 0.40126, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c01_C: {file: data/r2_c01_C.csv, NADH: 0.38395, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c02_A: {file: data/r2_c02_A.csv, NADH: 0.40177, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c02_B: {file: data/r2_c02_B.csv, NADH: 0.39108, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c02_C: {file: data/r2_c02_C.csv, NADH: 0.39464, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c03_A: {file: data/r2_c03_A.csv, NADH: 0.3809, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c03_B: {file: data/r2_c03_B.csv, NADH: 0.38751, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c03_C: {file: data/r2_c03_C.csv, NADH: 0.39566, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c04_A: {file: data/r2_c04_A.csv, NADH: 0.38955, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c04_B: {file: data/r2_c04_B.csv, NADH: 0.37326, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c04_C: {file: data/r2_c04_C.csv, NADH: 0.38344, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c05_A: {file: data/r2_c05_A.csv, NADH: 0.37071, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c05_B: {file: data/r2_c05_B.csv, NADH: 0.3758, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c05_C: {file: data/r2_c05_C.csv, NADH: 0.39006, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c06_A: {file: data/r2_c06_A.csv, NADH: 0.38548, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c06_B: {file: data/r2_c06_B.csv, NADH: 0.38395, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c06_C: {file: data/r2_c06_C.csv, NADH: 0.37835, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c07_A: {file: data/r2_c07_A.csv, NADH: 0.37071, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c07_B: {file: data/r2_c07_B.csv, NADH: 0.38751, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c07_C: {file: data/r2_c07_C.csv, NADH: 0.38344, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c08_A: {file: data/r2_c08_A.csv, NADH: 0.38395, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c08_B: {file: data/r2_c08_B.csv, NADH: 0.37937, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c08_C: {file: data/r2_c08_C.csv, NADH: 0.39311, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c09_A: {file: data/r2_c09_A.csv, NADH: 0.39719, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c09_B: {file: data/r2_c09_B.csv, NADH: 0.38802, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c09_C: {file: data/r2_c09_C.csv, NADH: 0.4094, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c10_A: {file: data/r2_c10_A.csv, NADH: 0.3921, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c10_B: {file: data/r2_c10_B.csv, NADH: 0.39057, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c10_C: {file: data/r2_c10_C.csv, NADH: 0.38802, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c11_A: {file: data/r2_c11_A.csv, NADH: 0.40329, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c11_B: {file: data/r2_c11_B.csv, NADH: 0.38751, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c11_C: {file: data/r2_c11_C.csv, NADH: 0.39057, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c12_A: {file: data/r2_c12_A.csv, NADH: 0.387, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c12_B: {file: data/r2_c12_B.csv, NADH: 0.36359, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r2_c12_C: {file: data/r2_c12_C.csv, NADH: 0.40991, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  # run 3 (sheet 'Kinetik 3. D-F'): NADH 0.4 mM nominal, enzyme 0.000125 mg/mL = 3.42 nM active sites, background A340 0.135
+  r3_c01_D: {file: data/r3_c01_D.csv, NADH: 0.32695, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c01_E: {file: data/r3_c01_E.csv, NADH: 0.31677, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c01_F: {file: data/r3_c01_F.csv, NADH: 0.31321, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c02_D: {file: data/r3_c02_D.csv, NADH: 0.32543, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c02_E: {file: data/r3_c02_E.csv, NADH: 0.31016, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c02_F: {file: data/r3_c02_F.csv, NADH: 0.32135, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c03_D: {file: data/r3_c03_D.csv, NADH: 0.32441, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c03_E: {file: data/r3_c03_E.csv, NADH: 0.31728, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c03_F: {file: data/r3_c03_F.csv, NADH: 0.31728, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c04_D: {file: data/r3_c04_D.csv, NADH: 0.31626, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c04_E: {file: data/r3_c04_E.csv, NADH: 0.31525, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c04_F: {file: data/r3_c04_F.csv, NADH: 0.32746, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c05_D: {file: data/r3_c05_D.csv, NADH: 0.32135, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c05_E: {file: data/r3_c05_E.csv, NADH: 0.31728, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c05_F: {file: data/r3_c05_F.csv, NADH: 0.32034, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c06_D: {file: data/r3_c06_D.csv, NADH: 0.33815, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c06_E: {file: data/r3_c06_E.csv, NADH: 0.32899, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c06_F: {file: data/r3_c06_F.csv, NADH: 0.32797, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c07_D: {file: data/r3_c07_D.csv, NADH: 0.31728, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c07_E: {file: data/r3_c07_E.csv, NADH: 0.31474, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c07_F: {file: data/r3_c07_F.csv, NADH: 0.33052, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c08_D: {file: data/r3_c08_D.csv, NADH: 0.32492, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c08_E: {file: data/r3_c08_E.csv, NADH: 0.31881, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c08_F: {file: data/r3_c08_F.csv, NADH: 0.32848, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c09_D: {file: data/r3_c09_D.csv, NADH: 0.31219, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c09_E: {file: data/r3_c09_E.csv, NADH: 0.32695, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c09_F: {file: data/r3_c09_F.csv, NADH: 0.32645, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c10_D: {file: data/r3_c10_D.csv, NADH: 0.33357, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c10_E: {file: data/r3_c10_E.csv, NADH: 0.33052, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c10_F: {file: data/r3_c10_F.csv, NADH: 0.33408, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c11_D: {file: data/r3_c11_D.csv, NADH: 0.23787, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c11_E: {file: data/r3_c11_E.csv, NADH: 0.26128, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c11_F: {file: data/r3_c11_F.csv, NADH: 0.32746, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c12_D: {file: data/r3_c12_D.csv, NADH: 0.33663, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c12_E: {file: data/r3_c12_E.csv, NADH: 0.33001, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r3_c12_F: {file: data/r3_c12_F.csv, NADH: 0.33561, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  # run 4 (sheet 'Kinetik 4. A-C'): NADH 0.6 mM nominal, enzyme 0.000125 mg/mL = 3.42 nM active sites, background A340 0.135
+  r4_c01_A: {file: data/r4_c01_A.csv, NADH: 0.44729, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c01_B: {file: data/r4_c01_B.csv, NADH: 0.41471, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c01_C: {file: data/r4_c01_C.csv, NADH: 0.45187, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c02_A: {file: data/r4_c02_A.csv, NADH: 0.44372, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c02_B: {file: data/r4_c02_B.csv, NADH: 0.43456, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c02_C: {file: data/r4_c02_C.csv, NADH: 0.42692, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c03_A: {file: data/r4_c03_A.csv, NADH: 0.43609, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c03_B: {file: data/r4_c03_B.csv, NADH: 0.44627, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c03_C: {file: data/r4_c03_C.csv, NADH: 0.43863, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c04_A: {file: data/r4_c04_A.csv, NADH: 0.45492, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c04_B: {file: data/r4_c04_B.csv, NADH: 0.45289, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c04_C: {file: data/r4_c04_C.csv, NADH: 0.43965, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c05_A: {file: data/r4_c05_A.csv, NADH: 0.41572, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c05_B: {file: data/r4_c05_B.csv, NADH: 0.43252, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c05_C: {file: data/r4_c05_C.csv, NADH: 0.43405, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c06_A: {file: data/r4_c06_A.csv, NADH: 0.45798, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c06_B: {file: data/r4_c06_B.csv, NADH: 0.44322, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c06_C: {file: data/r4_c06_C.csv, NADH: 0.42285, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c07_A: {file: data/r4_c07_A.csv, NADH: 0.4366, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c07_B: {file: data/r4_c07_B.csv, NADH: 0.45798, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c07_C: {file: data/r4_c07_C.csv, NADH: 0.44169, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c08_A: {file: data/r4_c08_A.csv, NADH: 0.42031, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c08_B: {file: data/r4_c08_B.csv, NADH: 0.43354, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c08_C: {file: data/r4_c08_C.csv, NADH: 0.44271, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c09_A: {file: data/r4_c09_A.csv, NADH: 0.43609, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c09_B: {file: data/r4_c09_B.csv, NADH: 0.44322, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c09_C: {file: data/r4_c09_C.csv, NADH: 0.43507, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c10_A: {file: data/r4_c10_A.csv, NADH: 0.44169, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c10_B: {file: data/r4_c10_B.csv, NADH: 0.45492, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c10_C: {file: data/r4_c10_C.csv, NADH: 0.44627, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c11_A: {file: data/r4_c11_A.csv, NADH: 0.37245, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c11_B: {file: data/r4_c11_B.csv, NADH: 0.44932, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c11_C: {file: data/r4_c11_C.csv, NADH: 0.42896, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c12_A: {file: data/r4_c12_A.csv, NADH: 0.24926, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c12_B: {file: data/r4_c12_B.csv, NADH: 0.43202, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  r4_c12_C: {file: data/r4_c12_C.csv, NADH: 0.43456, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 3.415, role: train}
+  # run 5 (sheet 'Kinetik 5. D-F'): NADH 0.5 mM nominal, enzyme 0.00015625 mg/mL = 4.27 nM active sites, background A340 0.135
+  r5_c01_D: {file: data/r5_c01_D.csv, NADH: 0.3771, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c01_E: {file: data/r5_c01_E.csv, NADH: 0.38575, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c01_F: {file: data/r5_c01_F.csv, NADH: 0.40612, Pyr: 2, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c02_D: {file: data/r5_c02_D.csv, NADH: 0.37863, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c02_E: {file: data/r5_c02_E.csv, NADH: 0.37455, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c02_F: {file: data/r5_c02_F.csv, NADH: 0.39135, Pyr: 1.3333, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c03_D: {file: data/r5_c03_D.csv, NADH: 0.38932, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c03_E: {file: data/r5_c03_E.csv, NADH: 0.37761, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c03_F: {file: data/r5_c03_F.csv, NADH: 0.39288, Pyr: 0.88889, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c04_D: {file: data/r5_c04_D.csv, NADH: 0.38066, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c04_E: {file: data/r5_c04_E.csv, NADH: 0.38983, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c04_F: {file: data/r5_c04_F.csv, NADH: 0.39543, Pyr: 0.59259, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c05_D: {file: data/r5_c05_D.csv, NADH: 0.3827, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c05_E: {file: data/r5_c05_E.csv, NADH: 0.37812, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c05_F: {file: data/r5_c05_F.csv, NADH: 0.38219, Pyr: 0.39506, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c06_D: {file: data/r5_c06_D.csv, NADH: 0.36946, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c06_E: {file: data/r5_c06_E.csv, NADH: 0.3827, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c06_F: {file: data/r5_c06_F.csv, NADH: 0.38779, Pyr: 0.26337, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c07_D: {file: data/r5_c07_D.csv, NADH: 0.38015, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c07_E: {file: data/r5_c07_E.csv, NADH: 0.38219, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c07_F: {file: data/r5_c07_F.csv, NADH: 0.37913, Pyr: 0.17558, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c08_D: {file: data/r5_c08_D.csv, NADH: 0.38575, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c08_E: {file: data/r5_c08_E.csv, NADH: 0.39441, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c08_F: {file: data/r5_c08_F.csv, NADH: 0.38677, Pyr: 0.11706, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c09_D: {file: data/r5_c09_D.csv, NADH: 0.3883, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c09_E: {file: data/r5_c09_E.csv, NADH: 0.3939, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c09_F: {file: data/r5_c09_F.csv, NADH: 0.36997, Pyr: 0.078037, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c10_D: {file: data/r5_c10_D.csv, NADH: 0.39084, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c10_E: {file: data/r5_c10_E.csv, NADH: 0.36386, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c10_F: {file: data/r5_c10_F.csv, NADH: 0.39186, Pyr: 0.052025, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c11_D: {file: data/r5_c11_D.csv, NADH: 0.3659, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c11_E: {file: data/r5_c11_E.csv, NADH: 0.38983, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c11_F: {file: data/r5_c11_F.csv, NADH: 0.35826, Pyr: 0.034683, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c12_E: {file: data/r5_c12_E.csv, NADH: 0.38423, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}
+  r5_c12_F: {file: data/r5_c12_F.csv, NADH: 0.40815, Pyr: 0.023122, Lac: 0, NAD: 0, Et_nM: 4.269, role: holdout}

@@ -29,7 +29,7 @@ uv run enzopt dashboard                                # 대시보드 (http://lo
 uv run enzopt pack runs/example_ldh_synth/<실행 폴더>   # 제출용 zip 하나
 ```
 
-실데이터 프로젝트: 측정용 틀 `projects/ldh_ph10/`(측정 기록지 README 포함)을 채운다. 실측 문헌 데이터로 미리 시험한 예는 `projects/ldh_holmes1988/`(Holmes 1988, 토끼 근육 LDH pH 7.0). 허락 없이 쓸 수 있는 공개 데이터(CC BY·BSD)로 돌린 예: `projects/aeh_cephalexin_lagerman2021/`(효소로 항생제 합성, HPLC 4물질), `projects/aar_chimera5_olavarria2021/`(NADH 탈수소효소, 360 nm 진행 곡선 36개), `projects/slac_abts_haussler2023_25C`~`_45C`(라카아제, 25~45 ℃ 다섯 온도, 측정마다 온도 기록; 원자료·정리는 `projects/slac_abts_haussler2023/`), `projects/pgm_eno_giess2026/`(효소 둘의 연쇄 반응, ³¹P NMR). 각 폴더 README에 출처·라이선스·결과가 있다. 처음부터 만들 때는 `projects/example_ldh_synth`를 복사해 `projects/<이름>/`을 만들고, `data/`에 진행 곡선 CSV를 넣은 뒤 `project.yaml`의 `name`과 `experiments`(초기 농도·효소량·파일·역할)를 고칩니다.
+실데이터 프로젝트: 측정용 틀 `projects/ldh_ph10/`(측정 기록지 README 포함)을 채운다. 실측 문헌 데이터로 미리 시험한 예는 `projects/ldh_holmes1988/`(Holmes 1988, 토끼 근육 LDH pH 7.0). 허락 없이 쓸 수 있는 공개 데이터(CC BY·BSD)로 돌린 예: `projects/aeh_cephalexin_lagerman2021/`(효소로 항생제 합성, HPLC 4물질), `projects/aar_chimera5_olavarria2021/`(NADH 탈수소효소, 360 nm 진행 곡선 36개), `projects/slac_abts_haussler2023_25C`~`_45C`(라카아제, 25~45 ℃ 다섯 온도, 측정마다 온도 기록; 원자료·정리는 `projects/slac_abts_haussler2023/`), `projects/pgm_eno_giess2026/`(효소 둘의 연쇄 반응, ³¹P NMR), `projects/ldh_wang2025/`(토끼 근육 LDH, 피루브산·NADH·효소량을 바꾼 340 nm 플레이트 곡선 179개). 각 폴더 README에 출처·라이선스·결과가 있다. 처음부터 만들 때는 `projects/example_ldh_synth`를 복사해 `projects/<이름>/`을 만들고, `data/`에 진행 곡선 CSV를 넣은 뒤 `project.yaml`의 `name`과 `experiments`(초기 농도·효소량·파일·역할)를 고칩니다.
 
 | 명령 | 하는 일 |
 |---|---|
