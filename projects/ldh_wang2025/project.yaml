@@ -27,9 +27,6 @@ network:
     Kp_log10: 4
     sd_decades: 1.5
 
-control:                     # 대조: NAD⁺ 방출을 한 방향으로(약가역이 아니게)
-  one_way_steps: [5]
-
 identification:
   method: pinn
   seeds: 4
@@ -37,7 +34,6 @@ identification:
                              # 모델이 따로 갖지 않으므로 잡음으로 봄). 읽기 잡음만은 1.2 µM(첫 실행 σ 2 µM은 표본 0개, README)
   pinn: {restarts: 8}
   baseline_fit: {starts: 4, max_nfev: 40}   # 학습 웰이 108개라 반복을 줄임
-  control: {seeds: 2}
 
 simulation:
   t_long_s: 43200            # 12시간: Hopsan 겉보기 1단계 배치(k₁ 8.7×10⁻⁴ /(mM·s))가 평형에 닿도록. 1시간이면 0/13 통과

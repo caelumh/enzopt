@@ -26,9 +26,6 @@ network:
     Kp_log10: 1
     sd_decades: 1.5
 
-control:
-  one_way_steps: [5]
-
 experiments:
   A:  {file: data/setA.csv,  NADH: 0.2, NAD: 0.0, Pyr: 0.2, Lac: 9.8,  Et_nM: 24.23, role: train}
   B:  {file: data/setB.csv,  NADH: 0.0, NAD: 0.2, Pyr: 0.0, Lac: 10.0, Et_nM: 24.23, role: train}
@@ -45,7 +42,6 @@ identification:
     restarts: 8
     inactivation: shared     # 모든 실험이 같은 효소 활성 a(t)를 공유(효소를 넣은 뒤 시간). 모양은 정하지 않는다
   baseline_fit: {starts: 4}  # 고전 피팅 기준선은 실활을 모델에 넣지 않는다(비교용)
-  control: {seeds: 2}
 
 simulation:
   t_long_s: 3000

@@ -44,9 +44,6 @@ network:
     kr_log10: [4, 4, 2, 3, 4, 4, 4, 4]
     sd_decades: 1.5
 
-control:                            # 비약가역 대조: 아미노 분해를 한 방향으로(세팔렉신 가수분해 경로가 없어짐)
-  one_way_steps: [5]
-
 # 0.2 µM 효소(저자 기록), 시각 0~1800 s(0, 1, 2, 3, 5, 10, 15, 20, 25, 30분). 처음 농도 = t = 0 측정 행
 experiments:
   m0: {file: data/m0.csv, PGME: 20, ADCA: 10, CEX: 0, PG: 2.0, Et_nM: 200, role: train}

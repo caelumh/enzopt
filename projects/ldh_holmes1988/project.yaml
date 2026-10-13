@@ -27,9 +27,6 @@ network:
     Kp_log10: 4
     sd_decades: 1.5
 
-control:
-  one_way_steps: [5]
-
 # Et_nM: 모든 곡선을 명목 효소 0.05 units/ml로 환산(원 데이터 축이 e0·t). 330 units/mg(논문), 활성 자리 36.6 kDa → 4.14 nM
 experiments:
   s142: {file: data/set142.csv, NADH: 0.0345, Pyr: 0.280,  Lac: 0.0,    NAD: 3.00,   Et_nM: 4.14, role: train}
@@ -64,7 +61,6 @@ identification:
   noise_sigma: 0.001         # mM. 원 논문의 실험 재현성(0.2~0.5 %)과 0.2 cm·1 cm 큐벳을 고려한 절충값
   pinn: {adam_iters: 2000, lbfgs_iters: 300, restarts: 8}
   baseline_fit: {starts: 4, max_nfev: 40}   # 학습 세트가 15개라 반복을 줄임
-  control: {seeds: 2}
 
 simulation:
   t_long_s: 3000

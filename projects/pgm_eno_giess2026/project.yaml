@@ -31,9 +31,6 @@ network:
     kr_log10: [3, 3, 3, 3, 3]       # 해리 1/s, 거꾸로 결합 1/(mM·s); 열역학으로 정해지는 단계의 값은 쓰지 않음
     sd_decades: 1.5
 
-control:                            # 대조: PGM의 변환·방출을 한 방향으로(PEP 쪽에서 3PG로 돌아갈 수 없음)
-  one_way_steps: [2]
-
 identification:
   method: pinn
   seeds: 4

@@ -28,9 +28,6 @@ network:
     kr_log10: [2]                   # 해리 1/s(해리 상수 0.1 mM 근처)
     sd_decades: 1.5
 
-control:                            # 대조: ABTS 결합을 한 방향으로(ABTS가 다시 떨어지지 않음)
-  one_way_steps: [1]
-
 identification:
   method: pinn
   seeds: 4

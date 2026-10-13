@@ -26,9 +26,6 @@ network:
     kr_log10: [2, 2, 2]             # 가역 단계 1, 2, 4의 해리 1/s(해리 상수 0.1 mM 근처)
     sd_decades: 1.5
 
-control:                            # 대조: NADH 결합을 한 방향으로(NADH가 다시 떨어지지 않음)
-  one_way_steps: [2]
-
 identification:
   method: pinn
   seeds: 4
