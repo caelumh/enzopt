@@ -473,6 +473,7 @@ def _peak_design(ctx: RunContext, p, des: dict, design: AssayDesign, rates, rhos
     plots.write_rows(out / "pipette.csv", list(pip[0].keys()), [list(r.values()) for r in pip])
     summ["pipette"] = pip
     summ["figures"] = [plots.peak_figure(out, res, design.product)]
+    write_json(out / "figures.json", summ["figures"])  # the dashboard lists a stage's figures from this file
     ctx.flag(
         "design",
         {"rho_star": res.rho_star, "Et_nM": Et * 1e6, "robust_stop_s": s["stop_robust_s"], "yield": s["yield_robust"]},

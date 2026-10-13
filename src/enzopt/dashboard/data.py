@@ -134,6 +134,8 @@ def stage_json(run: RunView, stage: str, name: str) -> tuple[dict | None, str | 
 
 def stage_figures(run: RunView, stage: str) -> list[dict]:
     figs = read_json(run.path / stage / "figures.json", []) or []
+    if not figs and stage == "5_design":  # peak-goal runs before 2026-10-13 listed their figure in the summary only
+        figs = (read_json(run.path / stage / "design_summary.json", {}) or {}).get("figures") or []
     return [f for f in figs if (run.path / stage / f.get("png", "")).exists()]
 
 

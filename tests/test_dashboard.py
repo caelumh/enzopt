@@ -199,3 +199,17 @@ def test_detached_run_from_button(dash, tmp_path):
     assert any("새 실행 시작" in s.value for s in at.success)
     del at  # the dashboard session ends here; the engine keeps running in its own process
     assert _wait_completed(new[0]) == "completed", (new[0] / "run.log").read_text(encoding="utf-8")[-2000:]
+
+
+def test_peak_figure_listed_for_old_runs(tmp_path):
+    """Peak-goal runs before 2026-10-13 have no 5_design/figures.json: the figure is found in the design summary."""
+    from enzopt.dashboard import data as D
+
+    rd = tmp_path / "2026-10-11_1200"
+    (rd / "5_design").mkdir(parents=True)
+    (rd / "manifest.json").write_text(json.dumps({"status": "completed", "stages": {}}), encoding="utf-8")
+    fig = {"name": "fig5a_peak", "pdf": "fig5a_peak.pdf", "png": "fig5a_peak.png", "csv": "fig5a_peak.csv"}
+    summary = json.dumps({"goal": "peak", "figures": [fig]})
+    (rd / "5_design" / "design_summary.json").write_text(summary, encoding="utf-8")
+    (rd / "5_design" / "fig5a_peak.png").write_bytes(b"png")
+    assert [f["name"] for f in D.stage_figures(D.load_run(rd), "5_design")] == ["fig5a_peak"]
