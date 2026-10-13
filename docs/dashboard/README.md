@@ -6,7 +6,7 @@
 
 - 예제 실행: `runs/ldh_wang2025/2026-10-12_1738`(전체 모드, Hopsan 켬). 그림 사본은 `docs/dashboard/`에 있고, 그림을 넣은 HTML 판은 [`DASHBOARD.html`](../DASHBOARD.html)입니다(`uv run python scripts/build_guide_html.py --page dashboard`로 다시 만듦).
 - 직접 보기: `uv run enzopt dashboard` → 왼쪽 **프로젝트**에서 `ldh_wang2025` → **실행 (최신순)**에서 `2026-10-12_1738`.
-- 함께 읽을 문서: 같은 그림을 합성 예제로 설명하고 피펫 표·용어를 다룬 [안내서](../GUIDE.md), 배경지식부터 설명하는 [속도 상수 찾기](../IDENTIFICATION.html), 이 데이터의 처리와 결과를 적은 [`projects/ldh_wang2025/README.md`](../../projects/ldh_wang2025/README.md).
+- 함께 읽을 문서: 같은 그림을 합성 예제로 설명하고 피펫 표·용어를 다룬 [안내서](../GUIDE.md), 배경지식부터 설명하는 [속도 상수 찾기](../IDENTIFICATION.html), 이 데이터의 처리와 결과를 적은 [`projects/ldh_wang2025/README.md`](../../projects/ldh_wang2025/README.md), 탭마다 안에서 하는 계산과 그림이 무엇에서 그려지는지를 적은 [시스템 흐름](../FLOW.html).
 - PINN은 GPU float32로 학습하므로 다시 돌리면 숫자가 조금씩 다를 수 있습니다.
 
 ---

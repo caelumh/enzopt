@@ -4,6 +4,7 @@
     uv run python scripts/build_guide_html.py --link-images  # keep relative image paths (smaller file)
     uv run python scripts/build_guide_html.py --page identification  # docs/identification/README.md → .html
     uv run python scripts/build_guide_html.py --page dashboard  # docs/dashboard/README.md → DASHBOARD.html
+    uv run python scripts/build_guide_html.py --page flow  # docs/flow/README.md → FLOW.html
 
 Handles the Markdown that the pages use: headings, paragraphs, bold/italic/code/links, nested lists, tables,
 block quotes, fenced code, rules and stand-alone images (rendered as figures; a long alt text becomes the caption).
@@ -44,6 +45,14 @@ PAGES = {
         "eyebrow": "enzopt · 탭과 그림 읽기",
         "description": "대시보드의 탭 다섯 개와 그림 15장이 무엇을 뜻하는지, 공개 LDH 데이터 프로젝트 ldh_wang2025의 "
         "실제 결과로 설명하는 레퍼런스",
+    },
+    "flow": {
+        "src": ROOT / "docs" / "flow" / "README.md",
+        "out": ROOT / "docs" / "FLOW.html",
+        "label": "시스템 흐름",
+        "eyebrow": "enzopt · 단계별 계산과 그림",
+        "description": "입력이 다섯 단계를 지나 피펫 표가 되기까지, 탭마다 안에서 하는 계산과 남기는 파일, "
+        "그리고 그림 하나하나가 무엇에서 그려져 무엇을 뜻하는지 설명하는 레퍼런스",
     },
 }
 
