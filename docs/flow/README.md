@@ -18,13 +18,13 @@
 
 ## 1. 한눈에 보기
 
-![그림 S — 시스템 흐름. 가운데 세 열은 단계마다 계산(왼쪽) → 실행 폴더의 파일(가운데) → 대시보드 탭(오른쪽)입니다. 파란 점선은 뒤 단계가 앞 단계의 파일을 읽는 길이고, 보라 점선은 대시보드가 같은 엔진을 별도 프로세스로 띄우는 길입니다.](system.svg)
+![그림 S — 시스템 흐름. 가운데 세 열은 단계마다 계산(왼쪽) → 실행 폴더의 파일(가운데) → 대시보드 탭(오른쪽)입니다. 파란 점선은 뒤 단계가 앞 단계의 파일을 읽는 길이고, 보라 점선은 대시보드가 같은 엔진을 별도 프로세스로 띄우는 길입니다. 대조(그림 1c, 대조 PINN, `control/`)는 `control:`이 있을 때만 생기고, 지금은 평가용 프로젝트에만 있습니다.](system.svg)
 
 | 단계 = 탭 | 읽는 것 | 하는 일 | 쓰는 것(실행 폴더) | 그림 | 예제 시간 |
 |---|---|---|---|---|---|
-| ① 반응망 | `project.yaml`의 `network`·`control`·`design.dead_end` | 반응식의 구조 판정(CRNT): 약가역·결핍·보존 법칙·등급 | `1_verdict/verdict.json`, `report.txt`, 플래그 `guarantee_149` | 1a·1b·1c | 0.9 s |
+| ① 반응망 | `project.yaml`의 `network`·`control`·`design.dead_end` | 반응식의 구조 판정(CRNT): 약가역·결핍·보존 법칙·등급 | `1_verdict/verdict.json`, `report.txt`, 플래그 `guarantee_149` | 1a·1b(+1c 대조) | 0.9 s |
 | ② 데이터 | `experiments` + `data/*.csv` | 파일 형식 검사, 표준 형식으로 바꿈, 처음 값·온도 정리 | `2_data/exp_*.csv`, `data.json` | 2 | 0.8 s |
-| ③ 식별 | `2_data/exp_*.csv`(+ 추가 신호) | PINN으로 속도 상수 표본, 재해석으로 고르고 거름, 고전 피팅·대조 | `3_fit/samples/*.json`, `fit_summary.json`, `holdout_comparison.csv` | 3a~3d(3e·3f) | 839 s |
+| ③ 식별 | `2_data/exp_*.csv`(+ 추가 신호) | PINN(신경망 곡선 + 효소 고리)으로 속도 상수 표본, 재해석으로 고르고 거름, 비교용 고전 피팅·대조(있을 때) | `3_fit/samples/*.json`, `fit_summary.json`, `holdout_comparison.csv` | 3a~3d(3e·3f) | 839 s |
 | ④ 해석 | `3_fit/samples/*.json`, 플래그 | 표본 × 처음 상태를 scipy로 풀고 CRNT 검증, Hopsan 대조 | `4_sim/validation.csv`, `sim_summary.json`, `hopsan/` | 4a·4b·4c | 39 s |
 | ⑤ 설계 | `3_fit/fit_summary.json`, `samples/*.json` | 평형 한계, ρ마다 최소 효소량(공칭·강건), 피펫 표, 예측 곡선 | `5_design/pipette.csv`, `design_summary.json` 등 | 5a~5d(5a_peak) | 40 s |
 

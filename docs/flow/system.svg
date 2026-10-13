@@ -28,21 +28,22 @@
 <text x="64" y="269" font-size="12" fill="#222">복합체 · 연결 성분 · 강연결 성분</text>
 <text x="64" y="287" font-size="12" fill="#222">약가역 · 결핍 = 복합체 − 연결 성분 − 랭크</text>
 <text x="64" y="305" font-size="12" fill="#222">보존 법칙(정수 기저) · 등급 A / B / C</text>
-<text x="64" y="323" font-size="12" fill="#222">식별 · 대조 · 설계 반응망을 각각 판정</text>
+<text x="64" y="323" font-size="12" fill="#222">식별 반응망 + (있으면) 대조 · 설계 반응망</text>
 <text x="64" y="360" font-size="11" fill="#666">읽음: project.yaml의 network · control · design</text>
 <rect x="440" y="222" width="290" height="150" rx="8" fill="#f9f9f9" stroke="#999999" stroke-width="1.5"/>
 <path d="M440,230 Q440,222 448,222 H722 Q730,222 730,230 V250 H440 z" fill="#ebebeb"/>
 <text x="454" y="242" font-size="13" fill="#222" font-weight="700" font-family="Consolas, 'D2Coding', monospace">1_verdict/</text>
 <text x="454" y="269" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">verdict.json · report.txt</text>
-<text x="454" y="287" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">fig1a · fig1b · fig1c</text>
+<text x="454" y="287" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">fig1a · fig1b (+ fig1c 대조)</text>
 <text x="454" y="305" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">→ manifest 플래그 guarantee_149</text>
 <rect x="770" y="222" width="310" height="150" rx="8" fill="#ffffff" stroke="#009E73" stroke-width="1.5"/>
 <path d="M770,230 Q770,222 778,222 H1072 Q1080,222 1080,230 V250 H770 z" fill="#dff3ec"/>
 <text x="784" y="242" font-size="14" fill="#222" font-weight="700">① 반응망</text>
 <text x="784" y="269" font-size="12" fill="#222">판정 한 줄 · 보장/전제 상자</text>
 <text x="784" y="287" font-size="12" fill="#222">판정 표 (반응망마다 한 줄)</text>
-<text x="784" y="305" font-size="12" fill="#222">그림 1a · 1c · 1b · 펼침: 판정 보고</text>
-<text x="784" y="323" font-size="12" fill="#222">약가역 아니면 모든 탭에 빨간 띠</text>
+<text x="784" y="305" font-size="12" fill="#222">그림 1a · 1b (+ 1c 대조)</text>
+<text x="784" y="323" font-size="12" fill="#222">펼침: 판정 보고 전문</text>
+<text x="784" y="341" font-size="12" fill="#222">약가역 아니면 모든 탭에 빨간 띠</text>
 <path d="M400,297 H438" stroke="#555555" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
 <path d="M730,297 H768" stroke="#009E73" stroke-width="1.6" fill="none" marker-end="url(#ahg)"/>
 <rect x="50" y="397" width="350" height="150" rx="8" fill="#ffffff" stroke="#0072B2" stroke-width="1.5"/>
@@ -70,16 +71,17 @@
 <rect x="50" y="572" width="350" height="150" rx="8" fill="#ffffff" stroke="#0072B2" stroke-width="1.5"/>
 <path d="M50,580 Q50,572 58,572 H392 Q400,572 400,580 V600 H50 z" fill="#d9e8f5"/>
 <text x="64" y="592" font-size="14" fill="#222" font-weight="700">③ 식별</text>
-<text x="64" y="619" font-size="12" fill="#222">PINN: 시드 × 재시작 8, GPU에서 함께 학습</text>
-<text x="64" y="637" font-size="12" fill="#222">재시작마다 ODE로 다시 풀어 최선 → 표본</text>
-<text x="64" y="655" font-size="12" fill="#222">학습 RMSE &gt; 3σ → 제외 (남은 &lt; 2 → ⑤ 멈춤)</text>
-<text x="64" y="673" font-size="12" fill="#222">비교 모델: 고전 피팅(최소제곱) · 대조 PINN</text>
+<text x="64" y="619" font-size="12" fill="#222">PINN: 신경망 곡선 + 효소 고리(준정상)</text>
+<text x="64" y="637" font-size="12" fill="#222">시드 0~N−1 × 재시작 8 (고정 시작점), GPU</text>
+<text x="64" y="655" font-size="12" fill="#222">재시작마다 ODE로 다시 풀어 최선 → 표본</text>
+<text x="64" y="673" font-size="12" fill="#222">학습 RMSE &gt; 3σ → 제외 · 남은 &lt; 2면 설계 막힘</text>
+<text x="64" y="691" font-size="12" fill="#222">비교(설계에 안 씀): 고전 피팅 · 대조(있으면)</text>
 <text x="64" y="710" font-size="11" fill="#666">읽음: 2_data의 exp_·sig_*.csv</text>
 <rect x="440" y="572" width="290" height="150" rx="8" fill="#f9f9f9" stroke="#999999" stroke-width="1.5"/>
 <path d="M440,580 Q440,572 448,572 H722 Q730,572 730,580 V600 H440 z" fill="#ebebeb"/>
 <text x="454" y="592" font-size="13" fill="#222" font-weight="700" font-family="Consolas, 'D2Coding', monospace">3_fit/</text>
 <text x="454" y="619" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">samples/sample_seed&lt;N&gt;.json</text>
-<text x="454" y="637" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">baseline/ · control/</text>
+<text x="454" y="637" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">baseline/ · control/(대조 있으면)</text>
 <text x="454" y="655" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">fit_summary.json</text>
 <text x="454" y="673" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">holdout_comparison.csv</text>
 <text x="454" y="691" font-size="11.5" fill="#222" font-family="Consolas, 'D2Coding', monospace">predictions.csv · fig3a~3f</text>
@@ -97,8 +99,9 @@
 <text x="64" y="767" font-size="14" fill="#222" font-weight="700">④ 해석 · CRNT 자동 검증</text>
 <text x="64" y="794" font-size="12" fill="#222">표본 × (같은 적합류 12 + 다른 1) · scipy</text>
 <text x="64" y="812" font-size="12" fill="#222">검증: 보존 · 양수 · |ln Q/K| · 리아푸노프</text>
-<text x="64" y="830" font-size="12" fill="#222">걸리면 Δt/10으로 한 번 더 (수치 오류 의심)</text>
-<text x="64" y="848" font-size="12" fill="#222">Hopsan: 1단계 배치 + 대표 완전 메커니즘</text>
+<text x="64" y="830" font-size="12" fill="#222">약가역 아니면 보존 · 음수 없음만 판정</text>
+<text x="64" y="848" font-size="12" fill="#222">걸리면 Δt/10으로 한 번 더 (수치 오류 의심)</text>
+<text x="64" y="866" font-size="12" fill="#222">Hopsan: 1단계 배치 + 대표 완전 메커니즘</text>
 <text x="64" y="885" font-size="11" fill="#666">읽음: 3_fit/samples · 플래그 guarantee_149</text>
 <rect x="440" y="747" width="290" height="150" rx="8" fill="#f9f9f9" stroke="#999999" stroke-width="1.5"/>
 <path d="M440,755 Q440,747 448,747 H722 Q730,747 730,755 V775 H440 z" fill="#ebebeb"/>
@@ -123,6 +126,7 @@
 <text x="64" y="987" font-size="12" fill="#222">ρ마다 최소 효소량: 공칭(표본 1) · 강건(전부)</text>
 <text x="64" y="1005" font-size="12" fill="#222">ρ* = 강건 최소 → 두 설계를 모든 표본에 확인</text>
 <text x="64" y="1023" font-size="12" fill="#222">피펫 표 · 설계 조건 예측 곡선 (+ Hopsan)</text>
+<text x="64" y="1041" font-size="12" fill="#222">목표 time · peak: 효소량 고정, 시간 · 멈출 시각</text>
 <text x="64" y="1060" font-size="11" fill="#666">읽음: fit_summary · samples · design-check 실험</text>
 <rect x="440" y="922" width="290" height="150" rx="8" fill="#f9f9f9" stroke="#999999" stroke-width="1.5"/>
 <path d="M440,930 Q440,922 448,922 H722 Q730,922 730,930 V950 H440 z" fill="#ebebeb"/>
