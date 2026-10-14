@@ -1,8 +1,9 @@
 """HopsanCLI helper (ported from CADKIMM ``hopsan/cli.py``).
 
 Search order for the executable:
-  1. env ``HOPSANCLI`` — full command (split on spaces), e.g. ``flatpak run --command=hopsancli <app id>``
-  2. env ``HOPSAN_HOME`` → ``bin/hopsancli(.exe)``
+  1. env ``HOPSANCLI`` — full command (split on spaces), e.g. ``flatpak run --command=hopsancli <app id>``;
+     a value that is itself an existing file (quoted or not, spaces allowed) is used as the executable
+  2. env ``HOPSAN_HOME`` → ``bin/hopsancli(.exe)``, then ``bin/KIMM_SYS_cli.exe`` (KIMM-SYS, a Hopsan fork)
   3. the enzopt config file (``ENZOPT_CONFIG`` or ``<repo>/enzopt.config.yaml``), key ``hopsan.cli``
   4. ``hopsancli`` / ``hopsan.cli`` on PATH
   5. portable copies under ``~/tools/Hopsan-*/bin``
@@ -45,14 +46,18 @@ def _config_cli() -> str | None:
 def find_cli() -> list[str]:
     env = os.environ.get("HOPSANCLI")
     if env is not None:
-        cmd = shlex.split(env, posix=(os.name != "nt"))
+        # a bare executable path may contain spaces ("Program Files (x86)"), so try it whole first
+        whole = env.strip().strip("\"'").strip()
+        if whole and Path(whole).is_file():
+            return [whole]
+        cmd = [tok.strip('"') for tok in shlex.split(env, posix=(os.name != "nt"))]
         if cmd and (Path(cmd[0]).exists() or shutil.which(cmd[0])):
             return cmd
         raise HopsanNotFound(f"HOPSANCLI가 가리키는 실행 파일이 없음: {env}")
     cands = []
     home = os.environ.get("HOPSAN_HOME")
     if home:
-        cands += [os.path.join(home, "bin", "hopsancli.exe"), os.path.join(home, "bin", "hopsancli")]
+        cands += [os.path.join(home, "bin", n) for n in ("hopsancli.exe", "hopsancli", "KIMM_SYS_cli.exe")]
     c = _config_cli()
     if c:
         cands.append(c)

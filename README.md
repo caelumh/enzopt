@@ -20,6 +20,7 @@ uv run enzopt doctor          # 버전·CUDA·Hopsan·디스크 점검. 빠진 �
 
 - PyTorch는 `pyproject.toml`의 `pytorch-cu128` 인덱스에서 받습니다(RTX 50 계열 Blackwell 지원). GPU가 없으면 PINN이 CPU(float64)로 자동 전환되고 manifest에 기록됩니다.
 - Hopsan 2.24.4 포터블 zip(`Hopsan-2.24.4-win64-with_compiler-zip.zip`, [GitHub 릴리스](https://github.com/Hopsan/hopsan/releases/tag/v2.24.4))을 풀어 둔 위치를 다음 순서로 찾습니다: 환경 변수 `HOPSANCLI`(전체 명령) → `HOPSAN_HOME` → `enzopt.config.yaml`의 `hopsan.cli` → PATH → `~/tools/Hopsan-*/bin`. 이 PC는 `C:\Users\cael\tools\Hopsan-2.24.4-win64`. 못 찾으면 해당 계산을 scipy로 대신하고 "Hopsan 미사용"을 남깁니다.
+- KIMM-SYS(Hopsan 2.22.1 계열)의 `KIMM_SYS_cli.exe`도 같은 방식으로 씁니다: `HOPSANCLI`에 경로를 그대로(공백 있는 경로 가능, 따옴표 있어도 됨) 주거나 `HOPSAN_HOME`을 KIMM_SYS 폴더로 둡니다(`bin/hopsancli`가 없으면 `bin/KIMM_SYS_cli.exe`).
 
 ## 빠른 시작
 
@@ -133,7 +134,7 @@ uv run python evals/run.py --tier long      # 관문 + 모든 기준 + Q1(전체
 - 표본 제외(SC5-3): 학습된 속도 상수로 ODE를 다시 푼 학습 RMSE > 3σ인 시드는 뺍니다(`exclusion_rmse: ode`, `exclusion_sigma: 3`).
 - AC-05 문턱은 정답 모델 대비입니다: 홀드아웃 RMSE ≤ max(2σ, 정답 모델 RMSE × 1.5). 효소량 ±10%에서는 정답 속도 상수로도 D' RMSE가 0.0146이기 때문입니다.
 - 막다른 복합체 해리 상수 Ki = 5 mM은 가정값입니다(문헌 확인 필요).
-- KIMM-SYS 백엔드는 형식을 받으면 붙입니다. 그때까지 Hopsan이 대체 도구입니다.
+- KIMM-SYS 백엔드는 `KIMM_SYS_cli.exe`를 hopsancli 대신 부르는 방식입니다(옵션이 같고 enzopt 모델에서 Hopsan 2.24.4와 결과 CSV가 같음, 2026-10-14 확인).
 
 ## 라이선스
 
