@@ -2,7 +2,8 @@
 
 ## 출처와 라이선스
 
-- 논문: Wang, T. Y., Dhillon, P., Krylova, S., Schreiber, S., Golemi-Kotra, D., Jose, J. 외 (2025). *Introducing Quantitative Assessment of Michaelis Constant (K_M) Accuracy*. ChemBioChem 26, e202500660 (PMC12703444).
+- 논문: Wang, T. Y., Dhillon, P., Krylova, S. M., Bijlani, A., Schreiber, S., Golemi-Kotra, D., Jose, J., Krylov, S. N. (2025). *Introducing Quantitative Assessment of Michaelis Constant (K_m) Accuracy*. ChemBioChem 26(24), e202500660, doi:10.1002/cbic.202500660 (PMC12703444).
+- 논문의 내용(Europe PMC 초록 기준): Km에 "정확도 신뢰구간"(ACI-Km)을 붙이는 방법. 효소·기질 농도의 불확실성이 계산된 Km으로 어떻게 퍼지는지에서 정확한 값이 들어 있을 구간을 구하고, 새 실험 없이 기존 데이터에 쓸 수 있으며, 비선형 회귀의 표준오차가 실제 불확실성을 크게 과소평가할 수 있다고 보고한다(무료 웹 앱 제공). LDH 데이터는 그 예다.
 - 데이터: figshare doi:10.6084/m9.figshare.26961733, **CC BY 4.0**. 이 프로젝트는 그중 `Experimental_data.xlsx`(LDH 실험의 원 흡광)만 `raw/`에 그대로 두었다(sha256 7bc82d4a…).
 - CC BY 4.0이라 출처를 밝히면 허락 없이 쓸 수 있다. 바꾼 것은 아래 "데이터 처리"에 적었다.
 
@@ -20,7 +21,7 @@
   | 4 | 0.6 mM | 0.000125 mg/mL | 학습(NADH 많이) |
   | 5 | 0.5 mM | 0.00015625 mg/mL | 홀드아웃(효소 많이) |
 
-- 중심 조건(실행 2: NADH 0.5 mM, 효소 0.87 nM 사량체)이 논문 본문의 실험이다. 나머지는 한 가지씩 바꾼 실험으로 보인다.
+- 실행 2(NADH 0.5 mM, 효소 0.85 nM 사량체 = 3.42 nM 활성 자리)가 중심 조건이고, 나머지는 효소량이나 NADH를 한 가지씩 바꾼 실험으로 보인다. 논문 본문의 Km 68 ± 4 µM은 저자 요약 시트의 실행 3 값과 같다(아래 결과).
 
 ## 데이터 처리 (`make_data.py`)
 
@@ -32,7 +33,7 @@ uv run enzopt run projects/ldh_wang2025
 - 웰마다 `data/r<실행>_c<열>_<행>.csv`(time_s, NADH_mM). NADH = (A340 − 배경) ÷ (6.3 × 0.3118). 배경은 빈 웰(G·H 행)의 첫 읽기 평균(0.134~0.135).
 - 처음 조건: NADH = 그 웰의 첫 읽기, 피루브산 = 명목값, 젖산·NAD⁺ = 0. 첫 읽기 NADH는 명목보다 약 20 % 낮다(0.5 mM → 0.37~0.40 mM). 저장액 순도나 광로 차이로 보이며, 첫 읽기를 그대로 쓴다.
 - 효소량: 단백 농도를 활성 자리 36.6 kDa로 나눔(ldh_holmes1988와 같음). 실행 3의 분석 시트는 효소를 0.125 mg/mL로 적었는데, 다른 실행이 0.0001~0.00016 mg/mL이고 실행 3은 NADH만 바꾼 실험이라 0.000125 mg/mL의 오타로 보고 고쳐 읽었다. 작업 파일의 저자 요약 시트(`Summary_Fits_Prism`)도 실행 3을 "0.4 mM NADH/0.12"(µg/mL, 실행 2·4와 같음)로 적어 이를 뒷받침한다.
-- 잡음: 웰별 2차 차분으로 잰 읽기 잡음 중앙값 1.2 µM(90 % 3.0 µM). σ = 2 µM로 둠.
+- 잡음: 웰별 2차 차분으로 잰 읽기 잡음 중앙값 1.2 µM(90 % 3.0 µM). 처음에는 이것으로 σ = 2 µM를 뒀으나, 3반복 웰끼리의 곡선 차이(중앙값 8.8 µM) 때문에 σ = 9 µM로 바꿨다(아래 결과).
 - 웰 179개(실행 5의 0.023 mM 하나는 시트에 없음). 학습 108개, 홀드아웃 71개.
 
 ## 반응식
