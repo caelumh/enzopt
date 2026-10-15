@@ -97,24 +97,29 @@ def pinn_config(p, ident: dict, seeds: list[int], device: str, dtype: str, sigma
     )
 
 
+def _candidate_fit(p, r, train, extras: dict, sigma: float, model=None) -> tuple[float, float]:
+    """(ODE re-solve training RMSE, PINN network training RMSE) of one PINN result (signals divided by their σ)."""
+    net = p.network
+    model = model or MassAction.from_network(net)
+    coeff = p.observable_weights()
+    sigmas = {"__primary__": sigma, **{sg["name"]: float(sg["sigma"]) for sg in p.signals}}
+    kk = net.rate_vector(r.kf, r.kr)
+    vals = [signal_rmse(net, kk, e, t, y, coeff, extras[n], model, r.activity) for n, e, t, y in train]
+    return sigma * normalized(vals, sigmas), float(sigma * np.sqrt(max(r.loss_parts["data"], 0.0)))
+
+
 def best_restarts(p, all_results: list, seeds: list[int], train, extras: dict, sigma: float, rule: str = "ode"):
     """Each sample = the best of its restarts by training-data fit (same measure as the SC5-3 exclusion).
 
     ``all_results`` are the PINN results of internal seeds ``s + RESTART_STRIDE × restart``; ``train`` is
     [(name, experiment, t, y)] and ``extras`` the extra signals per experiment. Returns (one result per seed with
     ``seed`` set to the sample seed, the restart log per seed)."""
-    net = p.network
-    model = MassAction.from_network(net)
-    coeff = p.observable_weights()
-    sigmas = {"__primary__": sigma, **{sg["name"]: float(sg["sigma"]) for sg in p.signals}}
+    model = MassAction.from_network(p.network)
     results, restart_log = [], {}
     for s in seeds:
         cands = []
         for r in (x for x in all_results if x.seed % RESTART_STRIDE == s):
-            kk = net.rate_vector(r.kf, r.kr)
-            vals = [signal_rmse(net, kk, e, t, y, coeff, extras[n], model, r.activity) for n, e, t, y in train]
-            ode_tr = sigma * normalized(vals, sigmas)
-            pin = float(sigma * np.sqrt(max(r.loss_parts["data"], 0.0)))
+            ode_tr, pin = _candidate_fit(p, r, train, extras, sigma, model)
             cands.append((pin if rule == "pinn" else ode_tr, r.seed // RESTART_STRIDE, r, ode_tr, pin))
         cands.sort(key=lambda c: (c[0], c[1]))
         best = cands[0]
@@ -128,6 +133,82 @@ def best_restarts(p, all_results: list, seeds: list[int], train, extras: dict, s
         best[2].seed = s
         results.append(best[2])
     return results, restart_log
+
+
+def criteria_samples(
+    p, all_results: list, train, extras: dict, sigma: float, rule: str = "ode", sel: dict | None = None
+):
+    """Samples chosen by criteria instead of seeds (identification.pinn.selection: criteria, core.selection).
+
+    ``all_results`` are the candidates trained from the deterministic starts (``seed`` = candidate index). A
+    candidate qualifies when its training RMSE is within the likelihood-ratio threshold of the best one
+    (n_eff = number of training experiments unless ``sel['n_eff']`` is given, χ²(1) quantile ``sel['quantile']``).
+    Every qualified candidate becomes a sample unless ``sel['max_samples']`` caps the number; the order is sample 0 =
+    best fit, then each next one the qualified candidate farthest from those before it (log10 constants in prior
+    standard deviations), so a cap keeps the most spread-out ones. Returns (results with ``seed`` = sample index,
+    a restart log in the ``best_restarts`` shape, the selection log)."""
+    from ..core.selection import CHI2_1_95, lr_threshold, maximin_select
+
+    sel = sel or {}
+    model = MassAction.from_network(p.network)
+    cands = sorted(all_results, key=lambda r: r.seed)
+    fits = [_candidate_fit(p, r, train, extras, sigma, model) for r in cands]
+    score = np.array([pin if rule == "pinn" else ode for ode, pin in fits], float)
+    finite = np.isfinite(score)
+    if not finite.any():
+        raise StageFailed("모든 PINN 후보의 학습 데이터 재해석이 실패함")
+    n_eff = int(sel.get("n_eff") or len(train))
+    q = float(sel.get("quantile", CHI2_1_95))
+    best = float(np.min(score[finite]))
+    thr = lr_threshold(best, n_eff, q)
+    qualified = finite & (score <= thr)
+    cap = sel.get("max_samples", "all")
+    k = int(qualified.sum()) if cap in (None, "all") else int(cap)
+    n_th = len(p.prior_vector())
+    theta = np.array([np.asarray(r.theta, float)[:n_th] for r in cands])
+    chosen = maximin_select(theta, score, qualified, k, scale=float(p.prior.get("sd_decades", 1.5)))
+    order = {ci: j for j, (ci, _) in enumerate(chosen)}
+    rows = [
+        {
+            "candidate": int(r.seed),
+            "ode_train_rmse": fits[i][0],
+            "pinn_rmse": fits[i][1],
+            "qualified": bool(qualified[i]),
+            "sample": order.get(i),
+        }
+        for i, r in enumerate(cands)
+    ]
+    log = {
+        "method": "criteria",
+        "starts": "sobol (unscrambled, stratum midpoints) in prior centre ± init_jitter_decades",
+        "score": rule,
+        "best_rmse": best,
+        "n_eff": n_eff,
+        "quantile": q,
+        "threshold_rmse": thr,
+        "n_candidates": len(cands),
+        "n_qualified": int(qualified.sum()),
+        "max_samples": cap,
+        "distance": "Euclidean, log10 constants / prior sd",
+        "chosen": [
+            {"sample": j, "candidate": int(cands[ci].seed), "min_distance": d} for j, (ci, d) in enumerate(chosen)
+        ],
+        "candidates": rows,
+    }
+    results, restart_log = [], {}
+    for j, (ci, _d) in enumerate(chosen):
+        r = cands[ci]
+        restart_log[j] = {
+            "chosen_restart": int(r.seed),
+            "by": "criteria",
+            "restarts": [
+                {"restart": x["candidate"], "ode_train_rmse": x["ode_train_rmse"], "pinn_rmse": x["pinn_rmse"]}
+                for x in rows
+            ],
+        }
+        r.seed = j
+        results.append(r)
+    return results, restart_log, log
 
 
 def run_fit_stage(ctx: RunContext) -> None:
@@ -160,13 +241,23 @@ def run_fit_stage(ctx: RunContext) -> None:
     if note:
         ctx.warn(note)
     n_restarts = max(1, int(ident["pinn"].get("restarts", 1)))
-    cfg = pinn_config(
-        p, ident, [s + RESTART_STRIDE * j for s in seeds for j in range(n_restarts)], device, dtype, sigma
-    )
+    selection = str(ident["pinn"].get("selection", "per_seed"))
+    if selection not in ("per_seed", "criteria"):
+        raise StageFailed(f"identification.pinn.selection '{selection}'는 per_seed 또는 criteria")
+    if selection == "criteria":
+        # seeds × restarts candidates from deterministic starts; the samples are chosen by criteria afterwards
+        cfg = pinn_config(p, ident, list(range(len(seeds) * n_restarts)), device, dtype, sigma)
+        cfg.start_design = "sobol"
+        what = f"PINN 후보 {len(seeds) * n_restarts}개(고정 출발점)"
+    else:
+        cfg = pinn_config(
+            p, ident, [s + RESTART_STRIDE * j for s in seeds for j in range(n_restarts)], device, dtype, sigma
+        )
+        what = f"PINN {len(seeds)}시드 × 재시작 {n_restarts}"
     pexps = [PinnExperiment(n, e.initial, e.Et, t, y, extra=extras[n]) for n, e, t, y in train]
 
     def prog(frac, msg):
-        ctx.progress(0.7 * frac, f"PINN {len(seeds)}시드 × 재시작 {n_restarts} · {msg}")
+        ctx.progress(0.7 * frac, f"{what} · {msg}")
 
     all_results = train_pinn(pexps, prior, cfg, prog)
     train_s = time.time() - t0
@@ -175,8 +266,16 @@ def run_fit_stage(ctx: RunContext) -> None:
     coeff = p.observable_weights()
     rule = str(ident.get("exclusion_rmse", "ode"))
     k_sig = float(ident.get("exclusion_sigma", 3.0))
-    ctx.progress(0.72, "재시작 중 학습 데이터에 가장 잘 맞는 해 고르기")
-    results, restart_log = best_restarts(p, all_results, seeds, train, extras, sigma, rule)
+    sel_log = None
+    if selection == "criteria":
+        ctx.progress(0.72, "기준으로 표본 고르기(동등 적합 + 최대 거리)")
+        results, restart_log, sel_log = criteria_samples(
+            p, all_results, train, extras, sigma, rule, ident["pinn"].get("selection_options")
+        )
+        seeds = [r.seed for r in results]
+    else:
+        ctx.progress(0.72, "재시작 중 학습 데이터에 가장 잘 맞는 해 고르기")
+        results, restart_log = best_restarts(p, all_results, seeds, train, extras, sigma, rule)
     samples, preds = [], []
     for i, r in enumerate(results):
         ctx.progress(0.75 + 0.2 * i / max(1, len(results)), f"표본 {r.seed} 재해석")
@@ -260,6 +359,7 @@ def run_fit_stage(ctx: RunContext) -> None:
         "train_seconds": train_s,
         "restarts": n_restarts,
         "restart_selection": restart_log,
+        "sample_selection": sel_log or {"method": "per_seed"},
         "train_experiments": [n for n, *_ in train],
         "holdout_experiments": holdout_names,
         "holdout_rmse": {"per_seed": per_seed, "summary": agg},

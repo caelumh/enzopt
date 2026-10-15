@@ -58,6 +58,9 @@ class PinnConfig:
     eps340: float = 6.22
     prior_sd: float = 1.5
     init_jitter: float = 1.0  # initial log10 rate constants = prior centre + U(±init_jitter), per seed
+    # "random": the jitter above, network weights seeded per seed; "sobol": deterministic space-filling starts in
+    # ±init_jitter (core.selection.start_offsets, one per entry of ``seeds``) and the same network weights for all
+    start_design: str = "random"
     irreversible_last: bool = False  # LDH default network only (pinn.ldh): last step one-way
     device: str = "cpu"
     dtype: str = "float64"
@@ -249,11 +252,22 @@ class GeneralPinn:
         self.T = float(max(T_all))
         T_e = [T_all[i] if cfg.time_scale == "per_experiment" else self.T for i in range(E)]
         gens, theta0 = [], []
-        for sd in cfg.seeds:
+        if cfg.start_design not in ("random", "sobol"):
+            raise ValueError(f"start_design '{cfg.start_design}'는 random 또는 sobol")
+        design = None
+        if cfg.start_design == "sobol":
+            from ..core.selection import start_offsets
+
+            design = start_offsets(len(cfg.seeds), len(pc), cfg.init_jitter)
+        for i_sd, sd in enumerate(cfg.seeds):
             for _ in range(E):
-                g = torch.Generator().manual_seed(int(sd) * 1000 + len(gens) % E)
+                base = 0 if design is not None else int(sd)
+                g = torch.Generator().manual_seed(base * 1000 + len(gens) % E)
                 gens.append(g)
-            jit = np.random.default_rng(100 + int(sd)).uniform(-cfg.init_jitter, cfg.init_jitter, len(pc))
+            if design is not None:
+                jit = design[i_sd]
+            else:
+                jit = np.random.default_rng(100 + int(sd)).uniform(-cfg.init_jitter, cfg.init_jitter, len(pc))
             # inactivation weights (extra θ columns) start near zero: softplus(−5) ≈ 0.007, a(T) ≈ 0.95
             extra = [np.full(n_inact, -5.0), np.array([1.0]) if self.dead else np.zeros(0)]  # K_i starts at 10 mM
             theta0.append(np.concatenate([pc + jit, *extra]))
