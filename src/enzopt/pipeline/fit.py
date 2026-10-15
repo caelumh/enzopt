@@ -248,6 +248,7 @@ def run_fit_stage(ctx: RunContext) -> None:
         # seeds × restarts candidates from deterministic starts; the samples are chosen by criteria afterwards
         cfg = pinn_config(p, ident, list(range(len(seeds) * n_restarts)), device, dtype, sigma)
         cfg.start_design = "sobol"
+        cfg.start_pool = len(seeds) * n_restarts
         what = f"PINN 후보 {len(seeds) * n_restarts}개(고정 출발점)"
     else:
         cfg = pinn_config(

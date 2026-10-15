@@ -61,6 +61,7 @@ class PinnConfig:
     # "random": the jitter above, network weights seeded per seed; "sobol": deterministic space-filling starts in
     # ±init_jitter (core.selection.start_offsets, one per entry of ``seeds``) and the same network weights for all
     start_design: str = "random"
+    start_pool: int = 0  # "sobol": size of the start design (0 = len(seeds)); each seed is an index into it
     irreversible_last: bool = False  # LDH default network only (pinn.ldh): last step one-way
     device: str = "cpu"
     dtype: str = "float64"
@@ -258,14 +259,14 @@ class GeneralPinn:
         if cfg.start_design == "sobol":
             from ..core.selection import start_offsets
 
-            design = start_offsets(len(cfg.seeds), len(pc), cfg.init_jitter)
-        for i_sd, sd in enumerate(cfg.seeds):
+            design = start_offsets(cfg.start_pool or len(cfg.seeds), len(pc), cfg.init_jitter)
+        for sd in cfg.seeds:
             for _ in range(E):
                 base = 0 if design is not None else int(sd)
                 g = torch.Generator().manual_seed(base * 1000 + len(gens) % E)
                 gens.append(g)
             if design is not None:
-                jit = design[i_sd]
+                jit = design[int(sd)]
             else:
                 jit = np.random.default_rng(100 + int(sd)).uniform(-cfg.init_jitter, cfg.init_jitter, len(pc))
             # inactivation weights (extra θ columns) start near zero: softplus(−5) ≈ 0.007, a(T) ≈ 0.95

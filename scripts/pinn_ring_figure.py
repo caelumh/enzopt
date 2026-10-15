@@ -1,6 +1,7 @@
 """How the PINN learns with the quasi-steady enzyme ring (docs/flow, section 5.3).
 
-Trains one seed of ldh_wang2025 again with the run's settings (seed 0, its chosen restart) and records snapshots every
+Trains sample 0 of ldh_wang2025 again with the run's settings (seed 0 and its chosen restart, or with
+``selection: criteria`` the best-fit candidate and its fixed start) and records snapshots every
 100 Adam and 20 L-BFGS iterations: the network curve of one well, its slope next to the ring's turnover rate, the loss
 terms and the rate constants. Writes docs/flow/pinn_ring_training.png and .csv (needs torch; a GPU takes about a
 minute).
@@ -48,6 +49,8 @@ def main() -> None:
     ident = p.settings(False)["identification"]
     fit = read_json(run / "3_fit" / "fit_summary.json")
     restart = fit["restart_selection"][str(SEED)]["chosen_restart"]
+    sel = fit.get("sample_selection") or {}
+    criteria = sel.get("method") == "criteria"
     sigma = float(ident["noise_sigma"])
     train = [(n, e) for n, e in p.experiments.items() if e.role == "train"]
     exps = []
@@ -56,7 +59,11 @@ def main() -> None:
         exps.append(PinnExperiment(n, e.initial, e.Et, d[:, 0], d[:, 1]))
     b = [n for n, _ in train].index(WELL)  # batch index of the well (one seed: b = experiment index)
     device, dtype, _ = resolve_device("auto", "auto")
-    cfg = pinn_config(p, ident, [SEED + RESTART_STRIDE * restart], device, dtype, sigma)
+    if criteria:  # restart = candidate index into the fixed start design
+        cfg = pinn_config(p, ident, [restart], device, dtype, sigma)
+        cfg.start_design, cfg.start_pool = "sobol", int(sel["n_candidates"])
+    else:
+        cfg = pinn_config(p, ident, [SEED + RESTART_STRIDE * restart], device, dtype, sigma)
     model = GeneralPinn(exps, p.prior_vector(), cfg)
     n_st, nf = model.n_steps, len(model.lay.free_kr)
     snaps: list[dict] = []
@@ -104,7 +111,8 @@ def main() -> None:
 
     snapshot(0, cfg.w_phys_start)
     res = model.train(prog)[0]
-    print(f"seed {SEED} restart {restart}: data {res.loss_parts['data']:.4f}, K' {res.Kp:.0f}, {len(snaps)} snapshots")
+    which = "candidate" if criteria else "restart"
+    print(f"sample {SEED} ({which} {restart}): data {res.loss_parts['data']:.4f}, K' {res.Kp:.0f}, {len(snaps)} snaps")
     figure(p, exps, b, snaps, cfg.adam_iters, sigma)
 
 
@@ -206,7 +214,7 @@ def figure(p, exps, b: int, snaps: list[dict], n_adam: int, sigma: float) -> Non
         title_fontsize=5.5,
     )
     fig.suptitle(
-        f"How the PINN learns with the enzyme ring (ldh_wang2025, seed {SEED}, σ = {sigma * 1e3:g} µM)", fontsize=7.5
+        f"How the PINN learns with the enzyme ring (ldh_wang2025, sample {SEED}, σ = {sigma * 1e3:g} µM)", fontsize=7.5
     )
     OUT.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT / "pinn_ring_training.png", dpi=200)
