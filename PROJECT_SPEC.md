@@ -401,6 +401,7 @@ design: {target: assay, NADH0: 0.1, conversion: 0.99, time_s: 300, Kp: 23}
 - (build 2026-10-10, F-13 M6-2) 일반 PINN 표현의 세부: 닻 종(느린 좌표마다 관측 분자 하나의 자유 농도 = x0 + Vξ, 잔차는 그 분자 수지), 전체 반응 하나면 시그모이드 범위(여유 `identification.pinn.range_margin` 기본 5%, 2026-10-10 보완 Q-03 (d)), 둘 이상이면 ξ = 척도·(u(τ) − u(0)), L-BFGS 기본 1000(짧은 모드도 같음)
 - (build 2026-10-10, F-13 M6-6) 부록 C 학습 세트 T3의 설계 규칙(Q-03 (a) 적용): 홀드아웃 농도를 감싸는 기본 설계, ② 데이터 검사(A340 ≤ 2) 안, 고전 피팅 8시작점이 기준 모델 한계를 넘으면 다른 설계를 시험해 넘지 않는 첫 설계(ping_pong B 2 mM, uni_bi_ordered A 0.3 + P 0.3), 없으면 기본 설계(random_bibi·ldh_background → Q-04). T3는 H2 뒤에 생성해 다른 세트의 난수는 그대로
 - (build 2026-10-10, F-13 M6-4) ⑤: 평형 한계는 분석 대상의 전체 반응 하나와 K′로 수치 계산, 전체 반응이 여럿이면 쓰지 않음(정방향만). 다른 짝 기질은 `design.fixed_ratio`(분석 대상 초기 농도의 배수), 목표 `target: assay|yield|selectivity|time`(`product`·`side_product`·`yield`·`selectivity`·`Et_max_nM`), 평형 한계 시험 ρ 기본 auto = ρ_min × 0.3·0.6
+- (사용자 요청 2026-10-15 "난수로 고르지 말고 기준을", "몇 개를 고르지 말고 전체를") ③ 표본 선정 옵션 `identification.pinn.selection: criteria`: 고정 출발점(무작위화하지 않은 Sobol 층 가운데, 사전분포 중심 ± `init_jitter_decades`) 시드 × 재시작 개를 같은 신경망 초깃값으로 학습하고, 학습 ODE RMSE가 최솟값 × exp(χ²₁(0.95)/(2·학습 웰 수)) 이하인 후보를 전부 표본으로 씀(표본 0 = 최적 적합, 이후 최대최소 거리 순, `selection_options.max_samples`로 상한). 기본값은 `per_seed`(기존 동작). 문턱의 근거(n_eff = 웰 수, χ²(1))는 과학적 판단이라 evals/QUESTIONS.md Q-06
 
 ## 미결정
 - SC3 분광광도계 실제 내보내기 형식 — 파일럿 파일을 받는 대로 변환기를 맞춘다. 늦어도 10/11 실험 직후(10/12 실데이터 재계산 전)
