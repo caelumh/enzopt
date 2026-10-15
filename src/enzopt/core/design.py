@@ -309,12 +309,14 @@ class DesignResult:
     Et_nominal_at_star: float
     check: list[dict]
     equilibrium_limit: list[dict]
+    rho_max: float | None = None  # upper bound of ρ for the optimum (design.rho_max); None = whole grid
 
     def summary(self) -> dict:
         nom = [c for c in self.check if c["design"] == "nominal"]
         rob = [c for c in self.check if c["design"] == "robust"]
         return {
             "rho_min": self.rho_min,
+            "rho_max": self.rho_max,
             "rho_star": self.rho_star,
             "robust_Et_star_mM": self.Et_star,
             "robust_Et_star_nM": self.Et_star * 1e6,
@@ -338,10 +340,12 @@ def run_design(
     workers: int | None = None,
     progress=None,
     activities: list[dict | None] | None = None,
+    rho_max: float | None = None,
 ) -> DesignResult:
     """U-curve over ``rhos`` (nominal = first sample, robust = all samples), optimum, and a check of both designs
     on every sample. ``samples`` are rate vectors aligned with ``design.network.reactions()``; ``activities`` the
-    enzyme activity a(t) of each sample (None = no inactivation)."""
+    enzyme activity a(t) of each sample (None = no inactivation). With ``rho_max`` the optimum is taken over
+    ρ ≤ rho_max only (the curve is still computed on the whole grid)."""
     lo, hi = Et_bounds
     acts = list(activities) if activities is not None else [None] * len(samples)
     rmin = rho_min_of(design) if use_equilibrium_limit else None
@@ -377,7 +381,10 @@ def run_design(
     arr = np.array(rows, float)
     if np.all(np.isnan(arr[:, 2])):
         raise SimulationError("모든 ρ에서 효소량 상한 안에 목표를 만족하는 설계가 없음")
-    j = int(np.nanargmin(arr[:, 2]))
+    allowed = arr[:, 0] <= rho_max * (1 + 1e-9) if rho_max is not None else np.ones(len(arr), bool)
+    if not np.any(allowed & np.isfinite(arr[:, 2])):
+        raise SimulationError(f"ρ ≤ {rho_max:g}에서 효소량 상한 안에 목표를 만족하는 설계가 없음")
+    j = int(np.nanargmin(np.where(allowed, arr[:, 2], np.nan)))
     rho_s, Et_nom, Et_rob = arr[j]
     check = []
     for label, Et in (("nominal", Et_nom), ("robust", Et_rob)):
@@ -411,6 +418,7 @@ def run_design(
         float(Et_nom),
         check,
         eq_rows,
+        rho_max,
     )
 
 

@@ -643,6 +643,14 @@ def design_figures(out: Path, res, summ: dict, check: dict) -> list:
         ax.axvline(
             res.rho_min, color="#D55E00", ls=":", lw=1.0, label=f"CRNT equilibrium limit ρ_min = {sig3(res.rho_min)}"
         )
+    if getattr(res, "rho_max", None):
+        ax.axvspan(
+            res.rho_max,
+            max(res.rhos) * 1.1,
+            color="0.9",
+            zorder=0,
+            label=f"outside fitted range (ρ > {sig3(res.rho_max)})",
+        )
     ax.plot(
         [res.rho_star],
         [res.Et_star * 1e6],

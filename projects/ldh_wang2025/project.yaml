@@ -49,6 +49,7 @@ design:                      # 참고용: 피루브산 정량(NADH를 짝 기질
   time_s: 600
   Kp: 9.2e3
   rho_grid: auto
+  rho_max: train              # 2026-10-15: ρ 상한 = 학습 웰의 최대 NADH(0.458 mM) ÷ 피루브산 0.1 mM = 4.58 — 학습 범위 밖으로 외삽하지 않음(사용자 결정)
   pipette:
     volume_uL: 200
     enzyme_uL: 10

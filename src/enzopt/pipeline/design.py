@@ -26,6 +26,24 @@ FORWARD_ONLY_GRID = [1.5, 3.0, 5.0, 7.0, 9.0, 12.0, 16.0, 22.0, 30.0, 45.0, 70.0
 FORWARD_ONLY_GRID_QUICK = [3.0, 8.0, 15.0, 30.0]
 
 
+def rho_upper_bound(p, des: dict, design: AssayDesign) -> tuple[float | None, str | None]:
+    """``design.rho_max``: None, a number, or "train" = the largest initial partner concentration of the training
+    experiments ÷ analyte0, so that the design stays inside the conditions the model was fitted to."""
+    v = des.get("rho_max")
+    if v is None or not design.partner:
+        return None, None
+    if isinstance(v, str):
+        if v != "train":
+            raise StageFailed(f"design.rho_max '{v}'는 숫자 또는 train")
+        c = [float(e.initial.get(design.partner, 0.0)) for e in p.by_role("train")]
+        if not c or max(c) <= 0:
+            raise StageFailed(f"design.rho_max: train — 학습 실험에 {design.partner} 처음 농도가 없음")
+        return max(c) / design.analyte0, (
+            f"학습 실험의 최대 {design.partner} {max(c):.4g} mM ÷ {design.analyte} {design.analyte0:g} mM"
+        )
+    return float(v), "설정값"
+
+
 def run_design_stage(ctx: RunContext) -> None:
     p = ctx.project
     des = ctx.settings["design"]
@@ -104,6 +122,14 @@ def run_design_stage(ctx: RunContext) -> None:
         _peak_design(ctx, p, des, design, rates, rhos, acts, out)
         return
 
+    rho_max, rho_max_reason = rho_upper_bound(p, des, design)
+    if rho_max is not None:
+        rmin = rho_min_of(design) if use_limit else None
+        if rmin is not None and rho_max <= rmin:
+            raise StageFailed(f"ρ 상한 {rho_max:.4g}({rho_max_reason}) ≤ 평형 한계 {rmin:.4g}: 목표를 만족할 수 없음")
+        if all(abs(r - rho_max) > 1e-9 * rho_max for r in rhos):
+            rhos = sorted([*rhos, rho_max])
+
     def prog(f, m):
         ctx.progress(0.75 * f, f"U자 곡선 · {m}")
 
@@ -116,8 +142,10 @@ def run_design_stage(ctx: RunContext) -> None:
         use_equilibrium_limit=use_limit,
         progress=prog,
         activities=acts,
+        rho_max=rho_max,
     )
     summ = res.summary()
+    summ["rho_max_reason"] = rho_max_reason
     train = p.by_role("train")
     E0 = train[0].Et if train else None
     summ.update(
@@ -281,6 +309,7 @@ def pipette_text(rows: list[dict], summ: dict) -> str:
         f"강건 최적 ρ* = {summ['rho_star']:.3g}, Et* = {summ['robust_Et_star_nM']:.4g} nM"
         + (f" = E₀의 {summ['robust_Et_over_E0']:.3g}배" if summ.get("robust_Et_over_E0") else "")
         + f" · 공칭 Et = {summ['nominal_Et_at_rho_star_nM']:.4g} nM",
+        *([f"ρ 상한 {summ['rho_max']:.4g}: {summ['rho_max_reason']}"] if summ.get("rho_max") else []),
         "",
     ]
     keys = list(rows[0].keys())

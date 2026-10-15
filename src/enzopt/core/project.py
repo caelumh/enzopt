@@ -69,6 +69,7 @@ DEFAULTS: dict = {
         "Kp": None,
         "dead_end": None,
         "rho_grid": "auto",
+        "rho_max": None,  # upper bound of ρ for the optimum: None, a number, or "train" (max partner in training wells)
         "Et_bounds_mM": [1e-6, 1e-2],
         "bisection_iters": 18,
         "check_t_end_s": 600.0,
