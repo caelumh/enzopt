@@ -32,7 +32,7 @@ identification:
   seeds: 4
   noise_sigma: 0.009         # mM = 9 µM: 같은 조건 3반복 웰끼리 곡선 모양 차이 중앙값 8.8 µM(웰별 효소량·피펫 차이를
                              # 모델이 따로 갖지 않으므로 잡음으로 봄). 읽기 잡음만은 1.2 µM(첫 실행 σ 2 µM은 표본 0개, README)
-  pinn: {restarts: 8}
+  pinn: {restarts: 8, selection: criteria}   # 2026-10-15: 고정 출발점 32개(시드 4 × 재시작 8) 학습 → 동등 적합(우도비) 후보 전부를 표본으로
   baseline_fit: {starts: 4, max_nfev: 40}   # 학습 웰이 108개라 반복을 줄임
 
 simulation:
