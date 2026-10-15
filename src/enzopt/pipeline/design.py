@@ -129,6 +129,10 @@ def run_design_stage(ctx: RunContext) -> None:
             raise StageFailed(f"ρ 상한 {rho_max:.4g}({rho_max_reason}) ≤ 평형 한계 {rmin:.4g}: 목표를 만족할 수 없음")
         if all(abs(r - rho_max) > 1e-9 * rho_max for r in rhos):
             rhos = sorted([*rhos, rho_max])
+        if isinstance(grid, str) and rmin is not None:
+            # the automatic grid jumps from 1.1 ρ_min to 7: put points inside the allowed range, where ρ* lies
+            inner = [float(r) for r in np.geomspace(rmin * 1.1, rho_max, 6)[1:-1]]
+            rhos = sorted({*rhos, *(r for r in inner if all(abs(r - x) > 1e-3 * x for x in rhos))})
 
     def prog(f, m):
         ctx.progress(0.75 * f, f"U자 곡선 · {m}")
