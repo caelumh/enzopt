@@ -39,17 +39,17 @@ simulation:
   t_long_s: 43200            # 12시간: Hopsan 겉보기 1단계 배치(k₁ 8.7×10⁻⁴ /(mM·s))가 평형에 닿도록. 1시간이면 0/13 통과
                              # (|ln Q/K| 3.9~5, scipy와 같은 값이라 수치 오류가 아니라 시간 부족, pgm_eno_giess2026과 같음)
 
-design:                      # 참고용: 피루브산 정량(NADH를 짝 기질로). 0.1 mM을 10분 안에 99 %
+design:                      # 참고용: 피루브산 정량(NADH를 짝 기질로). 0.215 mM을 10분 안에 99 %
   target: assay
   analyte: Pyr
   partner: NADH
   free_enzyme: E
-  analyte0_mM: 0.1
+  analyte0_mM: 0.215          # 2026-10-16: 학습 웰 피루브산 범위(0.0231~2 mM)의 기하 평균 √(0.0231×2) = 0.2150(사용자 결정, 이전 0.1은 도구 기본값)
   conversion: 0.99
   time_s: 600
   Kp: 9.2e3
   rho_grid: auto
-  rho_max: train              # 2026-10-15: ρ 상한 = 학습 웰의 최대 NADH(0.458 mM) ÷ 피루브산 0.1 mM = 4.58 — 학습 범위 밖으로 외삽하지 않음(사용자 결정)
+  rho_max: train              # 2026-10-15: ρ 상한 = 학습 웰의 최대 NADH(0.458 mM) ÷ 피루브산 0.215 mM = 2.13 — 학습 범위 밖으로 외삽하지 않음(사용자 결정)
   pipette:
     volume_uL: 200
     enzyme_uL: 10
