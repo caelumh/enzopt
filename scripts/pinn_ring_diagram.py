@@ -40,8 +40,8 @@ def ring(cx: float, cy: float, r: float) -> list[str]:
     """The five enzyme forms of the ordered bi-bi cycle, each step a pair of arrows with its pseudo-first-order rate."""
     names = ["E", "EN", "ENP", "EQL", "EQ"]
     pos = [(cx + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a))) for a in (-90, -18, 54, 126, 198)]
-    fwd = ["k₊₁·[NADH]", "k₊₂·[Pyr]", "k₊₃", "k₊₄", "k₊₅"]
-    rev = ["k₋₁", "k₋₂", "k₋₃", "k₋₄·[Lac]", "k₋₅·[NAD]"]
+    fwd = ["k₊₁[NADH]", "k₊₂[Pyr]", "k₊₃", "k₊₄", "k₊₅"]
+    rev = ["k₋₁", "k₋₂", "k₋₃", "k₋₄[Lac]", "k₋₅[NAD]"]
     out = []
     for i in range(5):
         (x0, y0), (x1, y1) = pos[i], pos[(i + 1) % 5]
@@ -113,10 +113,10 @@ def main() -> None:
     parts.append(text(600, 432, "화살표 속도 = 상수 × 그때 농도", 11, fill="#555", anchor="middle"))
     parts += ring(600, 292, 92)
     # enzyme distribution → prediction (up) and rate (down)
-    parts += rbox(790, 110, 220, 60, ["예측 관측값", "NADH + Et·(φ_EN + φ_ENP)"], "ring")
+    parts += rbox(790, 110, 220, 60, ["예측 관측값", "NADH + Et(φ_EN + φ_ENP)"], "ring")
     parts += rbox(790, 255, 220, 70, ["효소 분포 φ", "형태마다 들어옴 = 나감, 합 1", "(미분 가능한 풀이)"], "ring")
     parts += rbox(
-        790, 395, 220, 66, ["반응 속도 v", "Et·(k₊₁·φ_E·[NADH] − k₋₁·φ_EN)", "= 고리를 도는 흐름"], "ring", 13, 11
+        790, 395, 220, 66, ["반응 속도 v", "Et(k₊₁φ_E[NADH] − k₋₁φ_EN)", "= 고리를 도는 흐름"], "ring", 13, 11
     )
     parts.append(arrow("M760,290 H788", GREY, "ah"))
     parts.append(arrow("M900,255 V172", GREY, "ah"))
@@ -131,7 +131,7 @@ def main() -> None:
         488,
         210,
         92,
-        ["손실 (시드마다)", "데이터 + w·물리", "+ 처음 조건 + 0.01·사전분포", "w: 1 → 10⁴로 올림"],
+        ["손실 (시드마다)", "데이터 + w × 물리", "+ 처음 조건 + 0.01 × 사전분포", "w: 1 → 10⁴로 올림"],
         "loss",
     )
     parts.append(arrow("M1145,170 V486", GREY, "ah"))

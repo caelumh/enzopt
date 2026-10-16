@@ -35,11 +35,11 @@
 <text x="600" y="432" font-size="11" fill="#555" text-anchor="middle">화살표 속도 = 상수 × 그때 농도</text>
 <path d="M624.2,212.6 L668.0,244.5" stroke="#444444" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
 <path d="M663.3,250.9 L619.5,219.1" stroke="#999999" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
-<text x="665.6" y="205.7" font-size="11.5" fill="#222" text-anchor="middle">k₊₁·[NADH]</text>
+<text x="664.5" y="207.3" font-size="11.5" fill="#222" text-anchor="middle">k₊₁[NADH]</text>
 <text x="631.5" y="252.7" font-size="11" fill="#777" text-anchor="middle">k₋₁</text>
 <path d="M683.0,290.5 L666.2,342.0" stroke="#444444" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
 <path d="M658.6,339.5 L675.3,288.0" stroke="#999999" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
-<text x="713.0" y="332.7" font-size="11.5" fill="#222" text-anchor="middle">k₊₂·[Pyr]</text>
+<text x="709.9" y="331.7" font-size="11.5" fill="#222" text-anchor="middle">k₊₂[Pyr]</text>
 <text x="649.5" y="312.1" font-size="11" fill="#777" text-anchor="middle">k₋₂</text>
 <path d="M627.1,370.4 L572.9,370.4" stroke="#444444" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
 <path d="M572.9,362.4 L627.1,362.4" stroke="#999999" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
@@ -48,11 +48,11 @@
 <path d="M533.8,342.0 L517.0,290.5" stroke="#444444" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
 <path d="M524.7,288.0 L541.4,339.5" stroke="#999999" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
 <text x="505.5" y="326.7" font-size="11.5" fill="#222" text-anchor="middle">k₊₄</text>
-<text x="567.9" y="306.4" font-size="11" fill="#777" text-anchor="middle">k₋₄·[Lac]</text>
+<text x="565.0" y="307.4" font-size="11" fill="#777" text-anchor="middle">k₋₄[Lac]</text>
 <path d="M532.0,244.5 L575.8,212.6" stroke="#444444" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
 <path d="M580.5,219.1 L536.7,250.9" stroke="#999999" stroke-width="1.3" fill="none" marker-end="url(#ah)"/>
 <text x="542.6" y="217.0" font-size="11.5" fill="#222" text-anchor="middle">k₊₅</text>
-<text x="575.2" y="261.8" font-size="11" fill="#777" text-anchor="middle">k₋₅·[NAD]</text>
+<text x="574.1" y="260.3" font-size="11" fill="#777" text-anchor="middle">k₋₅[NAD]</text>
 <rect x="576.0" y="186.0" width="48" height="28" rx="12" fill="#ffffff" stroke="#0072B2" stroke-width="1.4"/>
 <text x="600.0" y="205.0" font-size="12.5" fill="#222" font-weight="700" text-anchor="middle">E</text>
 <rect x="663.5" y="249.6" width="48" height="28" rx="12" fill="#ffffff" stroke="#0072B2" stroke-width="1.4"/>
@@ -65,14 +65,14 @@
 <text x="512.5" y="268.6" font-size="12.5" fill="#222" font-weight="700" text-anchor="middle">EQ</text>
 <rect x="790" y="110" width="220" height="60" rx="8" fill="#e6f5ef" stroke="#009E73" stroke-width="1.5"/>
 <text x="900.0" y="136.0" font-size="13" fill="#222" font-weight="700" text-anchor="middle">예측 관측값</text>
-<text x="900.0" y="154.0" font-size="11.5" fill="#222" text-anchor="middle">NADH + Et·(φ_EN + φ_ENP)</text>
+<text x="900.0" y="154.0" font-size="11.5" fill="#222" text-anchor="middle">NADH + Et(φ_EN + φ_ENP)</text>
 <rect x="790" y="255" width="220" height="70" rx="8" fill="#e6f5ef" stroke="#009E73" stroke-width="1.5"/>
 <text x="900.0" y="277.0" font-size="13" fill="#222" font-weight="700" text-anchor="middle">효소 분포 φ</text>
 <text x="900.0" y="295.0" font-size="11.5" fill="#222" text-anchor="middle">형태마다 들어옴 = 나감, 합 1</text>
 <text x="900.0" y="313.0" font-size="11.5" fill="#222" text-anchor="middle">(미분 가능한 풀이)</text>
 <rect x="790" y="395" width="220" height="66" rx="8" fill="#e6f5ef" stroke="#009E73" stroke-width="1.5"/>
 <text x="900.0" y="415.0" font-size="13" fill="#222" font-weight="700" text-anchor="middle">반응 속도 v</text>
-<text x="900.0" y="433.0" font-size="11" fill="#222" text-anchor="middle">Et·(k₊₁·φ_E·[NADH] − k₋₁·φ_EN)</text>
+<text x="900.0" y="433.0" font-size="11" fill="#222" text-anchor="middle">Et(k₊₁φ_E[NADH] − k₋₁φ_EN)</text>
 <text x="900.0" y="451.0" font-size="11" fill="#222" text-anchor="middle">= 고리를 도는 흐름</text>
 <path d="M760,290 H788" stroke="#555555" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
 <path d="M900,255 V172" stroke="#555555" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
@@ -87,8 +87,8 @@
 <path d="M1145,78 V108" stroke="#555555" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
 <rect x="1040" y="488" width="210" height="92" rx="8" fill="#fbece3" stroke="#D55E00" stroke-width="1.5"/>
 <text x="1145.0" y="512.0" font-size="13" fill="#222" font-weight="700" text-anchor="middle">손실 (시드마다)</text>
-<text x="1145.0" y="530.0" font-size="11.5" fill="#222" text-anchor="middle">데이터 + w·물리</text>
-<text x="1145.0" y="548.0" font-size="11.5" fill="#222" text-anchor="middle">+ 처음 조건 + 0.01·사전분포</text>
+<text x="1145.0" y="530.0" font-size="11.5" fill="#222" text-anchor="middle">데이터 + w × 물리</text>
+<text x="1145.0" y="548.0" font-size="11.5" fill="#222" text-anchor="middle">+ 처음 조건 + 0.01 × 사전분포</text>
 <text x="1145.0" y="566.0" font-size="11.5" fill="#222" text-anchor="middle">w: 1 → 10⁴로 올림</text>
 <path d="M1145,170 V486" stroke="#555555" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
 <rect x="250" y="500" width="350" height="60" rx="8" fill="#fbece3" stroke="#D55E00" stroke-width="1.5"/>

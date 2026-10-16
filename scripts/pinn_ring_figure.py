@@ -150,7 +150,7 @@ def figure(p, exps, b: int, snaps: list[dict], n_adam: int, sigma: float) -> Non
         fontsize=5.5,
         ncol=3,
         loc="upper right",
-        title="lines: curve slope · dots: ring rate",
+        title="lines: curve slope; dots: ring rate",
         title_fontsize=5.5,
     )
     # (c) loss terms and the physics weight
@@ -210,7 +210,7 @@ def figure(p, exps, b: int, snaps: list[dict], n_adam: int, sigma: float) -> Non
         frameon=False,
         fontsize=5.5,
         loc="upper left",
-        title="circles: data, first 50 s · lines: ring at t = 0",
+        title="circles: data, first 50 s; lines: ring at t = 0",
         title_fontsize=5.5,
     )
     fig.suptitle(
